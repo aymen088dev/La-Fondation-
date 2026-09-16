@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v3** — permissions fines par rôle, chat `[grade] nom > message`, DB enrichie (playerId partout), menu DB révisé.
+> Dernière mise à jour : **v4** — dossier `serveur/` prêt pour BDS (`world_behavior_packs.json` + `world_resource_packs.json`).
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -87,6 +87,15 @@
 - [x] Script reproductible **`scripts/build_rp_hud.py`** : retélécharge le vanilla, applique les patchs, valide — à relancer après chaque mise à jour Minecraft
 - [x] Textures placeholder (temporaires) générées sans dépendance par **`scripts/make_placeholder_pngs.py`** : 10 bandeaux colorés + fond d'actionbar + pack_icon — à remplacer plus tard par de vrais visuels (mêmes noms de fichiers)
 - [x] Resource Pack séparé (manifest resources + pack_icon), à activer **en plus** du BP dans le monde
+
+---
+
+## 🌍 Déploiement serveur — `serveur/`
+- [x] **`serveur/world_behavior_packs.json`** : active le BP OpenMontage (`2915bab9-50f2-442e-a17a-4c8e9cd688fb` v1.0.0) sur le monde
+- [x] **`serveur/world_resource_packs.json`** : active le RP OpenMontage UI (`33ca6e1c-4f30-46ae-8b56-1510382e3f61` v1.0.0)
+- [x] **`serveur/README.md`** : guide d'installation BDS pas à pas (copie des packs, fusion des tableaux si le monde a déjà des packs, vérifications en jeu, rappel des commandes `/scriptevent sn:*`)
+- [x] Le BP dépend du RP (manifest dependencies) : activer le BP via le monde suffit, le RP est chargé avec lui
+- ⚠️ Rappel : après toute modif TS, `bun run build` puis re-copier `BP/` sur le serveur
 
 ---
 
