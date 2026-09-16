@@ -3,3 +3,4 @@ dist/
 *.js.map
 .env
 .DS_Store
+scripts/.cache_hud_screen.json

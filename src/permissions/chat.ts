@@ -3,13 +3,29 @@ import type { ChatSendBeforeEvent } from "@minecraft/server";
 import type { PermissionManager } from "./manager";
 
 /**
- * Chat personnalisé : chaque message est réécrit avec le prefix coloré
- * du rôle de son auteur, ex :
- *   §6[Admin] §6Aymen§r : salut
+ * Chat personnalisé OpenMontage — format par défaut :
+ *   §8[§<couleur>Joueur§8] §7> §fmessage
+ *
+ * Les crochets et le chevron sont gris, le pseudo prend la couleur du rôle
+ * (ou la couleur personnalisée du joueur). Le message vanilla est annulé et
+ * ré-émis au tick suivant (world.sendMessage est interdit dans un
+ * before-event).
  *
  * Nécessite la dépendance bêta @minecraft/server 2.11.0-beta
  * (expérimentation "Beta APIs" activée sur le monde).
  */
+
+/** Nettoie et borne un message de chat (espaces multiples, longueur). */
+export function sanitizeMessage(raw: string): string {
+  return raw.replace(/\s+/g, " ").trim().slice(0, 256);
+}
+
+/** Format d'un message de chat : [Joueur] > message. */
+export function formatChatMessage(nameTag: string, message: string): string {
+  // nameTag = "§8[§6Admin §6Aymen§8]" : les crochets externes sont déjà gris.
+  return `${nameTag}§r §7> §f${message}`;
+}
+
 export function registerChat(permissions: PermissionManager): void {
   world.beforeEvents.chatSend.subscribe((event: ChatSendBeforeEvent) => {
     if (!permissions.loaded) return;
@@ -20,11 +36,10 @@ export function registerChat(permissions: PermissionManager): void {
     // On annule le message vanilla et on le ré-émet formaté.
     // (world.sendMessage est interdit dans un before-event : on planifie au tick suivant)
     event.cancel = true;
-    const message = event.message.replace(/\s+/g, " ").slice(0, 256);
+    const message = sanitizeMessage(event.message);
 
     system.run(() => {
-      world.sendMessage(`${tag}§r§7: §f${message}`);
+      world.sendMessage(formatChatMessage(tag, message));
     });
   });
 }
-

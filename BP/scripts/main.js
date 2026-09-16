@@ -1783,15 +1783,21 @@ function registerAdminCommands(ctx) {
 
 // src/permissions/chat.ts
 import { world as world5, system as system8 } from "@minecraft/server";
+function sanitizeMessage(raw) {
+  return raw.replace(/\s+/g, " ").trim().slice(0, 256);
+}
+function formatChatMessage(nameTag, message) {
+  return `${nameTag}§r §7> §f${message}`;
+}
 function registerChat(permissions2) {
   world5.beforeEvents.chatSend.subscribe((event) => {
     if (!permissions2.loaded) return;
     const sender = event.sender;
     const tag = permissions2.nameTagFor(sender.name);
     event.cancel = true;
-    const message = event.message.replace(/\s+/g, " ").slice(0, 256);
+    const message = sanitizeMessage(event.message);
     system8.run(() => {
-      world5.sendMessage(`${tag}§r§7: §f${message}`);
+      world5.sendMessage(formatChatMessage(tag, message));
     });
   });
 }
