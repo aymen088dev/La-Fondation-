@@ -9,6 +9,7 @@
 
 import type { Player } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
+import { ICONS } from "../ui/theme";
 import type { JsonDatabase, StoredDocument } from "../db";
 
 /** Libellés lisibles des collections connues (les inconnues passent telles quelles). */
@@ -75,10 +76,10 @@ export async function openDbMenu(db: JsonDatabase, player: Player): Promise<void
     );
 
   for (const section of sections) {
-    form.button(`${labelOf(section)}\n§8${stats.collections[section]} doc(s)`, "textures/ui/icon_setting");
+    form.button(`${labelOf(section)}\n§8${stats.collections[section]} doc(s)`, ICONS.iconSetting);
   }
-  form.button("💾 Forcer la sauvegarde", "textures/ui/icon_save");
-  form.button("§c« Retour", "textures/ui/icon_import");
+  form.button("💾 Forcer la sauvegarde", ICONS.save);
+  form.button("§c« Retour", ICONS.iconImport);
 
   const response = await form.show(player);
   if (response.canceled) return;
@@ -103,8 +104,8 @@ async function openSectionMenu(db: JsonDatabase, player: Player, section: string
     .body(`§7${docs.length} document(s) — clique pour inspecter/modifier :`);
 
   for (const doc of docs) form.button(summarize(doc));
-  form.button("§c🗑 Vider la section", "textures/ui/icon_missing_item");
-  form.button("§7« Retour", "textures/ui/icon_import");
+  form.button("§c🗑 Vider la section", ICONS.trash);
+  form.button("§7« Retour", ICONS.iconImport);
 
   const response = await form.show(player);
   if (response.canceled) return;

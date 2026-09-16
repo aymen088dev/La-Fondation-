@@ -35,28 +35,27 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
     .title(windowTitle("Menu"))
     .body(
       `${divider()}\n§7Salut §f${player.name}§7 !\n` +
-        (hasRole
-          ? `§7Ton rôle : ${permissions.nameTagFor(player.name)}§r\n`
-          : "") +
+        (hasRole ? `§7Ton rôle : ${permissions.nameTagFor(player.name)}§r\n` : "") +
         divider(),
     );
 
   // Entrées joueur (toujours visibles)
-  form.button(`${ICONS.flag}`, "§lTerritoires§r\n§7créer, lister, explorer").button(`${ICONS.compass}`, "§lMon rôle§r\n§7couleur, prefix perso");
+  form.button(`🚩 §lTerritoires§r\n§7créer, lister, explorer`, ICONS.banner);
+  form.button(`🧭 §lMon rôle§r\n§7couleur, prefix perso`, ICONS.compass);
 
   // Entrées modération
   if (isMod) {
-    form.button(`${ICONS.shield}`, "§lModération§r\n§7bans, mutes, warns");
+    form.button(`🛡 §lModération§r\n§7bans, mutes, warns`, ICONS.shield);
   }
 
   // Entrées admin
   if (isAdmin) {
-    form.button(`${ICONS.crown}`, "§lRôles§r\n§7créer et régler les rôles");
-    form.button(`${ICONS.paper}`, "§lJoueurs§r\n§7attribuer rôles et prefixes");
-    form.button(`${ICONS.wrench}`, "§lModules§r\n§7activer/désactiver les features");
+    form.button(`👑 §lRôles§r\n§7créer et régler les rôles`, ICONS.crown);
+    form.button(`📜 §lJoueurs§r\n§7attribuer rôles et prefixes`, ICONS.paper);
+    form.button(`🔧 §lModules§r\n§7activer/désactiver les features`, ICONS.wrench);
   }
 
-  form.button(`${ICONS.barrier}`, "§8Fermer");
+  form.button(`✖ §8Fermer`, ICONS.boxExit);
 
   form
     .show(player)

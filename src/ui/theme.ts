@@ -1,9 +1,18 @@
 /**
  * Thème graphique commun à toutes les GUI OpenMontage.
  *
- * Les icônes pointent vers les textures vanilla du resource pack :
- * chemin relatif "textures/<...>" sans extension .png.
+ * ⚠️ Tous les chemins d'icônes sont VÉRIFIÉS contre Mojang/bedrock-samples
+ * (fichier .png existant dans resource_pack/textures/). Un chemin invalide
+ * = bouton silencieusement sans icône — c'était la cause des icônes manquantes.
  */
+
+import type { Player } from "@minecraft/server";
+import { CustomForm } from "@minecraft/server-ui";
+import type { DataDrivenScreenClosedReason } from "@minecraft/server-ui";
+
+/** Identifiant du Resource Pack OpenMontage (header.name de RP/manifest.json).
+ *  Utilisé par CustomForm.image(src, pack) de l'API DDUI (bêta). */
+export const RP_PACK_ID = "OpenMontage UI";
 
 /** Palette du thème. */
 export const THEME = {
@@ -15,17 +24,14 @@ export const THEME = {
   danger: "§c",
   /** Texte discret. */
   muted: "§7",
-  /** Titre des fenêtres. */
-  brand: "§l§aOM",
 } as const;
 
-/** Icônes vanilla réutilisables (chemins resource pack, sans .png). */
+/** Icônes vanilla vérifiées (chemins resource pack, sans .png). */
 export const ICONS = {
+  // --- items (textures/items/*.png vérifiés) ---
   sword: "textures/items/diamond_sword",
-  shield: "textures/items/shield_base",
-  flag: "textures/items/banner_base",
-  crown: "textures/items/golden_helmet",
   book: "textures/items/book_normal",
+  bookWritable: "textures/items/book_writable",
   compass: "textures/items/compass_item",
   map: "textures/items/map_filled",
   emerald: "textures/items/emerald",
@@ -33,18 +39,58 @@ export const ICONS = {
   goldIngot: "textures/items/gold_ingot",
   ironIngot: "textures/items/iron_ingot",
   clock: "textures/items/clock_item",
-  door: "textures/items/door_acacia_upper",
+  door: "textures/items/crimson_door",
   sign: "textures/items/sign_acacia",
-  bell: "textures/items/bell",
-  anvil: "textures/items/anvil",
-  hammer: "textures/items/iron_pickaxe",
-  lock: "textures/items/name_tag",
+  helmet: "textures/items/iron_helmet",
+  chainHelmet: "textures/items/chainmail_helmet",
+  pickaxe: "textures/items/iron_pickaxe",
+  nameTag: "textures/items/name_tag",
   paper: "textures/items/paper",
   arrow: "textures/items/arrow",
-  barrier: "textures/items/barrier",
-  plus: "textures/items/fire_charge",
+  shears: "textures/items/shears",
+  bannerPattern: "textures/items/banner_pattern",
+  campfire: "textures/items/campfire",
+  // --- ui (textures/ui/*.png vérifiés) ---
+  banner: "textures/ui/banners_dark",
+  iconSetting: "textures/ui/icon_setting",
+  iconImport: "textures/ui/icon_import",
+  iconTrash: "textures/ui/icon_trash",
+  iconNew: "textures/ui/icon_new",
+  iconTimer: "textures/ui/icon_timer",
+  iconMap: "textures/ui/icon_map",
+  iconMail: "textures/ui/icon_mail",
+  iconLock: "textures/ui/icon_lock",
+  iconMultiplayer: "textures/ui/icon_multiplayer",
+  iconSteve: "textures/ui/icon_steve",
+  iconCrafting: "textures/ui/icon_crafting",
+  check: "textures/ui/check",
+  boxExit: "textures/ui/box_exit",
+  downloadBackup: "textures/ui/download_backup",
+  autoSave: "textures/ui/auto_save",
+  freeDownload: "textures/ui/free_download",
+  bell: "textures/ui/icon_bell",
+  armor: "textures/ui/icon_armor",
+  random: "textures/ui/icon_random",
+  expand: "textures/ui/icon_expand",
+  // --- alias sémantiques (mêmes textures vérifiées) ---
+  barrier: "textures/blocks/barrier",
+  crown: "textures/items/iron_helmet",
+  shield: "textures/ui/icon_armor",
+  flag: "textures/ui/banners_dark",
+  lock: "textures/ui/icon_lock",
+  plus: "textures/ui/icon_new",
   wrench: "textures/items/shears",
+  anvil: "textures/blocks/anvil_base",
+  save: "textures/ui/download_backup",
+  trash: "textures/ui/icon_trash",
+  danger: "textures/ui/box_exit",
 } as const;
+
+/**
+ * Fond de panneau custom (RP OpenMontage, généré par make_placeholder_pngs).
+ * Affichable via CustomForm.image() avec RP_PACK_ID.
+ */
+export const OM_PANEL_TEXTURE = "textures/ui/om_actionbar_bg";
 
 /** Construit un titre de fenêtre normalisé : "§l§aOM §r§8» §r§l<title>". */
 export function windowTitle(section: string): string {
@@ -54,4 +100,21 @@ export function windowTitle(section: string): string {
 /** Ligne de séparation pour les body. */
 export function divider(): string {
   return "§8─────────────────────";
+}
+
+/**
+ * Ouvre une fenêtre DDUI (CustomForm) avec le titre OpenMontage et un
+ * bouton de fermeture. Les composants sont ajoutés via le callback.
+ * À préférer aux forms classiques pour les nouveaux menus : boutons à
+ * callbacks directs, images du RP, bindings réactifs.
+ */
+export async function openWindow(
+  player: Player,
+  section: string,
+  build: (form: CustomForm) => void,
+): Promise<DataDrivenScreenClosedReason> {
+  const form = new CustomForm(player, windowTitle(section));
+  build(form);
+  form.closeButton();
+  return form.show();
 }

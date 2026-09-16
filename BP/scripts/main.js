@@ -181,6 +181,7 @@ var init_manager = __esm({
 });
 
 // src/ui/theme.ts
+import { CustomForm } from "@minecraft/server-ui";
 function windowTitle(section) {
   return `§l§aOM §r§8» §r§l${section}`;
 }
@@ -192,11 +193,10 @@ var init_theme = __esm({
   "src/ui/theme.ts"() {
     "use strict";
     ICONS = {
+      // --- items (textures/items/*.png vérifiés) ---
       sword: "textures/items/diamond_sword",
-      shield: "textures/items/shield_base",
-      flag: "textures/items/banner_base",
-      crown: "textures/items/golden_helmet",
       book: "textures/items/book_normal",
+      bookWritable: "textures/items/book_writable",
       compass: "textures/items/compass_item",
       map: "textures/items/map_filled",
       emerald: "textures/items/emerald",
@@ -204,17 +204,51 @@ var init_theme = __esm({
       goldIngot: "textures/items/gold_ingot",
       ironIngot: "textures/items/iron_ingot",
       clock: "textures/items/clock_item",
-      door: "textures/items/door_acacia_upper",
+      door: "textures/items/crimson_door",
       sign: "textures/items/sign_acacia",
-      bell: "textures/items/bell",
-      anvil: "textures/items/anvil",
-      hammer: "textures/items/iron_pickaxe",
-      lock: "textures/items/name_tag",
+      helmet: "textures/items/iron_helmet",
+      chainHelmet: "textures/items/chainmail_helmet",
+      pickaxe: "textures/items/iron_pickaxe",
+      nameTag: "textures/items/name_tag",
       paper: "textures/items/paper",
       arrow: "textures/items/arrow",
-      barrier: "textures/items/barrier",
-      plus: "textures/items/fire_charge",
-      wrench: "textures/items/shears"
+      shears: "textures/items/shears",
+      bannerPattern: "textures/items/banner_pattern",
+      campfire: "textures/items/campfire",
+      // --- ui (textures/ui/*.png vérifiés) ---
+      banner: "textures/ui/banners_dark",
+      iconSetting: "textures/ui/icon_setting",
+      iconImport: "textures/ui/icon_import",
+      iconTrash: "textures/ui/icon_trash",
+      iconNew: "textures/ui/icon_new",
+      iconTimer: "textures/ui/icon_timer",
+      iconMap: "textures/ui/icon_map",
+      iconMail: "textures/ui/icon_mail",
+      iconLock: "textures/ui/icon_lock",
+      iconMultiplayer: "textures/ui/icon_multiplayer",
+      iconSteve: "textures/ui/icon_steve",
+      iconCrafting: "textures/ui/icon_crafting",
+      check: "textures/ui/check",
+      boxExit: "textures/ui/box_exit",
+      downloadBackup: "textures/ui/download_backup",
+      autoSave: "textures/ui/auto_save",
+      freeDownload: "textures/ui/free_download",
+      bell: "textures/ui/icon_bell",
+      armor: "textures/ui/icon_armor",
+      random: "textures/ui/icon_random",
+      expand: "textures/ui/icon_expand",
+      // --- alias sémantiques (mêmes textures vérifiées) ---
+      barrier: "textures/blocks/barrier",
+      crown: "textures/items/iron_helmet",
+      shield: "textures/ui/icon_armor",
+      flag: "textures/ui/banners_dark",
+      lock: "textures/ui/icon_lock",
+      plus: "textures/ui/icon_new",
+      wrench: "textures/items/shears",
+      anvil: "textures/blocks/anvil_base",
+      save: "textures/ui/download_backup",
+      trash: "textures/ui/icon_trash",
+      danger: "textures/ui/box_exit"
     };
   }
 });
@@ -663,6 +697,7 @@ init_manager();
 import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system7 } from "@minecraft/server";
 
 // src/db/menu.ts
+init_theme();
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 var COLLECTION_LABELS = {
   players_index: "👥 Joueurs",
@@ -707,10 +742,10 @@ async function openDbMenu(db2, player) {
   );
   for (const section2 of sections) {
     form.button(`${labelOf(section2)}
-§8${stats.collections[section2]} doc(s)`, "textures/ui/icon_setting");
+§8${stats.collections[section2]} doc(s)`, ICONS.iconSetting);
   }
-  form.button("💾 Forcer la sauvegarde", "textures/ui/icon_save");
-  form.button("§c« Retour", "textures/ui/icon_import");
+  form.button("💾 Forcer la sauvegarde", ICONS.save);
+  form.button("§c« Retour", ICONS.iconImport);
   const response = await form.show(player);
   if (response.canceled) return;
   if (response.selection === sections.length) {
@@ -726,8 +761,8 @@ async function openSectionMenu(db2, player, section) {
   const docs = db2.find(section);
   const form = new ActionFormData().title(`OpenMontage » ${labelOf(section)}`).body(`§7${docs.length} document(s) — clique pour inspecter/modifier :`);
   for (const doc2 of docs) form.button(summarize(doc2));
-  form.button("§c🗑 Vider la section", "textures/ui/icon_missing_item");
-  form.button("§7« Retour", "textures/ui/icon_import");
+  form.button("§c🗑 Vider la section", ICONS.trash);
+  form.button("§7« Retour", ICONS.iconImport);
   const response = await form.show(player);
   if (response.canceled) return;
   if (response.selection === docs.length) {
@@ -5436,16 +5471,23 @@ function openHubMenu(player, deps) {
 ` + (hasRole ? `§7Ton rôle : ${permissions2.nameTagFor(player.name)}§r
 ` : "") + divider()
   );
-  form.button(`${ICONS.flag}`, "§lTerritoires§r\n§7créer, lister, explorer").button(`${ICONS.compass}`, "§lMon rôle§r\n§7couleur, prefix perso");
+  form.button(`🚩 §lTerritoires§r
+§7créer, lister, explorer`, ICONS.banner);
+  form.button(`🧭 §lMon rôle§r
+§7couleur, prefix perso`, ICONS.compass);
   if (isMod) {
-    form.button(`${ICONS.shield}`, "§lModération§r\n§7bans, mutes, warns");
+    form.button(`🛡 §lModération§r
+§7bans, mutes, warns`, ICONS.shield);
   }
   if (isAdmin) {
-    form.button(`${ICONS.crown}`, "§lRôles§r\n§7créer et régler les rôles");
-    form.button(`${ICONS.paper}`, "§lJoueurs§r\n§7attribuer rôles et prefixes");
-    form.button(`${ICONS.wrench}`, "§lModules§r\n§7activer/désactiver les features");
+    form.button(`👑 §lRôles§r
+§7créer et régler les rôles`, ICONS.crown);
+    form.button(`📜 §lJoueurs§r
+§7attribuer rôles et prefixes`, ICONS.paper);
+    form.button(`🔧 §lModules§r
+§7activer/désactiver les features`, ICONS.wrench);
   }
-  form.button(`${ICONS.barrier}`, "§8Fermer");
+  form.button(`✖ §8Fermer`, ICONS.boxExit);
   form.show(player).then((response) => {
     if (response.canceled || response.selection === void 0) return;
     const actions = [];
