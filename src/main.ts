@@ -67,6 +67,7 @@ world.afterEvents.worldLoad.subscribe(() => {
   permissions.markLoaded();
   modules.markLoaded();
   territories.markLoaded();
+  sanctions.markLoaded();
 
   // Rôles par défaut ([Joueur], [Modo]) puis bootstrap admin :
   // le premier opérateur vanilla devient Admin si aucun admin n'existe
@@ -95,6 +96,11 @@ world.afterEvents.worldLoad.subscribe(() => {
     getMute: (playerName) => sanctions.getMute(playerName),
   });
 
+  registerChat({
+    permissions,
+    getMute: (playerName) => sanctions.getMute(playerName),
+  });
+
   // Sanctions : éjection des bannis au spawn (mute = géré dans le chat)
   registerEnforcement(sanctions);
 
@@ -113,6 +119,7 @@ world.afterEvents.worldLoad.subscribe(() => {
 
 // Fallback : si worldLoad n'arrive pas (ou arrive après un join), on active au 1er spawn
 let worldReady = false;
+let chatRegistered = false;
 system.runInterval(() => {
   if (worldReady) return;
   if (world.getAllPlayers().length === 0) return;
@@ -134,6 +141,18 @@ system.runInterval(() => {
       applyNameTag(player.name);
     }
   }
+
+  // Le chat et l'enforcement des bans doivent aussi marcher en fallback
+  // (avant : sans worldLoad, un muet pouvait parler et un banni rester).
+  if (!chatRegistered) {
+    chatRegistered = true;
+    registerChat({
+      permissions,
+      getMute: (playerName) => sanctions.getMute(playerName),
+    });
+    registerEnforcement(sanctions);
+  }
+
   if (!protectionRegistered) {
     protectionRegistered = true;
     registerProtection(territories, modules);

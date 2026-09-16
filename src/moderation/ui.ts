@@ -3,6 +3,7 @@ import type { Player } from "@minecraft/server";
 import { windowTitle, ICONS, openWindow, openWindowRaw, obString, obNumber } from "../ui/theme";
 import type { SanctionsManager } from "./manager";
 import { formatDuration } from "./manager";
+import { formatDate } from "../territories/manager";
 import type { PermissionManager } from "../permissions/manager";
 
 /** Garde-fou : niveau de modération requis (>= 60) ou op vanilla. */
@@ -177,7 +178,7 @@ function openHistoryLookup(player: Player, sanctions: SanctionsManager): void {
       player.sendMessage(`§6[Modération] Historique de ${name} (${entries.length}) :`);
       for (const entry of entries) {
         player.sendMessage(
-          `§7- §f${entry.data.kind} §7par §f${entry.data.by} §7— §f${entry.data.reason} §8(${new Date(entry.data.at).toLocaleString()})`,
+          `§7- §f${entry.data.kind} §7par §f${entry.data.by} §7— §f${entry.data.reason} §8(${formatDate(entry.data.at)})`,
         );
       }
     });

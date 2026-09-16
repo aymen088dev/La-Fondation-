@@ -117,9 +117,11 @@ export class PermissionManager {
     // Interdit de supprimer les rôles système
     if (role.data.level >= 100) return { ok: false, error: "Impossible de supprimer un rôle Admin." };
 
-    // Détache tous les membres avant suppression
+    // Détache tous les membres (rôle vidé) SANS supprimer leur fiche :
+    // elle porte leur prefix/couleur perso et leur identité (playerId).
     for (const member of this.db.find<MemberData>(MEMBERS_COLLECTION, (doc) => doc.data.role === name)) {
-      this.db.delete(MEMBERS_COLLECTION, member.id);
+      member.data.role = "";
+      member.updatedAt = Date.now();
     }
     this.db.delete(ROLES_COLLECTION, name);
     this.touch();

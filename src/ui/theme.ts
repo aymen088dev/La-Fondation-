@@ -12,8 +12,21 @@ import {
   ObservableString,
   ObservableNumber,
   ObservableBoolean,
+  type UIRawMessage,
 } from "@minecraft/server-ui";
-import type { DataDrivenScreenClosedReason } from "@minecraft/server-ui";
+import type {
+  ButtonOptions,
+  DataDrivenScreenClosedReason,
+  DividerOptions,
+  DropdownItemData,
+  DropdownOptions,
+  ImageOptions,
+  SliderOptions,
+  SpacingOptions,
+  TextFieldOptions,
+  TextOptions,
+  ToggleOptions,
+} from "@minecraft/server-ui";
 
 /** Identifiant du Resource Pack OpenMontage (header.name de RP/manifest.json).
  *  Utilisé par CustomForm.image(src, pack) de l'API DDUI (bêta). */
@@ -97,7 +110,7 @@ export const ICONS = {
  */
 export const OM_PANEL_TEXTURE = "textures/ui/om_actionbar_bg";
 
-/** Construit un titre de fenêtre normalisé : "§l§aOM §r§8» §r§l<title>". */
+/** Construit un titre de fenêtre normalisé : "OM » <title>" (gras, vert/gris). */
 export function windowTitle(section: string): string {
   return `§l§aOM §r§8» §r§l${section}`;
 }
@@ -142,16 +155,181 @@ export function obToggle(
   return observable;
 }
 
+/** Message UI en rawtext : SEUL format où les codes § sont interprétés
+ *  par le rendu DDUI (les strings brutes affichent les §l littéralement). */
+function uiText(text: string): UIRawMessage {
+  return { rawtext: [{ text }] };
+}
+
 /**
- * Ouvre une fenêtre DDUI (CustomForm) avec le titre OpenMontage et un
- * bouton de fermeture. Les composants sont ajoutés via le callback.
+ * Enveloppe CustomForm du thème. Deux apports :
+ * 1. tout texte passé en string est converti en UIRawMessage (codes § rendus) ;
+ * 2. le formulaire ouvert est suivi par joueur : la fermeture centralisée
+ *    (`closeOpenForm`) permet aux menus de fermer l'écran courant avant
+ *    d'ouvrir le suivant (sinon les écrans s'empilent).
+ */
+export class OMForm {
+  readonly inner: CustomForm;
+  private readonly player: Player;
+
+  constructor(player: Player, title: string) {
+    this.player = player;
+    this.inner = new CustomForm(player, uiText(title));
+  }
+
+  /** Ferme ce formulaire si l'écran s'affiche encore (sinon no-op). */
+  closeIfShowing(): void {
+    try {
+      if (this.inner.isShowing()) this.inner.close();
+    } catch {
+      // L'écran a déjà été fermé (client ou autre écran) — rien à faire.
+    }
+  }
+
+  header(text: string, options?: Omit<TextOptions, "tooltip">): OMForm {
+    this.inner.header(uiText(text), options);
+    return this;
+  }
+
+  label(text: string, options?: Omit<TextOptions, "tooltip">): OMForm {
+    this.inner.label(uiText(text), options);
+    return this;
+  }
+
+  button(
+    label: string,
+    onClick: () => void,
+    options?: ButtonOptions,
+  ): OMForm {
+    this.inner.button(
+      uiText(label),
+      () => {
+        // Un clic quitte TOUJOURS l'écran courant :
+        // - navigation : le menu ouvert par onClick remplace celui-ci ;
+        // - action terminale (création, sanctions…) : l'écran se referme.
+        closeOpenForm(this.player);
+        onClick();
+      },
+      options,
+    );
+    return this;
+  }
+
+  divider(options?: DividerOptions): OMForm {
+    this.inner.divider(options);
+    return this;
+  }
+
+  spacer(options?: SpacingOptions): OMForm {
+    this.inner.spacer(options);
+    return this;
+  }
+
+  toggle(
+    label: string,
+    toggled: ObservableBoolean,
+    options?: ToggleOptions,
+  ): OMForm {
+    this.inner.toggle(uiText(label), toggled, options);
+    return this;
+  }
+
+  slider(
+    label: string,
+    value: ObservableNumber,
+    min: number | ObservableNumber,
+    max: number | ObservableNumber,
+    options?: SliderOptions,
+  ): OMForm {
+    this.inner.slider(uiText(label), value, min, max, options);
+    return this;
+  }
+
+  dropdown(
+    label: string,
+    value: ObservableNumber,
+    items: (DropdownItemData | string)[],
+    options?: DropdownOptions,
+  ): OMForm {
+    // Tous les labels d'items passent en rawtext (codes § rendus) ; un item
+    // string prend la valeur de son index. Les objets fournis par l'appelant
+    // sont reconstruits (JAMAIS mutés) avec leur valeur explicite conservée.
+    const data: DropdownItemData[] = items.map((item, index) => {
+      if (typeof item === "string") return { label: uiText(item), value: index };
+      return {
+        ...item,
+        label: typeof item.label === "string" ? uiText(item.label) : item.label,
+      } as DropdownItemData;
+    });
+    this.inner.dropdown(uiText(label), value, data, options);
+    return this;
+  }
+
+  textField(
+    label: string,
+    text: ObservableString,
+    options?: TextFieldOptions,
+  ): OMForm {
+    this.inner.textField(uiText(label), text, options);
+    return this;
+  }
+
+  image(src: string, pack: string, options?: ImageOptions): OMForm {
+    this.inner.image(src, pack, options);
+    return this;
+  }
+
+  closeButton(): OMForm {
+    this.inner.closeButton();
+    return this;
+  }
+
+  show(): Promise<DataDrivenScreenClosedReason> {
+    // Robustesse : si un écran précédent est encore affiché (flux qui ne
+    // passe pas par un bouton OMForm), on le ferme avant d'afficher celui-ci.
+    const previous = openForms.get(this.player.id);
+    if (previous !== undefined && previous !== this) previous.closeIfShowing();
+    openForms.set(this.player.id, this);
+    return this.inner.show().finally(() => {
+      // Écran fermé (client ou serveur) : on retire le suivi, sauf si un
+      // autre formulaire a déjà pris la place (navigation en cours).
+      if (openForms.get(this.player.id) === this) {
+        openForms.delete(this.player.id);
+      }
+    });
+  }
+
+  isShowing(): boolean {
+    return this.inner.isShowing();
+  }
+}
+
+/** Formulaire actuellement affiché, par joueur. */
+const openForms = new Map<string, OMForm>();
+
+/**
+ * Ferme l'écran DDUI ouvert pour ce joueur, s'il y en a un.
+ * À appeler AVANT d'ouvrir un autre menu (sinon les écrans s'empilent
+ * et le clic d'un bouton laisse l'ancien menu à l'écran).
+ */
+export function closeOpenForm(player: Player): void {
+  const current = openForms.get(player.id);
+  if (current === undefined) return;
+  openForms.delete(player.id);
+  current.closeIfShowing();
+}
+
+/**
+ * Ouvre une fenêtre DDUI (OMForm) avec le titre OpenMontage, ferme
+ * d'abord l'écran éventuellement ouvert, et ajoute un bouton de fermeture.
  */
 export async function openWindow(
   player: Player,
   section: string,
-  build: (form: CustomForm) => void,
+  build: (form: OMForm) => void,
 ): Promise<DataDrivenScreenClosedReason> {
-  const form = new CustomForm(player, windowTitle(section));
+  closeOpenForm(player);
+  const form = new OMForm(player, windowTitle(section));
   build(form);
   form.closeButton();
   return form.show();
@@ -161,9 +339,10 @@ export async function openWindow(
 export async function openWindowRaw(
   player: Player,
   title: string,
-  build: (form: CustomForm) => void,
+  build: (form: OMForm) => void,
 ): Promise<DataDrivenScreenClosedReason> {
-  const form = new CustomForm(player, title);
+  closeOpenForm(player);
+  const form = new OMForm(player, title);
   build(form);
   return form.show();
 }

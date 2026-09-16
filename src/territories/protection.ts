@@ -1,4 +1,16 @@
 import { world, system, GameMode, Player } from "@minecraft/server";
+
+/** Envoie un message à un joueur depuis un before-event (read-only) :
+ *  l'écriture est interdite ici, on planifie au tick suivant. */
+function safeSend(player: Player, message: string): void {
+  system.run(() => {
+    try {
+      player.sendMessage(message);
+    } catch {
+      // joueur parti entre-temps : on ignore
+    }
+  });
+}
 import type { TerritoryManager } from "./manager";
 import { chunkKeyFromPosition } from "./manager";
 import type { ModuleManager } from "../modules/manager";
@@ -49,7 +61,7 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
 
     if (isProtectedForId(event.block, player, manager)) {
       event.cancel = true;
-      player.sendMessage(DENY_BREAK);
+      safeSend(player, DENY_BREAK);
     }
   });
 
@@ -79,7 +91,7 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
       }
     });
 
-    player.sendMessage(DENY_PLACE);
+    safeSend(player, DENY_PLACE);
   });
 
   // 3. Interaction avec un bloc (coffres, portes, leviers...)
@@ -91,7 +103,7 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
 
     if (isProtectedForId(event.block, player, manager)) {
       event.cancel = true;
-      player.sendMessage(DENY_INTERACT);
+      safeSend(player, DENY_INTERACT);
     }
   });
 
@@ -105,7 +117,7 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
     const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
     if (!manager.isAllowedFor(player.id, player.name, key)) {
       event.cancel = true;
-      player.sendMessage(DENY_ITEM);
+      safeSend(player, DENY_ITEM);
     }
   });
 
@@ -119,7 +131,7 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
     const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
     if (!manager.isAllowedFor(player.id, player.name, key)) {
       event.cancel = true;
-      player.sendMessage(DENY_INTERACT);
+      safeSend(player, DENY_INTERACT);
     }
   });
 
@@ -152,7 +164,7 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
       if (defendsTerritory || fightsFromHome) return;
 
       event.cancel = true;
-      attacker.sendMessage(DENY_COMBAT);
+      safeSend(attacker, DENY_COMBAT);
       return;
     }
 
@@ -160,7 +172,7 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
     const key = chunkKeyFromPosition(victim.dimension.id, victim.location.x, victim.location.z);
     if (manager.isProtected(key)) {
       event.cancel = true;
-      attacker.sendMessage("§c[Territoires] Chunk protégé : les créatures ici sont sous la protection du propriétaire.");
+      safeSend(attacker, "§c[Territoires] Chunk protégé : les créatures ici sont sous la protection du propriétaire.");
     }
   });
 

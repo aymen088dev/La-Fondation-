@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v4** — dossier `serveur/` prêt pour BDS (`world_behavior_packs.json` + `world_resource_packs.json`).
+> Dernière mise à jour : **v6** — revue complète du projet : 9 bugs/incohérences corrigés (worldLoad, kick serveur, read-only events, dropdown…).
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -79,6 +79,9 @@
 ## 🎨 UI / Resource Pack — `RP/`
 - [x] Thème GUI partagé (`src/ui/theme.ts`) : titres unifiés `OM »`, **43 icônes toutes vérifiées** contre `Mojang/bedrock-samples` (6 chemins morts corrigés — un chemin invalide = icône silencieusement absente)
 - [x] Helper `openWindow` (DDUI `CustomForm`, bêta server-ui 2.3) : la nouvelle API de menus réactifs — boutons à callbacks directs, **images depuis notre Resource Pack** (`image(src, pack)`), bindings observables. Migration progressive des menus prévue
+- [x] **Moteur de menus `OMForm`** (`src/ui/theme.ts`) : enveloppe du `CustomForm` DDUI qui apporte les 2 correctifs d'affichage :
+  - **Codes § rendus** : tout texte (titres, labels, headers, boutons, toggles, sliders, dropdowns, textFields) est converti en **`UIRawMessage`** (`{ rawtext: [{ text }] }`) — c'est le seul format où le rendu DDUI interprète les codes `§l`/`§a`… ; en string brute ils s'affichaient littéralement dans le menu
+  - **Navigation** : le formulaire ouvert est suivi par joueur (`openForms`) ; `OMForm.button()` ferme TOUJOURS l'écran courant au clic — soit le menu ouvert par le callback le remplace (navigation), soit l'écran se referme (action terminale) ; `show()` ferme aussi un écran précédent encore affiché ; le suivi est nettoyé à la fermeture (`.finally`)
 - [x] **Limite API documentée** : un script ne peut PAS ouvrir un écran JSON UI arbitraire (le JSON UI est rendu par le RP, l'ouverture via script n'existe pas) — `CustomForm` est l'évolution officielle
 - [x] **Hub central `/sn:menu`** : porte d'entrée de tout, n'affiche que ce à quoi ton rôle donne droit
 - [x] **JSON UI réel** : `RP/ui/hud_screen.json` **PARTIEL** qui redéfinit les 2 éléments ciblés (`hud_actionbar_text`, `hud_title_text`) copiés du vanilla + retouches (fond `om_actionbar_bg`)
@@ -98,6 +101,19 @@
 - ⚠️ Rappel : après toute modif TS, `bun run build` puis re-copier `BP/` sur le serveur
 
 ---
+
+---
+
+## 🔍 Revue complète (v6)
+- [x] **worldLoad** : `sanctions.markLoaded()` était oublié → un banni n'était JAMAIS éjecté au join (`registerEnforcement` vérifiait `sanctions.loaded`, resté false). + chat/enforcement désormais aussi enregistrés dans le fallback (sans worldLoad : un muet pouvait parler)
+- [x] **Kick côté serveur** : `player.runCommand("kick")` échouait pour un non-opérateur → `dimension.runCommand` (permissions serveur) + échappement des guillemets du motif
+- [x] **Events read-only** : les `sendMessage` dans les before-events (protection territoires) sont interdits en read-only → planifiés au tick suivant (`safeSend`) — plus d'erreurs silencieuses du content log
+- [x] **Dropdown OMForm** : labels d'items convertis en rawtext (les § s'affichaient) et objets appelants JAMAIS mutés (reconstruction avec valeur conservée)
+- [x] **Anti-injection chat** : les codes § saisis par les joueurs sont neutralisés (plus de couleurs arbitraires dans le chat)
+- [x] **`toLocaleString()`** (Intl indisponible dans QuickJS) remplacé par `formatDate()` dans l'historique de modération
+- [x] **deleteRole** : détache les membres (role="") au lieu de supprimer leurs fiches — prefix/couleur perso et playerId préservés
+- [x] Message d'éjection `[Territoires/OpenMontage]` → `[OpenMontage]` ; calcul Ko corrigé dans `/sn:db list`
+- [x] Doc obsolète (kick via player.runCommand) mise à jour
 
 ## 🧰 Veille outils
 - [x] `utile.md` : outils GitHub classés (toolchain, Script API, serveurs, JSON UI) — déjà utilisés vs à évaluer
@@ -121,3 +137,8 @@
 6. **DB « non chargée » / 0 territoire** : `load()` sur base inexistante ne posait pas `loaded` (monde neuf = tout mort) et `save()` pouvait écraser la DB stockée avec du vide avant le worldLoad. Corrigé + tests de régression.
 7. **JSON UI invisible** : le patch par remplacement de texte tapait la 1re occurrence d'une texture présente 5 fois (pas celle de l'actionbar). Remplacé par la méthode partielle des packs établis (Canopy/OriginsPE).
 8. **Icônes invisibles dans les menus** : 6 chemins d'icônes n'existaient pas dans le vanilla (`icon_missing_item`, `icon_save`, `banner_base`, `shield_base`, `golden_helmet`, `door_acacia_upper`, `bell`, `anvil`, `barrier`, `fire_charge` en items...). Corrigés et **tous vérifiés automatiquement** contre l'arborescence officielle.
+9. **`§l` visibles en clair dans les menus DDUI** : le rendu `CustomForm` n'interprète pas les codes § dans les strings brutes — passage systématique par `UIRawMessage` (rawtext) dans le wrapper `OMForm`.
+10. **Menu qui reste ouvert après un clic** : les callbacks ouvraient un 2e formulaire par-dessus le 1er (empilement) — `OMForm` ferme désormais l'écran courant avant chaque action/navigation (suivi par joueur + `close()`).
+11. **Bans jamais appliqués au join** : `sanctions.markLoaded()` manquant au worldLoad → `registerEnforcement` se croyait désactivé. Corrigé (+ fallback chat/enforcement).
+12. **Kick qui échouait pour un non-op** : kick exécuté côté serveur (`dimension.runCommand`) au lieu de la perspective du joueur.
+13. **sendMessage en read-only** : messages de protection planifiés au tick suivant via `system.run` (écriture interdite dans les before-events).

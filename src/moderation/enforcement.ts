@@ -1,13 +1,15 @@
 import { world, system } from "@minecraft/server";
 import type { SanctionsManager } from "./manager";
 
-/** Éjecte un joueur du monde (kick vanilla via runCommand). */
+/** Éjecte un joueur du monde (kick vanilla exécuté côté serveur). */
 export function kickPlayer(playerName: string, reason: string): boolean {
   const player = world.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === undefined) return false;
 
   try {
-    player.runCommand(`kick "${playerName}" ${reason}`);
+    // dimension.runCommand s'exécute avec les permissions SERVEUR —
+    // player.runCommand échouerait pour un non-opérateur.
+    player.dimension.runCommand(`kick "${playerName}" ${reason.replace(/"/g, "")}`);
     return true;
   } catch {
     return false;
@@ -35,7 +37,7 @@ export function registerEnforcement(sanctions: SanctionsManager): void {
         : `§4BANNI§7 (encore ${Math.max(1, Math.ceil((ban.expiresAt - Date.now()) / 60_000))} min)`;
 
     // On affiche le motif puis on éjecte au tick suivant
-    player.sendMessage(`§c[Territoires/OpenMontage] ${expiry}\n§7Motif : §f${ban.reason}§7 — par §f${ban.by}`);
+    player.sendMessage(`§c[OpenMontage] ${expiry}\n§7Motif : §f${ban.reason}§7 — par §f${ban.by}`);
     system.run(() => {
       kickPlayer(player.name, ban.reason);
     });

@@ -4,7 +4,7 @@
  * - Ban : persistant -> le joueur est éjecté au join s'il est banni
  * - Mute : temporisé -> ses messages chat sont bloqués
  * - Warn : compteur d'avertissements avec historique
- * - Kick : éjection immédiate (via player.runCommand("kick"))
+ * - Kick : éjection immédiate (via dimension.runCommand("kick"), côté serveur)
  *
  * Toutes les sanctions sont journalisées dans la collection "infractions".
  */

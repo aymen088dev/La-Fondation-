@@ -164,7 +164,7 @@ export function registerCommands(
             }
             const preview = docs
               .slice(0, 10)
-              .map((doc) => `§f${doc.id}§7(${Math.round((JSON.stringify(doc).length / 10) * 100) / 1000}ko)`)
+              .map((doc) => `§f${doc.id}§7(${Math.round(JSON.stringify(doc).length / 1024 * 10) / 10}ko)`)
               .join(", ");
             return {
               status: CustomCommandStatus.Success,

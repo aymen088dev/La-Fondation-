@@ -305,18 +305,29 @@ function obToggle(initial, onChange) {
   observable.subscribe(onChange);
   return observable;
 }
+function uiText(text) {
+  return { rawtext: [{ text }] };
+}
+function closeOpenForm(player) {
+  const current = openForms.get(player.id);
+  if (current === void 0) return;
+  openForms.delete(player.id);
+  current.closeIfShowing();
+}
 async function openWindow(player, section, build) {
-  const form = new CustomForm(player, windowTitle(section));
+  closeOpenForm(player);
+  const form = new OMForm(player, windowTitle(section));
   build(form);
   form.closeButton();
   return form.show();
 }
 async function openWindowRaw(player, title, build) {
-  const form = new CustomForm(player, title);
+  closeOpenForm(player);
+  const form = new OMForm(player, title);
   build(form);
   return form.show();
 }
-var RP_PACK_ID, ICONS;
+var RP_PACK_ID, ICONS, OMForm, openForms;
 var init_theme = __esm({
   "src/ui/theme.ts"() {
     "use strict";
@@ -379,6 +390,93 @@ var init_theme = __esm({
       trash: "textures/ui/icon_trash",
       danger: "textures/ui/box_exit"
     };
+    OMForm = class {
+      inner;
+      player;
+      constructor(player, title) {
+        this.player = player;
+        this.inner = new CustomForm(player, uiText(title));
+      }
+      /** Ferme ce formulaire si l'écran s'affiche encore (sinon no-op). */
+      closeIfShowing() {
+        try {
+          if (this.inner.isShowing()) this.inner.close();
+        } catch {
+        }
+      }
+      header(text, options) {
+        this.inner.header(uiText(text), options);
+        return this;
+      }
+      label(text, options) {
+        this.inner.label(uiText(text), options);
+        return this;
+      }
+      button(label, onClick, options) {
+        this.inner.button(
+          uiText(label),
+          () => {
+            closeOpenForm(this.player);
+            onClick();
+          },
+          options
+        );
+        return this;
+      }
+      divider(options) {
+        this.inner.divider(options);
+        return this;
+      }
+      spacer(options) {
+        this.inner.spacer(options);
+        return this;
+      }
+      toggle(label, toggled, options) {
+        this.inner.toggle(uiText(label), toggled, options);
+        return this;
+      }
+      slider(label, value, min, max, options) {
+        this.inner.slider(uiText(label), value, min, max, options);
+        return this;
+      }
+      dropdown(label, value, items, options) {
+        const data = items.map((item, index) => {
+          if (typeof item === "string") return { label: uiText(item), value: index };
+          return {
+            ...item,
+            label: typeof item.label === "string" ? uiText(item.label) : item.label
+          };
+        });
+        this.inner.dropdown(uiText(label), value, data, options);
+        return this;
+      }
+      textField(label, text, options) {
+        this.inner.textField(uiText(label), text, options);
+        return this;
+      }
+      image(src, pack, options) {
+        this.inner.image(src, pack, options);
+        return this;
+      }
+      closeButton() {
+        this.inner.closeButton();
+        return this;
+      }
+      show() {
+        const previous = openForms.get(this.player.id);
+        if (previous !== void 0 && previous !== this) previous.closeIfShowing();
+        openForms.set(this.player.id, this);
+        return this.inner.show().finally(() => {
+          if (openForms.get(this.player.id) === this) {
+            openForms.delete(this.player.id);
+          }
+        });
+      }
+      isShowing() {
+        return this.inner.isShowing();
+      }
+    };
+    openForms = /* @__PURE__ */ new Map();
   }
 });
 
@@ -511,7 +609,7 @@ function kickPlayer(playerName, reason) {
   const player = world10.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return false;
   try {
-    player.runCommand(`kick "${playerName}" ${reason}`);
+    player.dimension.runCommand(`kick "${playerName}" ${reason.replace(/"/g, "")}`);
     return true;
   } catch {
     return false;
@@ -524,7 +622,7 @@ function registerEnforcement(sanctions2) {
     const ban = sanctions2.getBan(player.name);
     if (ban === void 0) return;
     const expiry = ban.expiresAt === 0 ? "§4BANNI PERMANENTLEMENT" : `§4BANNI§7 (encore ${Math.max(1, Math.ceil((ban.expiresAt - Date.now()) / 6e4))} min)`;
-    player.sendMessage(`§c[Territoires/OpenMontage] ${expiry}
+    player.sendMessage(`§c[OpenMontage] ${expiry}
 §7Motif : §f${ban.reason}§7 — par §f${ban.by}`);
     system10.run(() => {
       kickPlayer(player.name, ban.reason);
@@ -4710,7 +4808,7 @@ function registerCommands(manager, db2, modules2, permissions2) {
             if (docs.length === 0) {
               return { status: CustomCommandStatus.Success, message: `§7[DB] Collection "${arg1}" vide ou inexistante.` };
             }
-            const preview = docs.slice(0, 10).map((doc) => `§f${doc.id}§7(${Math.round(JSON.stringify(doc).length / 10 * 100) / 1e3}ko)`).join(", ");
+            const preview = docs.slice(0, 10).map((doc) => `§f${doc.id}§7(${Math.round(JSON.stringify(doc).length / 1024 * 10) / 10}ko)`).join(", ");
             return {
               status: CustomCommandStatus.Success,
               message: `§a[DB] ${docs.length} doc(s) dans "${arg1}" : ${preview}${docs.length > 10 ? " …" : ""}`
@@ -4744,6 +4842,14 @@ function registerCommands(manager, db2, modules2, permissions2) {
 // src/territories/protection.ts
 init_manager();
 import { world as world7, system as system8, GameMode as GameMode2, Player as Player3 } from "@minecraft/server";
+function safeSend(player, message) {
+  system8.run(() => {
+    try {
+      player.sendMessage(message);
+    } catch {
+    }
+  });
+}
 var DENY_BREAK = "§c[Territoires] Chunk protégé : destruction impossible.";
 var DENY_PLACE = "§c[Territoires] Chunk protégé : construction impossible.";
 var DENY_INTERACT = "§c[Territoires] Chunk protégé : interaction impossible.";
@@ -4765,7 +4871,7 @@ function registerProtection(manager, modules2) {
     if (isCreative(player.name)) return;
     if (isProtectedForId(event.block, player, manager)) {
       event.cancel = true;
-      player.sendMessage(DENY_BREAK);
+      safeSend(player, DENY_BREAK);
     }
   });
   world7.afterEvents.playerPlaceBlock.subscribe((event) => {
@@ -4785,7 +4891,7 @@ function registerProtection(manager, modules2) {
       } catch {
       }
     });
-    player.sendMessage(DENY_PLACE);
+    safeSend(player, DENY_PLACE);
   });
   world7.beforeEvents.playerInteractWithBlock.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
@@ -4793,7 +4899,7 @@ function registerProtection(manager, modules2) {
     if (isCreative(player.name)) return;
     if (isProtectedForId(event.block, player, manager)) {
       event.cancel = true;
-      player.sendMessage(DENY_INTERACT);
+      safeSend(player, DENY_INTERACT);
     }
   });
   world7.beforeEvents.itemUse.subscribe((event) => {
@@ -4803,7 +4909,7 @@ function registerProtection(manager, modules2) {
     const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
     if (!manager.isAllowedFor(player.id, player.name, key)) {
       event.cancel = true;
-      player.sendMessage(DENY_ITEM);
+      safeSend(player, DENY_ITEM);
     }
   });
   world7.beforeEvents.playerInteractWithEntity.subscribe((event) => {
@@ -4813,7 +4919,7 @@ function registerProtection(manager, modules2) {
     const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
     if (!manager.isAllowedFor(player.id, player.name, key)) {
       event.cancel = true;
-      player.sendMessage(DENY_INTERACT);
+      safeSend(player, DENY_INTERACT);
     }
   });
   world7.beforeEvents.entityHurt.subscribe((event) => {
@@ -4831,13 +4937,13 @@ function registerProtection(manager, modules2) {
       const fightsFromHome = attackerTerritory !== void 0 && (attackerTerritory.data.ownerId === attacker.id || attackerTerritory.data.owner === attacker.name);
       if (defendsTerritory || fightsFromHome) return;
       event.cancel = true;
-      attacker.sendMessage(DENY_COMBAT);
+      safeSend(attacker, DENY_COMBAT);
       return;
     }
     const key = chunkKeyFromPosition(victim.dimension.id, victim.location.x, victim.location.z);
     if (manager.isProtected(key)) {
       event.cancel = true;
-      attacker.sendMessage("§c[Territoires] Chunk protégé : les créatures ici sont sous la protection du propriétaire.");
+      safeSend(attacker, "§c[Territoires] Chunk protégé : les créatures ici sont sous la protection du propriétaire.");
     }
   });
   world7.beforeEvents.explosion.subscribe((event) => {
@@ -4952,7 +5058,8 @@ var PermissionManager = class {
     if (role === void 0) return { ok: false, error: "Rôle introuvable." };
     if (role.data.level >= 100) return { ok: false, error: "Impossible de supprimer un rôle Admin." };
     for (const member of this.db.find(MEMBERS_COLLECTION, (doc) => doc.data.role === name)) {
-      this.db.delete(MEMBERS_COLLECTION, member.id);
+      member.data.role = "";
+      member.updatedAt = Date.now();
     }
     this.db.delete(ROLES_COLLECTION, name);
     this.touch();
@@ -5767,6 +5874,7 @@ var SanctionsManager = class {
 };
 
 // src/moderation/ui.ts
+init_manager();
 function resolveTargetId(targetName) {
   const online = world11.getAllPlayers().find((candidate) => candidate.name === targetName);
   return online?.id ?? null;
@@ -5910,7 +6018,7 @@ function openHistoryLookup(player, sanctions2) {
       player.sendMessage(`§6[Modération] Historique de ${name} (${entries.length}) :`);
       for (const entry of entries) {
         player.sendMessage(
-          `§7- §f${entry.data.kind} §7par §f${entry.data.by} §7— §f${entry.data.reason} §8(${new Date(entry.data.at).toLocaleString()})`
+          `§7- §f${entry.data.kind} §7par §f${entry.data.by} §7— §f${entry.data.reason} §8(${formatDate(entry.data.at)})`
         );
       }
     });
@@ -6089,8 +6197,11 @@ function registerAdminCommands(ctx) {
 
 // src/permissions/chat.ts
 import { world as world12, system as system12 } from "@minecraft/server";
+function stripFormatting(raw) {
+  return raw.replace(/§/g, "");
+}
 function sanitizeMessage(raw) {
-  return raw.replace(/\s+/g, " ").trim().slice(0, 256);
+  return stripFormatting(raw).replace(/\s+/g, " ").trim().slice(0, 256);
 }
 function gradeTagFor(permissions2, playerName, isVanillaOp) {
   const member = permissions2.getMember(playerName);
@@ -6381,6 +6492,7 @@ world14.afterEvents.worldLoad.subscribe(() => {
   permissions.markLoaded();
   modules.markLoaded();
   territories.markLoaded();
+  sanctions.markLoaded();
   permissions.bootstrapDefaultRoles();
   if (!permissions.hasAdmin()) {
     const operator = world14.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
@@ -6399,6 +6511,10 @@ world14.afterEvents.worldLoad.subscribe(() => {
     permissions,
     getMute: (playerName) => sanctions.getMute(playerName)
   });
+  registerChat({
+    permissions,
+    getMute: (playerName) => sanctions.getMute(playerName)
+  });
   registerEnforcement(sanctions);
   if (!protectionRegistered) {
     protectionRegistered = true;
@@ -6412,6 +6528,7 @@ world14.afterEvents.worldLoad.subscribe(() => {
   );
 });
 var worldReady = false;
+var chatRegistered = false;
 system14.runInterval(() => {
   if (worldReady) return;
   if (world14.getAllPlayers().length === 0) return;
@@ -6430,6 +6547,14 @@ system14.runInterval(() => {
       permissions.ensureDefaultRole(player.name, player.id);
       applyNameTag(player.name);
     }
+  }
+  if (!chatRegistered) {
+    chatRegistered = true;
+    registerChat({
+      permissions,
+      getMute: (playerName) => sanctions.getMute(playerName)
+    });
+    registerEnforcement(sanctions);
   }
   if (!protectionRegistered) {
     protectionRegistered = true;

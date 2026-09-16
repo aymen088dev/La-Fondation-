@@ -33,9 +33,14 @@ export interface ChatDeps {
   getMute?: (playerName: string) => MuteLike | undefined;
 }
 
+/** Neutralise les codes § saisis par le joueur (anti-injection de couleur). */
+function stripFormatting(raw: string): string {
+  return raw.replace(/§/g, "");
+}
+
 /** Nettoie et borne un message de chat (espaces multiples, longueur). */
 export function sanitizeMessage(raw: string): string {
-  return raw.replace(/\s+/g, " ").trim().slice(0, 256);
+  return stripFormatting(raw).replace(/\s+/g, " ").trim().slice(0, 256);
 }
 
 /** La partie grade du chat : "§8[ §r<couleur><prefix> §8]§r" ou "". */
