@@ -1,5 +1,5 @@
 // src/main.ts
-import { world as world2, system as system2 } from "@minecraft/server";
+import { world as world3, system as system3 } from "@minecraft/server";
 
 // src/db/types.ts
 var DB_SCHEMA_VERSION = 1;
@@ -208,27 +208,337 @@ function registerAutosave(db2, intervalTicks = 100) {
   return () => system.clearRun(runId);
 }
 
+// src/territories/types.ts
+var TERRITORY_COLORS = [
+  { id: "rouge", code: "§c" },
+  { id: "vert", code: "§a" },
+  { id: "bleu", code: "§9" },
+  { id: "jaune", code: "§e" },
+  { id: "or", code: "§6" },
+  { id: "violet", code: "§5" },
+  { id: "rose", code: "§d" },
+  { id: "aqua", code: "§b" },
+  { id: "blanc", code: "§f" },
+  { id: "gris", code: "§7" }
+];
+function getColor(id) {
+  return TERRITORY_COLORS.find((color) => color.id === id) ?? TERRITORY_COLORS[0];
+}
+
+// src/territories/manager.ts
+var TERRITORY_COLLECTION = "territories";
+var MAX_CHUNKS_PER_TERRITORY = 64;
+var NAME_MIN = 3;
+var NAME_MAX = 24;
+var NAME_PATTERN = /^[A-Za-z0-9 _-]+$/;
+function chunkKey(dimensionId, cx, cz) {
+  return `${dimensionId}:${cx}:${cz}`;
+}
+function chunkKeyFromPosition(dimensionId, x, z) {
+  return chunkKey(dimensionId, Math.floor(x / 16), Math.floor(z / 16));
+}
+function parseChunkKey(key) {
+  const parts = key.split(":");
+  const cx = Number(parts[parts.length - 2]);
+  const cz = Number(parts[parts.length - 1]);
+  const dimensionId = parts.slice(0, -2).join(":");
+  return { dimensionId, cx, cz };
+}
+function chunkCenter(key) {
+  const { dimensionId, cx, cz } = parseChunkKey(key);
+  return { dimensionId, x: cx * 16 + 8, z: cz * 16 + 8 };
+}
+function formatDate(timestamp) {
+  const d = new Date(timestamp);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+var TerritoryManager = class {
+  constructor(db2) {
+    this.db = db2;
+  }
+  /** Passe à true après le chargement de la DB (worldLoad). */
+  loaded = false;
+  markLoaded() {
+    this.loaded = true;
+  }
+  /** Tous les territoires. */
+  all() {
+    return this.db.find(TERRITORY_COLLECTION);
+  }
+  /** Le territoire contrôlant ce chunk, s'il existe. */
+  findByChunk(key) {
+    return this.db.find(
+      TERRITORY_COLLECTION,
+      (doc) => doc.data.chunkKeys.includes(key)
+    )[0];
+  }
+  /** Le territoire d'un joueur (1 territoire par joueur). */
+  findByOwner(owner) {
+    return this.db.find(TERRITORY_COLLECTION, (doc) => doc.data.owner === owner)[0];
+  }
+  /** Ce joueur peut-il interagir/bâtir dans ce chunk ? */
+  isAllowed(playerName, key) {
+    const territory = this.findByChunk(key);
+    return territory === void 0 || territory.data.owner === playerName;
+  }
+  /** Ce chunk est-il revendiqué par quelqu'un ? */
+  isProtected(key) {
+    return this.findByChunk(key) !== void 0;
+  }
+  /**
+   * Crée un territoire sur le chunk à la position donnée.
+   * Valide : nom, 1 territoire par joueur, chunk libre.
+   */
+  create(owner, name, colorId, dimensionId, x, z) {
+    const cleanName = name.trim().replace(/\s+/g, " ");
+    if (cleanName.length < NAME_MIN || cleanName.length > NAME_MAX) {
+      return { ok: false, error: `Le nom doit faire entre ${NAME_MIN} et ${NAME_MAX} caractères.` };
+    }
+    if (!NAME_PATTERN.test(cleanName)) {
+      return { ok: false, error: "Le nom ne peut contenir que lettres, chiffres, espaces, _ et -." };
+    }
+    if (this.db.findOne(TERRITORY_COLLECTION, cleanName) !== void 0) {
+      return { ok: false, error: "Ce nom de territoire est déjà pris." };
+    }
+    if (this.findByOwner(owner) !== void 0) {
+      return { ok: false, error: "Tu possèdes déjà un territoire." };
+    }
+    const key = chunkKeyFromPosition(dimensionId, x, z);
+    if (this.isProtected(key)) {
+      return { ok: false, error: "Ce chunk est déjà revendiqué par un autre joueur." };
+    }
+    const territory = this.db.insert(
+      TERRITORY_COLLECTION,
+      { name: cleanName, owner, color: colorId, chunkKeys: [key], createdAt: Date.now() },
+      cleanName
+    );
+    this.db.save();
+    return { ok: true, territory };
+  }
+  /** Ajoute un chunk à un territoire (pour /sn:claim futur). */
+  addChunk(territoryId, key) {
+    const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+    if (territory === void 0 || territory.data.chunkKeys.includes(key)) return false;
+    if (territory.data.chunkKeys.length >= MAX_CHUNKS_PER_TERRITORY) return false;
+    territory.data.chunkKeys.push(key);
+    territory.updatedAt = Date.now();
+    this.db.save();
+    return true;
+  }
+  /** Supprime un territoire (par son propriétaire). */
+  remove(territoryId, requester) {
+    const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+    if (territory === void 0 || territory.data.owner !== requester) return false;
+    return this.db.delete(TERRITORY_COLLECTION, territoryId);
+  }
+};
+
+// src/territories/commands.ts
+import { CustomCommandStatus, CommandPermissionLevel, system as system2 } from "@minecraft/server";
+
+// src/territories/ui.ts
+import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
+function openCreateMenu(player, manager) {
+  const colorItems = TERRITORY_COLORS.map((color) => `${color.code}■ ${color.id}`);
+  new ModalFormData().title("Créer un territoire").header("Revendiquer ce chunk").textField("Nom du territoire (3-24 caractères)", "Ex : Forteresse du Nord").divider().label("Couleur du drapeau").dropdown("Couleur", colorItems, { defaultValueIndex: 0 }).submitButton("Revendiquer !").show(player).then((response) => {
+    if (response.canceled) return;
+    const values = response.formValues ?? [];
+    const name = String(values[0] ?? "").trim();
+    const colorIndex = Number(values[1] ?? 0);
+    const color = TERRITORY_COLORS[colorIndex] ?? TERRITORY_COLORS[0];
+    const result = manager.create(
+      player.name,
+      name,
+      color.id,
+      player.dimension.id,
+      player.location.x,
+      player.location.z
+    );
+    if (!result.ok) {
+      player.sendMessage(`§c[Territoires] ${result.error}`);
+      return;
+    }
+    player.sendMessage(
+      `§a[Territoires] Territoire §r${color.code}■ ${result.territory.data.name} §r§acrée ! Ce chunk est désormais sous ta bannière.`
+    );
+  }).catch((error) => {
+    console.warn(`[Territoires] Erreur menu création : ${error instanceof Error ? error.message : String(error)}`);
+  });
+}
+function openTerritoriesMenu(player, manager) {
+  const territories2 = manager.all();
+  if (territories2.length === 0) {
+    player.sendMessage("§7[Territoires] Aucun territoire pour l'instant. Sois le premier avec §f/sn:create§7 !");
+    return;
+  }
+  const form = new ActionFormData().title("Territoires").body(`§7${territories2.length} territoire(s) revendiqué(s). Clique pour voir les infos.`);
+  for (const territory of territories2) {
+    const color = getColor(territory.data.color);
+    form.button(`${color.code}■ ${territory.data.name}§r
+§7par ${territory.data.owner}`);
+  }
+  form.button("§4Fermer");
+  form.show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    if (response.selection >= territories2.length) return;
+    const selected = territories2[response.selection];
+    if (selected !== void 0) showTerritoryInfo(player, selected, manager);
+  }).catch((error) => {
+    console.warn(`[Territoires] Erreur menu liste : ${error instanceof Error ? error.message : String(error)}`);
+  });
+}
+function showTerritoryInfo(player, territory, manager) {
+  const data = territory.data;
+  const color = getColor(data.color);
+  const center = chunkCenter(data.chunkKeys[0] ?? "");
+  const body = [
+    `§ePropriétaire : §f${data.owner}`,
+    `§eCréé le : §f${formatDate(data.createdAt)}`,
+    `§eChunks contrôlés : §f${data.chunkKeys.length}`,
+    `§eZone : §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
+    "",
+    `§7Ce territoire est protégé : seuls le propriétaire`,
+    `§7peut y construire, y ouvrir des conteneurs ou y combattre.`
+  ].join("\n");
+  new ActionFormData().title(`${color.code}■ ${data.name}`).body(body).button("§fRetour à la liste").button("§4Fermer").show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    if (response.selection === 0) openTerritoriesMenu(player, manager);
+  }).catch((error) => {
+    console.warn(`[Territoires] Erreur fiche territoire : ${error instanceof Error ? error.message : String(error)}`);
+  });
+}
+
+// src/territories/commands.ts
+function registerCommands(manager) {
+  system2.beforeEvents.startup.subscribe((event) => {
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:create",
+        description: "Revendique le chunk où tu te trouves (nom + couleur de drapeau)",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Seuls les joueurs peuvent utiliser cette commande." };
+        }
+        system2.run(() => openCreateMenu(player, manager));
+        return { status: CustomCommandStatus.Success };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:info",
+        description: "Affiche la liste de tous les territoires",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Seuls les joueurs peuvent utiliser cette commande." };
+        }
+        system2.run(() => openTerritoriesMenu(player, manager));
+        return { status: CustomCommandStatus.Success };
+      }
+    );
+  });
+}
+
+// src/territories/protection.ts
+import { world as world2, GameMode, Player } from "@minecraft/server";
+var DENY_BREAK = "§c[Territoires] Ce chunk appartient à un autre joueur : destruction impossible.";
+var DENY_INTERACT = "§c[Territoires] Ce chunk est protégé : interaction impossible.";
+var DENY_COMBAT = "§c[Territoires] Zone protégée : ce joueur ne peut pas être attaqué ici.";
+function isCreative(playerName) {
+  const player = world2.getAllPlayers().find((candidate) => candidate.name === playerName);
+  return player !== void 0 && player.getGameMode() === GameMode.Creative;
+}
+function registerProtection(manager) {
+  world2.beforeEvents.playerBreakBlock.subscribe((event) => {
+    if (!manager.loaded) return;
+    const player = event.player;
+    if (isCreative(player.name)) return;
+    const key = chunkKeyFromPosition(event.block.dimension.id, event.block.location.x, event.block.location.z);
+    if (!manager.isAllowed(player.name, key)) {
+      event.cancel = true;
+      player.sendMessage(DENY_BREAK);
+    }
+  });
+  world2.beforeEvents.playerInteractWithBlock.subscribe((event) => {
+    if (!manager.loaded) return;
+    const player = event.player;
+    if (isCreative(player.name)) return;
+    const key = chunkKeyFromPosition(event.block.dimension.id, event.block.location.x, event.block.location.z);
+    if (!manager.isAllowed(player.name, key)) {
+      event.cancel = true;
+      player.sendMessage(DENY_INTERACT);
+    }
+  });
+  world2.beforeEvents.entityHurt.subscribe((event) => {
+    if (!manager.loaded) return;
+    const attacker = event.damageSource.damagingEntity;
+    if (!(attacker instanceof Player)) return;
+    if (event.hurtEntity.typeId !== "minecraft:player") return;
+    const victim = event.hurtEntity;
+    const key = chunkKeyFromPosition(victim.dimension.id, victim.location.x, victim.location.z);
+    const territory = manager.findByChunk(key);
+    if (territory !== void 0 && territory.data.owner !== attacker.name) {
+      event.cancel = true;
+      attacker.sendMessage(DENY_COMBAT);
+    }
+  });
+  world2.beforeEvents.explosion.subscribe((event) => {
+    if (!manager.loaded) return;
+    const impacted = event.getImpactedBlocks();
+    const allowed = impacted.filter((block) => {
+      const key = chunkKeyFromPosition(block.dimension.id, block.location.x, block.location.z);
+      return !manager.isProtected(key);
+    });
+    if (allowed.length !== impacted.length) {
+      if (allowed.length === 0) {
+        event.cancel = true;
+      } else {
+        event.setImpactedBlocks(allowed);
+      }
+    }
+  });
+}
+
+// src/players.ts
+function trackPlayerJoin(db2, playerName) {
+  const record = db2.findOne("players", playerName);
+  db2.upsert("players", playerName, {
+    name: playerName,
+    sessions: (record?.data.sessions ?? 0) + 1
+  });
+}
+
 // src/main.ts
 var db = new JsonDatabase(createBedrockStorage(), "openmontage");
 db.load();
 registerAutosave(db, 100);
-world2.afterEvents.playerSpawn.subscribe((event) => {
+var territories = new TerritoryManager(db);
+registerCommands(territories);
+world3.afterEvents.worldLoad.subscribe(() => {
+  territories.markLoaded();
+  registerProtection(territories);
+  const stats = db.stats();
+  console.log(
+    `[OpenMontage] DB chargée : ${stats.documents} documents, ${stats.bytes} octets. Commandes /sn:create et /sn:info actives.`
+  );
+});
+world3.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
   const player = event.player;
-  const record = db.findOne("players", player.name);
-  db.upsert("players", player.name, {
-    name: player.name,
-    sessions: (record?.data.sessions ?? 0) + 1
-  });
-  player.sendMessage("§a[OpenMontage]§r Bienvenue ! Script TypeScript + DB locale chargés ✅");
+  trackPlayerJoin(db, player.name);
+  player.sendMessage("§a[OpenMontage]§r Bienvenue ! Tape §f/sn:create§r pour revendiquer ce chunk.");
 });
-system2.runInterval(() => {
+system3.runInterval(() => {
   const stats = db.stats();
   console.log(
     `[OpenMontage] DB : ${stats.documents} documents, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"}`
   );
 }, 600);
-world2.afterEvents.playerBreakBlock.subscribe((event) => {
-  const { player, block } = event;
-  console.log(`${player.name} a cassé un bloc de type ${block.typeId}`);
-});

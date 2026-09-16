@@ -1,0 +1,39 @@
+/**
+ * Types du système de territoires (feature de revendication de chunks).
+ */
+
+export interface TerritoryColor {
+  id: string;
+  /** Code de couleur Minecraft (§) utilisé pour le drapeau dans les menus/chat. */
+  code: string;
+}
+
+/** Les 10 couleurs de drapeau proposées dans le menu de création. */
+export const TERRITORY_COLORS: TerritoryColor[] = [
+  { id: "rouge", code: "§c" },
+  { id: "vert", code: "§a" },
+  { id: "bleu", code: "§9" },
+  { id: "jaune", code: "§e" },
+  { id: "or", code: "§6" },
+  { id: "violet", code: "§5" },
+  { id: "rose", code: "§d" },
+  { id: "aqua", code: "§b" },
+  { id: "blanc", code: "§f" },
+  { id: "gris", code: "§7" },
+];
+
+/** Récupère une couleur par son identifiant (fallback : rouge). */
+export function getColor(id: string): TerritoryColor {
+  return TERRITORY_COLORS.find((color) => color.id === id) ?? TERRITORY_COLORS[0];
+}
+
+/** Données persistées d'un territoire (collection "territories" de la DB). */
+export interface TerritoryData {
+  name: string;
+  owner: string;
+  /** Identifiant de la couleur du drapeau (voir TERRITORY_COLORS). */
+  color: string;
+  /** Clés des chunks contrôlés : `${dimensionId}:${cx}:${cz}`. */
+  chunkKeys: string[];
+  createdAt: number;
+}
