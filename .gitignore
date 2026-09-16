@@ -4,3 +4,4 @@ dist/
 .env
 .DS_Store
 scripts/.cache_hud_screen.json
+tsconfig.tsbuildinfo
