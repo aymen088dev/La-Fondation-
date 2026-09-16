@@ -315,9 +315,9 @@ __export(enforcement_exports, {
   kickPlayer: () => kickPlayer,
   registerEnforcement: () => registerEnforcement
 });
-import { world as world4, system as system5 } from "@minecraft/server";
+import { world as world9, system as system10 } from "@minecraft/server";
 function kickPlayer(playerName, reason) {
-  const player = world4.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world9.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return false;
   try {
     player.runCommand(`kick "${playerName}" ${reason}`);
@@ -327,7 +327,7 @@ function kickPlayer(playerName, reason) {
   }
 }
 function registerEnforcement(sanctions2, onChatReady) {
-  world4.afterEvents.playerSpawn.subscribe((event) => {
+  world9.afterEvents.playerSpawn.subscribe((event) => {
     if (!event.initialSpawn || !sanctions2.loaded) return;
     const player = event.player;
     const ban = sanctions2.getBan(player.name);
@@ -335,18 +335,18 @@ function registerEnforcement(sanctions2, onChatReady) {
     const expiry = ban.expiresAt === 0 ? "§4BANNI PERMANENTLEMENT" : `§4BANNI§7 (encore ${Math.max(1, Math.ceil((ban.expiresAt - Date.now()) / 6e4))} min)`;
     player.sendMessage(`§c[Territoires/OpenMontage] ${expiry}
 §7Motif : §f${ban.reason}§7 — par §f${ban.by}`);
-    system5.run(() => {
+    system10.run(() => {
       kickPlayer(player.name, ban.reason);
     });
   });
-  world4.beforeEvents.chatSend.subscribe((event) => {
+  world9.beforeEvents.chatSend.subscribe((event) => {
     if (!sanctions2.loaded) return;
     const mute = sanctions2.getMute(event.sender.name);
     if (mute === void 0) return;
     event.cancel = true;
     const sender = event.sender;
     const remaining = mute.expiresAt === 0 ? "permanent" : `${Math.max(1, Math.ceil((mute.expiresAt - Date.now()) / 6e4))} min`;
-    system5.run(() => {
+    system10.run(() => {
       sender.sendMessage(
         `§c[Modération] Tu es muet (${remaining}). §7Motif : §f${mute.reason}§7 — par §f${mute.by}`
       );
@@ -361,7 +361,7 @@ var init_enforcement = __esm({
 });
 
 // src/main.ts
-import { world as world7, system as system10 } from "@minecraft/server";
+import { world as world12, system as system15 } from "@minecraft/server";
 
 // src/db/types.ts
 var DB_SCHEMA_VERSION = 2;
@@ -641,7 +641,7 @@ init_types();
 init_manager();
 
 // src/territories/commands.ts
-import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system2 } from "@minecraft/server";
+import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system7 } from "@minecraft/server";
 
 // src/db/menu.ts
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
@@ -780,12 +780,3534 @@ ${readonlyLines.join("\n")}`);
   await openSectionMenu(db2, player, section);
 }
 
+// node_modules/@bedrock-oss/bedrock-boost/dist/index.mjs
+import {
+  Direction as Direction2,
+  StructureRotation as StructureRotation2
+} from "@minecraft/server";
+import {
+  Direction,
+  StructureRotation
+} from "@minecraft/server";
+import { system as system2, world as world2 } from "@minecraft/server";
+import { Direction as Direction4 } from "@minecraft/server";
+import { Direction as Direction3 } from "@minecraft/server";
+import { BlockPermutation, world as world22 } from "@minecraft/server";
+import { world as world3 } from "@minecraft/server";
+import { Player } from "@minecraft/server";
+import { system as system22 } from "@minecraft/server";
+import { system as system3 } from "@minecraft/server";
+import { system as system4, world as world4 } from "@minecraft/server";
+import { Player as Player2, system as system5, world as world5 } from "@minecraft/server";
+import { system as system6 } from "@minecraft/server";
+import { Direction as Direction5 } from "@minecraft/server";
+import { StructureSaveMode, world as world6 } from "@minecraft/server";
+import {
+  EntityEquippableComponent,
+  EquipmentSlot,
+  GameMode,
+  ItemDurabilityComponent,
+  ItemEnchantableComponent
+} from "@minecraft/server";
+var DIRECTION_VECTORS = {
+  [Direction.Down]: [0, -1, 0],
+  [Direction.Up]: [0, 1, 0],
+  [Direction.North]: [0, 0, -1],
+  [Direction.South]: [0, 0, 1],
+  [Direction.East]: [1, 0, 0],
+  [Direction.West]: [-1, 0, 0]
+};
+var MutVec3 = class _MutVec3 {
+  x;
+  y;
+  z;
+  constructor(x, y, z) {
+    if (typeof x === "number") {
+      this.x = x;
+      this.y = y;
+      this.z = z;
+    } else if (typeof x === "string") {
+      const direction = DIRECTION_VECTORS[x];
+      if (!direction)
+        throw new Error("Invalid vector");
+      this.x = direction[0];
+      this.y = direction[1];
+      this.z = direction[2];
+    } else if (Array.isArray(x)) {
+      this.x = x[0];
+      this.y = x[1];
+      this.z = x[2];
+    } else {
+      if (!x || !x.x && x.x !== 0 || !x.y && x.y !== 0 || !x.z && x.z !== 0) {
+        throw new Error("Invalid vector");
+      }
+      this.x = x.x;
+      this.y = x.y;
+      this.z = x.z;
+    }
+  }
+  static from(x, y, z) {
+    if (typeof x === "number") {
+      if (y !== void 0 && z !== void 0)
+        return new _MutVec3(x, y, z);
+    } else if (x) {
+      return new _MutVec3(x);
+    }
+    throw new Error("Invalid arguments");
+  }
+  static _from(x, y, z) {
+    if (typeof x === "number") {
+      if (y === void 0 && z === void 0)
+        return new _MutVec3(x, x, x);
+      if (y !== void 0 && z !== void 0)
+        return new _MutVec3(x, y, z);
+    } else if (x instanceof _MutVec3) {
+      return x;
+    } else if (x) {
+      return new _MutVec3(x);
+    }
+    throw new Error("Invalid arguments");
+  }
+  copy() {
+    return new _MutVec3(this.x, this.y, this.z);
+  }
+  /**
+   * Adds a vector to the current vector in place. Unlike `add`, this method
+   * takes only a vector and skips the argument dispatch, which makes it the
+   * faster choice in code that runs every tick.
+   *
+   * @param v - The vector to be added.
+   * @returns The updated vector.
+   */
+  addVec(v) {
+    this.x += v.x;
+    this.y += v.y;
+    this.z += v.z;
+    return this;
+  }
+  /**
+   * Subtracts a vector from the current vector in place. Fast-path variant of
+   * `subtract`.
+   *
+   * @param v - The vector to be subtracted.
+   * @returns The updated vector.
+   */
+  subtractVec(v) {
+    this.x -= v.x;
+    this.y -= v.y;
+    this.z -= v.z;
+    return this;
+  }
+  /**
+   * Multiplies the current vector component-wise by a vector in place.
+   * Fast-path variant of `multiply`; use `scale` for scalars.
+   *
+   * @param v - The vector multiplier.
+   * @returns The updated vector.
+   */
+  multiplyVec(v) {
+    this.x *= v.x;
+    this.y *= v.y;
+    this.z *= v.z;
+    return this;
+  }
+  /**
+   * Divides the current vector component-wise by a vector in place. Fast-path
+   * variant of `divide`.
+   *
+   * @param v - The vector divisor.
+   * @returns The updated vector.
+   * @throws If any component of the divisor is zero.
+   */
+  divideVec(v) {
+    if (v.x === 0 || v.y === 0 || v.z === 0)
+      throw new Error("Cannot divide by zero");
+    this.x /= v.x;
+    this.y /= v.y;
+    this.z /= v.z;
+    return this;
+  }
+  /**
+   * Computes the dot product with a vector. Fast-path variant of `dot`.
+   *
+   * @param v - The other vector.
+   * @returns The dot product.
+   */
+  dotVec(v) {
+    return this.x * v.x + this.y * v.y + this.z * v.z;
+  }
+  /**
+   * Replaces the current vector with its cross product with a vector.
+   * Fast-path variant of `cross`.
+   *
+   * @param v - The other vector.
+   * @returns The updated vector.
+   */
+  crossVec(v) {
+    const cx = this.y * v.z - this.z * v.y;
+    const cy = this.z * v.x - this.x * v.z;
+    const cz = this.x * v.y - this.y * v.x;
+    this.x = cx;
+    this.y = cy;
+    this.z = cz;
+    return this;
+  }
+  /**
+   * Computes the distance to a vector. Fast-path variant of `distance`.
+   *
+   * @param v - The other vector.
+   * @returns The distance between the vectors.
+   */
+  distanceVec(v) {
+    return Math.hypot(this.x - v.x, this.y - v.y, this.z - v.z);
+  }
+  /**
+   * Computes the squared distance to a vector. Fast-path variant of
+   * `distanceSquared`.
+   *
+   * @param v - The other vector.
+   * @returns The squared distance between the vectors.
+   */
+  distanceSquaredVec(v) {
+    const dx = this.x - v.x;
+    const dy = this.y - v.y;
+    const dz = this.z - v.z;
+    return dx * dx + dy * dy + dz * dz;
+  }
+  toImmutable() {
+    return new Vec3(this.x, this.y, this.z);
+  }
+  static fromRotation(yawOrRotation, pitch) {
+    let yaw;
+    if (typeof yawOrRotation === "number") {
+      yaw = yawOrRotation;
+      pitch = pitch;
+    } else {
+      yaw = yawOrRotation.y;
+      pitch = yawOrRotation.x;
+    }
+    const psi = yaw * (Math.PI / 180);
+    const theta = pitch * (Math.PI / 180);
+    const x = -Math.cos(theta) * Math.sin(psi);
+    const yv = -Math.sin(theta);
+    const z = Math.cos(theta) * Math.cos(psi);
+    return new _MutVec3(x, yv, z);
+  }
+  toRotation() {
+    if (this.isZero())
+      throw new Error("Cannot convert zero-length vector to direction");
+    const dir = this.copy().normalize();
+    const yaw = -Math.atan2(dir.x, dir.z) * (180 / Math.PI);
+    const pitch = Math.asin(-dir.y) * (180 / Math.PI);
+    return { x: pitch, y: yaw };
+  }
+  add(x, y, z) {
+    const v = x instanceof _MutVec3 ? x : _MutVec3._from(x, y, z);
+    this.x += v.x;
+    this.y += v.y;
+    this.z += v.z;
+    return this;
+  }
+  directionTo(x, y, z) {
+    const v = x instanceof _MutVec3 ? x : _MutVec3._from(x, y, z);
+    this.subtract(v).multiply(-1).normalize();
+    return this;
+  }
+  subtract(x, y, z) {
+    const v = x instanceof _MutVec3 ? x : _MutVec3._from(x, y, z);
+    this.x -= v.x;
+    this.y -= v.y;
+    this.z -= v.z;
+    return this;
+  }
+  multiply(x, y, z) {
+    const v = x instanceof _MutVec3 ? x : _MutVec3._from(x, y, z);
+    this.x *= v.x;
+    this.y *= v.y;
+    this.z *= v.z;
+    return this;
+  }
+  scale(scalar) {
+    this.x *= scalar;
+    this.y *= scalar;
+    this.z *= scalar;
+    return this;
+  }
+  divide(x, y, z) {
+    if (typeof x === "number" && y === void 0 && z === void 0) {
+      if (x === 0)
+        throw new Error("Cannot divide by zero");
+      this.x /= x;
+      this.y /= x;
+      this.z /= x;
+      return this;
+    }
+    const v = x instanceof _MutVec3 ? x : _MutVec3._from(x, y, z);
+    if (v.x === 0 || v.y === 0 || v.z === 0)
+      throw new Error("Cannot divide by zero");
+    this.x /= v.x;
+    this.y /= v.y;
+    this.z /= v.z;
+    return this;
+  }
+  normalize() {
+    if (this.isZero())
+      throw new Error("Cannot normalize zero-length vector");
+    const len = this.length();
+    this.x /= len;
+    this.y /= len;
+    this.z /= len;
+    return this;
+  }
+  length() {
+    return Math.hypot(this.x, this.y, this.z);
+  }
+  lengthSquared() {
+    return this.x * this.x + this.y * this.y + this.z * this.z;
+  }
+  cross(x, y, z) {
+    const v = x instanceof _MutVec3 ? x : _MutVec3._from(x, y, z);
+    const cx = this.y * v.z - this.z * v.y;
+    const cy = this.z * v.x - this.x * v.z;
+    const cz = this.x * v.y - this.y * v.x;
+    this.x = cx;
+    this.y = cy;
+    this.z = cz;
+    return this;
+  }
+  distance(x, y, z) {
+    const v = x instanceof _MutVec3 ? x : _MutVec3._from(x, y, z);
+    return this.copy().subtract(v).length();
+  }
+  distanceSquared(x, y, z) {
+    const v = x instanceof _MutVec3 ? x : _MutVec3._from(x, y, z);
+    return this.copy().subtract(v).lengthSquared();
+  }
+  lerp(v, t) {
+    if (!v || t === void 0)
+      return this;
+    if (t === 1) {
+      this.x = v.x;
+      this.y = v.y;
+      this.z = v.z;
+      return this;
+    }
+    if (t === 0)
+      return this;
+    this.x = this.x + (v.x - this.x) * t;
+    this.y = this.y + (v.y - this.y) * t;
+    this.z = this.z + (v.z - this.z) * t;
+    return this;
+  }
+  slerp(v, t) {
+    if (!v || t === void 0)
+      return this;
+    if (t === 1) {
+      this.x = v.x;
+      this.y = v.y;
+      this.z = v.z;
+      return this;
+    }
+    if (t === 0)
+      return this;
+    const dot = this.dot(v);
+    const theta = Math.acos(dot) * t;
+    const relative = _MutVec3.from(v).subtract(this.copy().multiply(dot)).normalize();
+    const cosT = Math.cos(theta);
+    const sinT = Math.sin(theta);
+    this.multiply(cosT);
+    this.x += relative.x * sinT;
+    this.y += relative.y * sinT;
+    this.z += relative.z * sinT;
+    return this;
+  }
+  dot(x, y, z) {
+    const v = x instanceof _MutVec3 ? x : _MutVec3._from(x, y, z);
+    return this.x * v.x + this.y * v.y + this.z * v.z;
+  }
+  angleBetween(x, y, z) {
+    const v = x instanceof _MutVec3 ? x : _MutVec3._from(x, y, z);
+    const dotProduct = this.dot(v);
+    const lenSq1 = this.lengthSquared();
+    if (lenSq1 === 0)
+      return 0;
+    const lenSq2 = v.lengthSquared();
+    if (lenSq2 === 0)
+      return 0;
+    const denom = Math.sqrt(lenSq1 * lenSq2);
+    const cosAngle = Math.min(1, Math.max(-1, dotProduct / denom));
+    return Math.acos(cosAngle);
+  }
+  projectOnto(x, y, z) {
+    const v = x instanceof _MutVec3 ? x : _MutVec3._from(x, y, z);
+    if (v.isZero()) {
+      this.x = 0;
+      this.y = 0;
+      this.z = 0;
+      return this;
+    }
+    const denom = v.dot(v);
+    if (denom === 0) {
+      this.x = 0;
+      this.y = 0;
+      this.z = 0;
+      return this;
+    }
+    const scale = this.dot(v) / denom;
+    this.x = v.x * scale;
+    this.y = v.y * scale;
+    this.z = v.z * scale;
+    return this;
+  }
+  reflect(x, y, z) {
+    const normal = _MutVec3._from(x, y, z);
+    const tmp = this.copy();
+    const proj = tmp.projectOnto(normal);
+    return this.subtract(proj.multiply(2));
+  }
+  rotate(axis, angle) {
+    const halfAngle = angle * Math.PI / 180 / 2;
+    const w = Math.cos(halfAngle);
+    const x = axis.x * Math.sin(halfAngle);
+    const y = axis.y * Math.sin(halfAngle);
+    const z = axis.z * Math.sin(halfAngle);
+    const vx = this.x, vy = this.y, vz = this.z;
+    const qv_x = w * w * vx + 2 * y * w * vz - 2 * z * w * vy + x * x * vx + 2 * y * x * vy + 2 * z * x * vz - z * z * vx - y * y * vx;
+    const qv_y = 2 * x * y * vx + y * y * vy + 2 * z * y * vz + 2 * w * z * vx - z * z * vy + w * w * vy - 2 * x * w * vz - x * x * vy;
+    const qv_z = 2 * x * z * vx + 2 * y * z * vy + z * z * vz - 2 * w * y * vx - y * y * vz + 2 * w * x * vy - x * x * vz + w * w * vz;
+    this.x = qv_x;
+    this.y = qv_y;
+    this.z = qv_z;
+    return this;
+  }
+  update(x, y, z) {
+    if (!x)
+      x = (v) => v;
+    if (!y)
+      y = (v) => v;
+    if (!z)
+      z = (v) => v;
+    this.x = x(this.x);
+    this.y = y(this.y);
+    this.z = z(this.z);
+    return this;
+  }
+  setX(value) {
+    if (typeof value === "number")
+      this.x = value;
+    else
+      this.x = value(this.x);
+    return this;
+  }
+  setY(value) {
+    if (typeof value === "number")
+      this.y = value;
+    else
+      this.y = value(this.y);
+    return this;
+  }
+  setZ(value) {
+    if (typeof value === "number")
+      this.z = value;
+    else
+      this.z = value(this.z);
+    return this;
+  }
+  floor() {
+    return this.update(Math.floor, Math.floor, Math.floor);
+  }
+  floorX() {
+    return this.setX(Math.floor);
+  }
+  floorY() {
+    return this.setY(Math.floor);
+  }
+  floorZ() {
+    return this.setZ(Math.floor);
+  }
+  ceil() {
+    return this.update(Math.ceil, Math.ceil, Math.ceil);
+  }
+  ceilX() {
+    return this.setX(Math.ceil);
+  }
+  ceilY() {
+    return this.setY(Math.ceil);
+  }
+  ceilZ() {
+    return this.setZ(Math.ceil);
+  }
+  round() {
+    return this.update(Math.round, Math.round, Math.round);
+  }
+  roundX() {
+    return this.setX(Math.round);
+  }
+  roundY() {
+    return this.setY(Math.round);
+  }
+  roundZ() {
+    return this.setZ(Math.round);
+  }
+  up() {
+    return this.add(Direction.Up);
+  }
+  down() {
+    return this.add(Direction.Down);
+  }
+  north() {
+    return this.add(Direction.North);
+  }
+  south() {
+    return this.add(Direction.South);
+  }
+  east() {
+    return this.add(Direction.East);
+  }
+  west() {
+    return this.add(Direction.West);
+  }
+  isZero() {
+    return this.x === 0 && this.y === 0 && this.z === 0;
+  }
+  toArray() {
+    return [this.x, this.y, this.z];
+  }
+  toDirection() {
+    if (this.isZero())
+      throw new Error("Cannot convert zero-length vector to direction");
+    const normalized = this.copy().normalize();
+    const maxValue = Math.max(
+      Math.abs(normalized.x),
+      Math.abs(normalized.y),
+      Math.abs(normalized.z)
+    );
+    if (maxValue === normalized.x)
+      return Direction.East;
+    if (maxValue === -normalized.x)
+      return Direction.West;
+    if (maxValue === normalized.y)
+      return Direction.Up;
+    if (maxValue === -normalized.y)
+      return Direction.Down;
+    if (maxValue === normalized.z)
+      return Direction.South;
+    if (maxValue === -normalized.z)
+      return Direction.North;
+    throw new Error("Cannot convert vector to direction");
+  }
+  toStructureRotation() {
+    const rotation = this.toRotation();
+    let aligned = Math.round(rotation.y / 90) * 90;
+    if (aligned < 0)
+      aligned += 360;
+    if (aligned >= 360)
+      aligned -= 360;
+    if (aligned === 0)
+      return StructureRotation.None;
+    if (aligned === 90)
+      return StructureRotation.Rotate90;
+    if (aligned === 180)
+      return StructureRotation.Rotate180;
+    if (aligned === 270)
+      return StructureRotation.Rotate270;
+    throw new Error("Cannot convert vector to structure rotation");
+  }
+  toBlockLocation() {
+    this.x = (this.x << 0) - (this.x < 0 && this.x !== this.x << 0 ? 1 : 0);
+    this.y = (this.y << 0) - (this.y < 0 && this.y !== this.y << 0 ? 1 : 0);
+    this.z = (this.z << 0) - (this.z < 0 && this.z !== this.z << 0 ? 1 : 0);
+    return this;
+  }
+  almostEqual(x, y, z, delta) {
+    try {
+      let other;
+      if (typeof x !== "number" && z === void 0) {
+        other = _MutVec3._from(x, void 0, void 0);
+        delta = y;
+      } else {
+        other = _MutVec3._from(x, y, z);
+      }
+      return Math.abs(this.x - other.x) <= delta && Math.abs(this.y - other.y) <= delta && Math.abs(this.z - other.z) <= delta;
+    } catch (e) {
+      return false;
+    }
+  }
+  equals(x, y, z) {
+    try {
+      const other = _MutVec3._from(x, y, z);
+      return this.x === other.x && this.y === other.y && this.z === other.z;
+    } catch (e) {
+      return false;
+    }
+  }
+  toString(format = "long", separator = ", ") {
+    const result = `${this.x + separator + this.y + separator + this.z}`;
+    return format === "long" ? `MutVec3(${result})` : result;
+  }
+  static fromString(str, format = "long", separator = ", ") {
+    if (format === "long") {
+      const match = str.match(/^MutVec3\((.*)\)$/);
+      if (!match)
+        throw new Error("Invalid string format");
+      const components = match[1].split(separator);
+      if (components.length !== 3)
+        throw new Error("Invalid string format");
+      return new _MutVec3(
+        Number(components[0]),
+        Number(components[1]),
+        Number(components[2])
+      );
+    } else {
+      const components = str.split(separator);
+      if (components.length !== 3)
+        throw new Error("Invalid string format");
+      return new _MutVec3(
+        Number(components[0]),
+        Number(components[1]),
+        Number(components[2])
+      );
+    }
+  }
+};
+var ChatColor = class _ChatColor {
+  /**
+   * Class ChatColor Constructor.
+   * @param code - The color code as a string.
+   * @param color - The color code as a hexadecimal number. Can be undefined.
+   */
+  constructor(code, color) {
+    this.code = code;
+    this.color = color;
+    if (color) {
+      this.r = color >> 16 & 255;
+      this.g = color >> 8 & 255;
+      this.b = color & 255;
+    }
+  }
+  /**
+   * Black color code. (0)
+   */
+  static BLACK = /* @__PURE__ */ new _ChatColor(
+    "0",
+    0
+  );
+  /**
+   * Dark blue color code. (1)
+   */
+  static DARK_BLUE = /* @__PURE__ */ new _ChatColor(
+    "1",
+    170
+  );
+  /**
+   * Dark green color code. (2)
+   */
+  static DARK_GREEN = /* @__PURE__ */ new _ChatColor("2", 43520);
+  /**
+   * Dark aqua color code. (3)
+   */
+  static DARK_AQUA = /* @__PURE__ */ new _ChatColor(
+    "3",
+    43690
+  );
+  /**
+   * Dark red color code. (4)
+   */
+  static DARK_RED = /* @__PURE__ */ new _ChatColor(
+    "4",
+    11141120
+  );
+  /**
+   * Dark purple color code. (5)
+   */
+  static DARK_PURPLE = /* @__PURE__ */ new _ChatColor("5", 11141290);
+  /**
+   * Gold color code. (6)
+   */
+  static GOLD = /* @__PURE__ */ new _ChatColor(
+    "6",
+    16755200
+  );
+  /**
+   * Gray color code. (7)
+   */
+  static GRAY = /* @__PURE__ */ new _ChatColor(
+    "7",
+    11184810
+  );
+  /**
+   * Dark gray color code. (8)
+   */
+  static DARK_GRAY = /* @__PURE__ */ new _ChatColor(
+    "8",
+    5592405
+  );
+  /**
+   * Blue color code. (9)
+   */
+  static BLUE = /* @__PURE__ */ new _ChatColor(
+    "9",
+    5592575
+  );
+  /**
+   * Green color code. (a)
+   */
+  static GREEN = /* @__PURE__ */ new _ChatColor(
+    "a",
+    5635925
+  );
+  /**
+   * Aqua color code. (b)
+   */
+  static AQUA = /* @__PURE__ */ new _ChatColor(
+    "b",
+    5636095
+  );
+  /**
+   * Red color code. (c)
+   */
+  static RED = /* @__PURE__ */ new _ChatColor(
+    "c",
+    16733525
+  );
+  /**
+   * Light purple color code. (d)
+   */
+  static LIGHT_PURPLE = /* @__PURE__ */ new _ChatColor("d", 16733695);
+  /**
+   * Yellow color code. (e)
+   */
+  static YELLOW = /* @__PURE__ */ new _ChatColor(
+    "e",
+    16777045
+  );
+  /**
+   * White color code. (f)
+   */
+  static WHITE = /* @__PURE__ */ new _ChatColor(
+    "f",
+    16777215
+  );
+  /**
+   * MineCoin gold color code. (g)
+   */
+  static MINECOIN_GOLD = /* @__PURE__ */ new _ChatColor("g", 14603781);
+  /**
+   * Material quartz color code. (h)
+   */
+  static MATERIAL_QUARTZ = /* @__PURE__ */ new _ChatColor("h", 14931153);
+  /**
+   * Material iron color code. (i)
+   */
+  static MATERIAL_IRON = /* @__PURE__ */ new _ChatColor("i", 13552330);
+  /**
+   * Material netherite color code. (j)
+   */
+  static MATERIAL_NETHERITE = /* @__PURE__ */ new _ChatColor("j", 4471355);
+  /**
+   * Material redstone color code. (m)
+   */
+  static MATERIAL_REDSTONE = /* @__PURE__ */ new _ChatColor("m", 9901575);
+  /**
+   * Material copper color code. (n)
+   */
+  static MATERIAL_COPPER = /* @__PURE__ */ new _ChatColor("n", 11823181);
+  /**
+   * Material gold color code. (p)
+   */
+  static MATERIAL_GOLD = /* @__PURE__ */ new _ChatColor("p", 14594349);
+  /**
+   * Material emerald color code. (q)
+   */
+  static MATERIAL_EMERALD = /* @__PURE__ */ new _ChatColor("q", 1155126);
+  /**
+   * Material diamond color code. (s)
+   */
+  static MATERIAL_DIAMOND = /* @__PURE__ */ new _ChatColor("s", 2931368);
+  /**
+   * Material lapis color code. (t)
+   */
+  static MATERIAL_LAPIS = /* @__PURE__ */ new _ChatColor("t", 2181499);
+  /**
+   * Material amethyst color code. (u)
+   */
+  static MATERIAL_AMETHYST = /* @__PURE__ */ new _ChatColor("u", 10116294);
+  /**
+   * Obfuscated color code. (k)
+   */
+  static OBFUSCATED = /* @__PURE__ */ new _ChatColor("k");
+  /**
+   * Bold color code. (l)
+   */
+  static BOLD = /* @__PURE__ */ new _ChatColor("l");
+  /**
+   * Italic color code. (o)
+   */
+  static ITALIC = /* @__PURE__ */ new _ChatColor(
+    "o"
+  );
+  /**
+   * Reset color code. (r)
+   */
+  static RESET = /* @__PURE__ */ new _ChatColor(
+    "r"
+  );
+  /**
+   * All available color codes.
+   */
+  static VALUES = [
+    _ChatColor.BLACK,
+    _ChatColor.DARK_BLUE,
+    _ChatColor.DARK_GREEN,
+    _ChatColor.DARK_AQUA,
+    _ChatColor.DARK_RED,
+    _ChatColor.DARK_PURPLE,
+    _ChatColor.GOLD,
+    _ChatColor.GRAY,
+    _ChatColor.DARK_GRAY,
+    _ChatColor.BLUE,
+    _ChatColor.GREEN,
+    _ChatColor.AQUA,
+    _ChatColor.RED,
+    _ChatColor.LIGHT_PURPLE,
+    _ChatColor.YELLOW,
+    _ChatColor.WHITE,
+    _ChatColor.MINECOIN_GOLD,
+    _ChatColor.MATERIAL_QUARTZ,
+    _ChatColor.MATERIAL_IRON,
+    _ChatColor.MATERIAL_NETHERITE,
+    _ChatColor.MATERIAL_REDSTONE,
+    _ChatColor.MATERIAL_COPPER,
+    _ChatColor.MATERIAL_GOLD,
+    _ChatColor.MATERIAL_EMERALD,
+    _ChatColor.MATERIAL_DIAMOND,
+    _ChatColor.MATERIAL_LAPIS,
+    _ChatColor.MATERIAL_AMETHYST,
+    _ChatColor.OBFUSCATED,
+    _ChatColor.BOLD,
+    _ChatColor.ITALIC,
+    _ChatColor.RESET
+  ];
+  /**
+   * All available color codes excluding the formatting codes.
+   */
+  static ALL_COLORS = [
+    _ChatColor.BLACK,
+    _ChatColor.DARK_BLUE,
+    _ChatColor.DARK_GREEN,
+    _ChatColor.DARK_AQUA,
+    _ChatColor.DARK_RED,
+    _ChatColor.DARK_PURPLE,
+    _ChatColor.GOLD,
+    _ChatColor.GRAY,
+    _ChatColor.DARK_GRAY,
+    _ChatColor.BLUE,
+    _ChatColor.GREEN,
+    _ChatColor.AQUA,
+    _ChatColor.RED,
+    _ChatColor.LIGHT_PURPLE,
+    _ChatColor.YELLOW,
+    _ChatColor.WHITE,
+    _ChatColor.MINECOIN_GOLD,
+    _ChatColor.MATERIAL_QUARTZ,
+    _ChatColor.MATERIAL_IRON,
+    _ChatColor.MATERIAL_NETHERITE,
+    _ChatColor.MATERIAL_REDSTONE,
+    _ChatColor.MATERIAL_COPPER,
+    _ChatColor.MATERIAL_GOLD,
+    _ChatColor.MATERIAL_EMERALD,
+    _ChatColor.MATERIAL_DIAMOND,
+    _ChatColor.MATERIAL_LAPIS,
+    _ChatColor.MATERIAL_AMETHYST
+  ];
+  r;
+  g;
+  b;
+  /**
+   * PREFIX is the section sign (§) used in Minecraft color codes.
+   */
+  static PREFIX = "§";
+  /**
+   * Returns the string representation of the ChatColor instance,
+   * which includes the PREFIX followed by the color code.
+   * @returns A string representing the ChatColor instance
+   */
+  toString() {
+    return _ChatColor.PREFIX + this.code;
+  }
+  /**
+   * Returns the color code of the ChatColor instance.
+   * @returns The color code of this ChatColor instance.
+   */
+  toRGB() {
+    return this.color;
+  }
+  /**
+   * Returns the hexadecimal string representation of the color code
+   * @returns {string | undefined} The hexadecimal representation of the color.
+   */
+  toHex() {
+    return this.color?.toString(16);
+  }
+  /**
+   * Retrieve the value of the red component.
+   *
+   * @returns {number | undefined} The value of the red component, or undefined if it is not set.
+   */
+  getRed() {
+    return this.r;
+  }
+  /**
+   * Retrieves the green value of the current color.
+   *
+   * @returns {number | undefined} The green value of the color, or undefined if it is not set.
+   */
+  getGreen() {
+    return this.g;
+  }
+  /**
+   * Retrieves the blue value of a color.
+   *
+   * @returns The blue value of the color.
+   * @type {number | undefined}
+   */
+  getBlue() {
+    return this.b;
+  }
+  /**
+   * Retrieves the format code associated with the chat color.
+   *
+   * @returns {string} The format code of the chat color.
+   */
+  getCode() {
+    return this.code;
+  }
+  /**
+   * Removes color codes from the specified string
+   * @param str - The string from which color codes will be removed.
+   * @returns The string cleared from color codes.
+   */
+  static stripColor(str) {
+    return str.replace(/§[0-9a-u]/g, "");
+  }
+  /**
+   * Finds the closest ChatColor code for the given RGB values
+   * @param r - Red part of the color.
+   * @param g - Green part of the color.
+   * @param b - Blue part of the color.
+   * @returns The closest ChatColor for the given RGB values.
+   */
+  static findClosestColor(r, g, b) {
+    let minDistance = Number.MAX_VALUE;
+    let closestColor = _ChatColor.WHITE;
+    for (const color of _ChatColor.ALL_COLORS) {
+      if (color.r && color.g && color.b) {
+        const distance = Math.sqrt(
+          Math.pow(color.r - r, 2) + Math.pow(color.g - g, 2) + Math.pow(color.b - b, 2)
+        );
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestColor = color;
+        }
+      }
+    }
+    return closestColor;
+  }
+};
+var ColorJSON = class _ColorJSON {
+  // Tokens
+  OpenObject = "{";
+  CloseObject = "}";
+  OpenArray = "[";
+  CloseArray = "]";
+  Comma = ",";
+  KeyValueSeparator = ":";
+  StringDelimiter = '"';
+  KeyDelimiter = "";
+  Indent = "  ";
+  NewLine = "\n";
+  Space = " ";
+  // Threshold for inline representation
+  InlineThreshold = 60;
+  // Maximum depth to which objects will be traversed
+  MaxDepth = 1;
+  // Whether to include class names
+  IncludeClassNames = true;
+  // Values
+  FunctionValue = "ƒ";
+  NullValue = "null";
+  UndefinedValue = "undefined";
+  TrueValue = "true";
+  FalseValue = "false";
+  CycleValue = "[...cycle...]";
+  TruncatedObjectValue = "{...}";
+  // Colors
+  OpenCloseObjectColor = ChatColor.YELLOW;
+  OpenCloseArrayColor = ChatColor.AQUA;
+  NumberColor = ChatColor.DARK_AQUA;
+  StringColor = ChatColor.DARK_GREEN;
+  BooleanColor = ChatColor.GOLD;
+  NullColor = ChatColor.GOLD;
+  KeyColor = ChatColor.GRAY;
+  EscapeColor = ChatColor.GOLD;
+  FunctionColor = ChatColor.GRAY;
+  ClassColor = ChatColor.GRAY;
+  ClassStyle = ChatColor.BOLD;
+  CycleColor = ChatColor.DARK_RED;
+  /**
+   * The default ColorJSON instance
+   */
+  static DEFAULT = /* @__PURE__ */ new _ColorJSON();
+  static createPlain() {
+    const plain = new _ColorJSON();
+    plain.OpenCloseObjectColor = "";
+    plain.OpenCloseArrayColor = "";
+    plain.NumberColor = "";
+    plain.StringColor = "";
+    plain.BooleanColor = "";
+    plain.NullColor = "";
+    plain.KeyColor = "";
+    plain.EscapeColor = "";
+    plain.FunctionColor = "";
+    plain.ClassColor = "";
+    plain.ClassStyle = "";
+    plain.CycleColor = "";
+    return plain;
+  }
+  /**
+   * A ColorJSON instance that does not colorize anything.
+   */
+  static PLAIN = /* @__PURE__ */ this.createPlain();
+  /**
+   * Transforms a value into a chat-friendly, colored JSON representation.
+   * @param value - The value to transform.
+   */
+  stringify(value) {
+    return this.stringifyValue(value, {
+      indentLevel: 0,
+      visited: /* @__PURE__ */ new WeakSet()
+    });
+  }
+  /**
+   * Transforms a string into a JSON representation.
+   * @param value - The string to transform.
+   */
+  stringifyString(value) {
+    return this.StringColor + this.StringDelimiter + this.escapeString(value) + this.StringDelimiter + ChatColor.RESET;
+  }
+  /**
+   * Transforms a number into a JSON representation.
+   * @param value - The number to transform.
+   */
+  stringifyNumber(value) {
+    return this.NumberColor + value.toString() + ChatColor.RESET;
+  }
+  /**
+   * Transforms a boolean into a JSON representation.
+   * @param value - The boolean to transform.
+   */
+  stringifyBoolean(value) {
+    return this.BooleanColor + (value ? this.TrueValue : this.FalseValue) + ChatColor.RESET;
+  }
+  /**
+   * Transforms a function into a JSON representation.
+   * @param value - The function to transform.
+   */
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  stringifyFunction(value) {
+    return this.FunctionColor + this.FunctionValue + ChatColor.RESET;
+  }
+  /**
+   * Returns a null JSON representation.
+   */
+  stringifyNull() {
+    return this.NullColor + this.NullValue + ChatColor.RESET;
+  }
+  /**
+   * Returns an undefined JSON representation.
+   */
+  stringifyUndefined() {
+    return this.NullColor + this.UndefinedValue + ChatColor.RESET;
+  }
+  /**
+   * Returns a cycle JSON representation.
+   */
+  stringifyCycle() {
+    return this.CycleColor + this.CycleValue + ChatColor.RESET;
+  }
+  /**
+   * Transforms an array into a JSON representation.
+   * @param value - The array to transform.
+   * @param indentLevel - The indentation level for pretty-printing.
+   */
+  stringifyArray(value, ctx) {
+    const indentSpace = this.Indent.repeat(ctx.indentLevel);
+    if (value.length === 0) {
+      return this.OpenCloseArrayColor + this.OpenArray + this.CloseArray + ChatColor.RESET;
+    }
+    let result = this.OpenCloseArrayColor + this.OpenArray + ChatColor.RESET + this.NewLine;
+    let compactResult = this.OpenCloseArrayColor + this.OpenArray + ChatColor.RESET;
+    value.forEach((item, index) => {
+      result += indentSpace + this.Indent + this.stringifyValue(item, this.indent(ctx));
+      result += index < value.length - 1 ? this.Comma + this.NewLine : this.NewLine;
+      compactResult += this.stringifyValue(item, this.indent(ctx));
+      compactResult += index < value.length - 1 ? this.Comma + this.Space : "";
+    });
+    result += indentSpace + this.OpenCloseArrayColor + this.CloseArray + ChatColor.RESET;
+    compactResult += this.OpenCloseArrayColor + this.CloseArray + ChatColor.RESET;
+    if (compactResult.length < this.InlineThreshold) {
+      return compactResult;
+    }
+    return result;
+  }
+  /**
+   * Transforms an object into a truncated JSON representation.
+   * @param value - The object to transform.
+   * @param className - Class Name of the object.
+   * @param indentLevel - The indentation level for pretty-printing.
+   */
+  stringifyTruncatedObject(value, className, ctx) {
+    return (this.IncludeClassNames ? this.ClassColor + "" + this.ClassStyle + className + ChatColor.RESET + this.Space : "") + this.TruncatedObjectValue;
+  }
+  /**
+   * Transforms an object into a JSON representation.
+   * @param value - The object to transform.
+   * @param className - Class Name of the object.
+   * @param entries - Entries of the object to transform.
+   * @param indentLevel - The indentation level for pretty-printing.
+   */
+  stringifyObject(value, className, entries, ctx) {
+    const indentSpace = this.Indent.repeat(ctx.indentLevel);
+    const prefix = this.IncludeClassNames && className !== "Object" ? this.ClassColor + "" + this.ClassStyle + className + ChatColor.RESET + this.Space : "";
+    if (entries.length === 0) {
+      return prefix + this.OpenCloseObjectColor + this.OpenObject + this.CloseObject + ChatColor.RESET;
+    }
+    let result = prefix + this.OpenCloseObjectColor + this.OpenObject + ChatColor.RESET + this.NewLine;
+    let compactResult = prefix + this.OpenCloseObjectColor + this.OpenObject + ChatColor.RESET;
+    entries.forEach(([key, val], index) => {
+      const compactVal = this.stringifyValue(val, this.indent(ctx));
+      result += indentSpace + this.Indent + this.KeyColor + this.KeyDelimiter + key + this.KeyDelimiter + ChatColor.RESET + this.KeyValueSeparator + this.Space + compactVal;
+      result += index < entries.length - 1 ? this.Comma + this.NewLine : this.NewLine;
+      compactResult += this.KeyColor + key + ChatColor.RESET + this.KeyValueSeparator + this.Space + compactVal;
+      compactResult += index < entries.length - 1 ? this.Comma + this.Space : "";
+    });
+    result += indentSpace + this.OpenCloseObjectColor + this.CloseObject + ChatColor.RESET;
+    compactResult += this.OpenCloseObjectColor + this.CloseObject + ChatColor.RESET;
+    if (compactResult.length < this.InlineThreshold) {
+      return compactResult;
+    }
+    return result;
+  }
+  shouldTruncateObject(value, className, ctx) {
+    return !(className === "Object" || ctx.indentLevel <= this.MaxDepth || this.MaxDepth <= 0);
+  }
+  /**
+   * Transforms a value of any type into a JSON representation. This function is not meant to be overridden.
+   * @param value - The value to transform.
+   * @param indentLevel - The indentation level for pretty-printing.
+   */
+  stringifyValue(value, ctx) {
+    if (value === null)
+      return this.stringifyNull();
+    if (value === void 0)
+      return this.stringifyUndefined();
+    if (typeof value === "number")
+      return this.stringifyNumber(value);
+    if (typeof value === "string")
+      return this.stringifyString(value);
+    if (typeof value === "boolean")
+      return this.stringifyBoolean(value);
+    if (typeof value === "function")
+      return this.stringifyFunction(value);
+    if (this.isCycle(value, ctx)) {
+      return this.stringifyCycle();
+    }
+    this.markCycle(value, ctx);
+    if (Array.isArray(value)) {
+      const result = this.stringifyArray(
+        value,
+        ctx.indentLevel ? this.indent(ctx) : ctx
+      );
+      this.clearCycle(value, ctx);
+      return result;
+    }
+    if (typeof value === "object") {
+      const name = value.constructor.name;
+      if (!this.shouldTruncateObject(value, name, ctx)) {
+        const keySet = /* @__PURE__ */ new Set();
+        let prototype = Object.getPrototypeOf(value);
+        let keys = Object.keys(prototype);
+        while (keys.length > 0) {
+          keys.forEach((key) => keySet.add(key));
+          prototype = Object.getPrototypeOf(prototype);
+          keys = Object.keys(prototype);
+        }
+        Object.keys(value).forEach((key) => keySet.add(key));
+        keySet.delete("__cycleDetection__");
+        const allKeys = [...keySet].sort();
+        const entries = allKeys.map((key) => {
+          try {
+            return [key, value[key] ?? void 0];
+          } catch (e) {
+            return [key, void 0];
+          }
+        }).filter(
+          ([, val]) => typeof val !== "function" && val !== void 0
+        );
+        const result = this.stringifyObject(value, name, entries, ctx);
+        this.clearCycle(value, ctx);
+        return result;
+      } else {
+        const result = this.stringifyTruncatedObject(value, name, ctx);
+        this.clearCycle(value, ctx);
+        return result;
+      }
+    }
+    this.clearCycle(value, ctx);
+    return ChatColor.RESET + value.toString();
+  }
+  /**
+   * Escapes a string for JSON.
+   * @param str - The string to escape.
+   */
+  escapeString(str) {
+    return str.replace(/\\/g, this.EscapeColor + "\\\\" + this.StringColor).replace(/"/g, this.EscapeColor + '\\"' + this.StringColor).replace(/\n/g, this.EscapeColor + "\\n" + this.StringColor).replace(/\r/g, this.EscapeColor + "\\r" + this.StringColor).replace(/\t/g, this.EscapeColor + "\\t" + this.StringColor);
+  }
+  markCycle(value, ctx) {
+    ctx.visited.add(value);
+  }
+  isCycle(value, ctx) {
+    return ctx.visited.has(value);
+  }
+  clearCycle(value, ctx) {
+    ctx.visited.delete(value);
+  }
+  indent(ctx) {
+    return { ...ctx, indentLevel: ctx.indentLevel + 1 };
+  }
+};
+var sourceMapping = void 0;
+try {
+  sourceMapping = globalSourceMapping;
+} catch (e) {
+}
+var LogLevel = class _LogLevel {
+  /**
+   * The constructor for each log level.
+   *
+   * @param {number} level - The numerical level for this logger.
+   * @param {string} name - The string name for this logger.
+   * @param {ChatColor} color - The color to use for this logger. Defaults to `ChatColor.RESET`.
+   */
+  constructor(level, name, color = ChatColor.RESET) {
+    this.level = level;
+    this.name = name;
+    this.color = color;
+  }
+  static All = /* @__PURE__ */ new _LogLevel(-2, "all");
+  static Trace = /* @__PURE__ */ new _LogLevel(
+    -2,
+    "trace",
+    ChatColor.DARK_AQUA
+  );
+  static Debug = /* @__PURE__ */ new _LogLevel(
+    -1,
+    "debug",
+    ChatColor.AQUA
+  );
+  static Info = /* @__PURE__ */ new _LogLevel(
+    0,
+    "info",
+    ChatColor.GREEN
+  );
+  static Warn = /* @__PURE__ */ new _LogLevel(
+    1,
+    "warn",
+    ChatColor.GOLD
+  );
+  static Error = /* @__PURE__ */ new _LogLevel(
+    2,
+    "error",
+    ChatColor.RED
+  );
+  static Fatal = /* @__PURE__ */ new _LogLevel(
+    3,
+    "fatal",
+    ChatColor.DARK_RED
+  );
+  static Off = /* @__PURE__ */ new _LogLevel(100, "off");
+  /**
+   * The list of all available log levels.
+   */
+  static values = [
+    _LogLevel.All,
+    _LogLevel.Trace,
+    _LogLevel.Debug,
+    _LogLevel.Info,
+    _LogLevel.Warn,
+    _LogLevel.Error,
+    _LogLevel.Fatal,
+    _LogLevel.Off
+  ];
+  /**
+   * Return the logging level as a string.
+   *
+   * @returns {string} The string representation of the logging level.
+   */
+  toString() {
+    return this.color + this.name.toUpperCase() + ChatColor.RESET;
+  }
+  /**
+   * Parse a string to get the corresponding `LogLevel`.
+   *
+   * @param {string} str - The string to parse.
+   * @returns {LogLevel} The corresponding `LogLevel`, or `undefined` if none was found.
+   */
+  static parse(str) {
+    str = str.toLowerCase();
+    for (const level of _LogLevel.values) {
+      if (level.name === str)
+        return level;
+    }
+    const num = parseInt(str);
+    if (!isNaN(num)) {
+      for (const level of _LogLevel.values) {
+        if (level.level === num)
+          return level;
+      }
+    }
+    return void 0;
+  }
+};
+function starMatch(pattern, str) {
+  if (pattern === "*")
+    return true;
+  if (pattern.includes("*")) {
+    if (pattern.startsWith("*")) {
+      return str.endsWith(pattern.substring(1));
+    }
+    if (pattern.endsWith("*")) {
+      return str.startsWith(pattern.substring(0, pattern.length - 1));
+    }
+    const regex = new RegExp(pattern.replace(/\*/g, ".*"));
+    return regex.test(str);
+  }
+  return pattern === str;
+}
+var loggingSettings = {
+  level: LogLevel.Info,
+  filter: ["*"],
+  outputTags: false,
+  timestampFormatter: (timestamp) => {
+    return "";
+  },
+  formatFunction: (level, logger, message, timestamp, tags = void 0) => {
+    const _tags = tags !== void 0 ? `§7${tags.map((tag) => `[${tag}]`).join("")}§r` : "";
+    const time = timestamp ? `[${timestamp}]` : "";
+    return `${time}[${level}][${ChatColor.MATERIAL_EMERALD}${logger.name}${ChatColor.RESET}]${_tags} ${message}`;
+  },
+  messagesJoinFunction: (messages) => {
+    return messages.join(" ");
+  },
+  jsonFormatter: ColorJSON.DEFAULT,
+  outputConfig: {
+    [LogLevel.Trace.level]: [
+      0,
+      1
+      /* ConsoleInfo */
+    ],
+    [LogLevel.Debug.level]: [
+      0,
+      1
+      /* ConsoleInfo */
+    ],
+    [LogLevel.Info.level]: [
+      0,
+      1
+      /* ConsoleInfo */
+    ],
+    [LogLevel.Warn.level]: [
+      0,
+      1,
+      2
+      /* ConsoleWarn */
+    ],
+    [LogLevel.Error.level]: [
+      0,
+      1,
+      3
+      /* ConsoleError */
+    ],
+    [LogLevel.Fatal.level]: [
+      0,
+      1,
+      3
+      /* ConsoleError */
+    ]
+  }
+};
+var Logger = class _Logger {
+  /**
+   * Construct a new Logger
+   *
+   * @param {string} name - The name of the Logger.
+   * @param {string[]} tags - The tags for the logger as strings.
+   */
+  constructor(name, tags = []) {
+    this.name = name;
+    this.tags = tags;
+  }
+  static initialized = false;
+  /**
+   *  Initialize logger class
+   */
+  static init() {
+    LOGGING: {
+      if (_Logger.initialized)
+        return;
+      _Logger.initialized = true;
+      system2.beforeEvents.startup.subscribe(() => {
+        system2.afterEvents.scriptEventReceive.subscribe((ev) => {
+          if (ev.id === "logging:level" || ev.id === "log:level") {
+            if (!ev.message) {
+              loggingSettings.level = LogLevel.Info;
+              world2.sendMessage(
+                `${ChatColor.AQUA}Logging level set to ${ChatColor.BOLD}${loggingSettings.level}`
+              );
+            } else {
+              const level = LogLevel.parse(ev.message);
+              if (level) {
+                loggingSettings.level = level;
+                world2.sendMessage(
+                  `${ChatColor.AQUA}Logging level set to ${ChatColor.BOLD}${loggingSettings.level}`
+                );
+              } else {
+                world2.sendMessage(
+                  `${ChatColor.DARK_RED}Invalid logging level: ${ev.message}`
+                );
+              }
+            }
+          } else if (ev.id === "logging:filter" || ev.id === "log:filter") {
+            if (!ev.message) {
+              loggingSettings.filter = ["*"];
+            } else {
+              loggingSettings.filter = ev.message.split(",");
+            }
+            world2.sendMessage(
+              `${ChatColor.AQUA}Logging filter set to ${ChatColor.BOLD}${loggingSettings.filter.join(", ")}`
+            );
+          }
+        });
+      });
+    }
+  }
+  /**
+   * @param {LogLevel} level - The level to set.
+   */
+  static setLevel(level) {
+    loggingSettings.level = level;
+  }
+  /**
+   * Filter the loggers by the given tags. Tags can use the `*` wildcard.
+   * @param {'*' | string[]} filter - The filter to set.
+   */
+  static setFilter(filter) {
+    loggingSettings.filter = filter;
+  }
+  /**
+   * Set the format function for the logger.
+   * @param {function} func - The function to set.
+   */
+  static setFormatFunction(func) {
+    loggingSettings.formatFunction = func;
+  }
+  /**
+   * Set the function, that joins multiple messages into one for the logger.
+   * @param {function} func - The function to set.
+   */
+  static setMessagesJoinFunction(func) {
+    loggingSettings.messagesJoinFunction = func;
+  }
+  /**
+   * Set the tag visibility for the logger. When true, tags will be printed in the log. Disabled by default.
+   * @param visible
+   */
+  static setTagsOutputVisibility(visible) {
+    loggingSettings.outputTags = visible;
+  }
+  /**
+   * Set the timestamp formatter for the logger.
+   * @param formatter - The function used to format the timestamp.
+   */
+  static setTimestampFormatter(formatter) {
+    loggingSettings.timestampFormatter = formatter;
+  }
+  /**
+   * Set the basic timestamp formatter for the logger in HH:mm:ss.SS format.
+   */
+  static setBasicTimestampFormatter() {
+    loggingSettings.timestampFormatter = (timestamp) => {
+      const hours = timestamp.getHours().toString().padStart(2, "0");
+      const minutes = timestamp.getMinutes().toString().padStart(2, "0");
+      const seconds = timestamp.getSeconds().toString().padStart(2, "0");
+      const centiseconds = Math.floor(timestamp.getMilliseconds() / 10).toString().padStart(2, "0");
+      return `${hours}:${minutes}:${seconds}.${centiseconds}`;
+    };
+  }
+  /**
+   * Set the JSON formatter for the logger.
+   * @param {ColorJSON} formatter - The json formatter to set.
+   */
+  static setJsonFormatter(formatter) {
+    loggingSettings.jsonFormatter = formatter;
+  }
+  /**
+   * Get the output configuration for the logger.
+   * @returns {OutputConfig} The output configuration.
+   */
+  static getOutputConfig() {
+    return loggingSettings.outputConfig;
+  }
+  /**
+   * Returns a new Logger.
+   *
+   * @param {string} name - The name of the Logger.
+   * @param {string[]} tags - The tags for the Logger as strings.
+   *
+   * @returns {Logger} A new Logger.
+   */
+  static getLogger(name, ...tags) {
+    LOGGING: {
+      if (!_Logger.initialized) {
+        _Logger.init();
+      }
+    }
+    return new _Logger(name, tags);
+  }
+  /**
+   * Log messages with the level set.
+   *
+   * @param {LogLevel} level - The LogLevel to log the messages at.
+   * @param {array} message - An array of the messages to log.
+   */
+  log(level, ...message) {
+    LOGGING: {
+      if (level.level < loggingSettings.level.level)
+        return;
+      if (loggingSettings.filter.length === 0 || this.tags.length === 0) {
+        this.logRaw(level, ...message);
+        return;
+      }
+      for (const filter of loggingSettings.filter) {
+        if (filter.startsWith("!")) {
+          if (starMatch(filter.substring(1), this.name) || this.tags.some(
+            (tag) => starMatch(filter.substring(1), tag)
+          )) {
+            return;
+          }
+        }
+        if (starMatch(filter, this.name) || this.tags.some((tag) => starMatch(filter, tag))) {
+          this.logRaw(level, ...message);
+          return;
+        }
+      }
+    }
+  }
+  stringifyError(x) {
+    let stack = x.stack ?? "";
+    if (sourceMapping) {
+      const stackLineRegex = /\(([^)]+\.js):(\d+)(?::(\d+))?\)/;
+      stack = stack.split("\n").map((line) => {
+        const match = stackLineRegex.exec(line);
+        if (match) {
+          const filePath = match[1];
+          const lineNumber = parseInt(match[2], 10) - sourceMapping.metadata.offset;
+          if (filePath.includes(sourceMapping.metadata.filePath)) {
+            const mappingEntry = globalSourceMapping[lineNumber];
+            if (mappingEntry) {
+              const replacement = `(${mappingEntry.source}:${mappingEntry.originalLine})`;
+              return line.replace(
+                stackLineRegex,
+                replacement
+              );
+            }
+          }
+        }
+        return line;
+      }).join("\n");
+    }
+    return `${ChatColor.DARK_RED}${ChatColor.BOLD}${x.message}
+${ChatColor.RESET}${ChatColor.GRAY}${ChatColor.ITALIC}${stack}${ChatColor.RESET}`;
+  }
+  /**
+   * Internal function to log messages with the level set, that bypasses the filters.
+   *
+   * @param {LogLevel} level - The LogLevel to log the messages at.
+   * @param {array} message - An array of the messages to log.
+   */
+  logRaw(level, ...message) {
+    LOGGING: {
+      const msgs = message.map((x) => {
+        if (x === void 0) {
+          return ChatColor.GOLD + "undefined" + ChatColor.RESET;
+        }
+        if (x === null) {
+          return ChatColor.GOLD + "null" + ChatColor.RESET;
+        }
+        if (x && x instanceof Error) {
+          return this.stringifyError(x);
+        }
+        if (typeof x === "object" || Array.isArray(x)) {
+          return loggingSettings.jsonFormatter.stringify(x) + ChatColor.RESET;
+        }
+        return x.toString() + ChatColor.RESET;
+      });
+      const now = /* @__PURE__ */ new Date();
+      const formattedTimestamp = loggingSettings.timestampFormatter(now);
+      const formatted = loggingSettings.formatFunction(
+        level,
+        this,
+        loggingSettings.messagesJoinFunction(msgs),
+        formattedTimestamp,
+        loggingSettings.outputTags ? this.tags : void 0
+      );
+      const outputs = loggingSettings.outputConfig[level.level] || [
+        0,
+        1
+        /* ConsoleInfo */
+      ];
+      if (outputs.includes(
+        0
+        /* Chat */
+      )) {
+        try {
+          world2.sendMessage(formatted);
+        } catch (_) {
+          system2.run(() => {
+            world2.sendMessage(formatted);
+          });
+        }
+      }
+      if (outputs.includes(
+        1
+        /* ConsoleInfo */
+      )) {
+        if (console.originalLog) {
+          console.originalLog(
+            ChatColor.stripColor(formatted)
+          );
+        } else {
+          console.log(ChatColor.stripColor(formatted));
+        }
+      }
+      if (outputs.includes(
+        2
+        /* ConsoleWarn */
+      )) {
+        console.warn(formatted);
+      }
+      if (outputs.includes(
+        3
+        /* ConsoleError */
+      )) {
+        console.error(formatted);
+      }
+    }
+  }
+  /**
+   * Logs a trace message.
+   *
+   * @param {...unknown} message - The message(s) to be logged.
+   */
+  trace(...message) {
+    LOGGING:
+      this.log(LogLevel.Trace, ...message);
+  }
+  /**
+   * Logs debug message.
+   *
+   * @param {...unknown[]} message - The message(s) to be logged.
+   */
+  debug(...message) {
+    LOGGING:
+      this.log(LogLevel.Debug, ...message);
+  }
+  /**
+   * Logs an informational message.
+   *
+   * @param {...unknown[]} message - The message(s) to be logged.
+   */
+  info(...message) {
+    LOGGING:
+      this.log(LogLevel.Info, ...message);
+  }
+  /**
+   * Logs a warning message.
+   *
+   * @param {...unknown[]} message - The warning message or messages to be logged.
+   */
+  warn(...message) {
+    LOGGING:
+      this.log(LogLevel.Warn, ...message);
+  }
+  /**
+   * Logs an error message.
+   *
+   * @param {...unknown[]} message - The error message(s) to log.
+   */
+  error(...message) {
+    LOGGING:
+      this.log(LogLevel.Error, ...message);
+  }
+  /**
+   * Logs a fatal error.
+   *
+   * @param {unknown[]} message - The error message to log.
+   */
+  fatal(...message) {
+    LOGGING:
+      this.log(LogLevel.Fatal, ...message);
+  }
+};
+var DIRECTION_VECTORS2 = {
+  [Direction2.Down]: [0, -1, 0],
+  [Direction2.Up]: [0, 1, 0],
+  [Direction2.North]: [0, 0, -1],
+  [Direction2.South]: [0, 0, 1],
+  [Direction2.East]: [1, 0, 0],
+  [Direction2.West]: [-1, 0, 0]
+};
+var Vec3 = class _Vec3 {
+  static log = /* @__PURE__ */ Logger.getLogger(
+    "vec3",
+    "vec3",
+    "bedrock-boost"
+  );
+  /**
+   * Zero vector
+   */
+  static Zero = /* @__PURE__ */ new _Vec3(0, 0, 0);
+  /**
+   * Down vector, negative towards Y
+   */
+  static Down = /* @__PURE__ */ new _Vec3(Direction2.Down);
+  /**
+   * Up vector, positive towards Y
+   */
+  static Up = /* @__PURE__ */ new _Vec3(Direction2.Up);
+  /**
+   * North vector, negative towards Z
+   */
+  static North = /* @__PURE__ */ new _Vec3(Direction2.North);
+  /**
+   * South vector, positive towards Z
+   */
+  static South = /* @__PURE__ */ new _Vec3(Direction2.South);
+  /**
+   * East vector, positive towards X
+   */
+  static East = /* @__PURE__ */ new _Vec3(Direction2.East);
+  /**
+   * West vector, negative towards X
+   */
+  static West = /* @__PURE__ */ new _Vec3(Direction2.West);
+  x;
+  y;
+  z;
+  constructor(x, y, z) {
+    if (typeof x === "number") {
+      this.x = x;
+      this.y = y;
+      this.z = z;
+    } else if (x instanceof _Vec3) {
+      this.x = x.x;
+      this.y = x.y;
+      this.z = x.z;
+    } else if (typeof x === "string") {
+      const direction = DIRECTION_VECTORS2[x];
+      if (!direction) {
+        _Vec3.log.error(new Error("Invalid vector"), x);
+        throw new Error("Invalid vector");
+      }
+      this.x = direction[0];
+      this.y = direction[1];
+      this.z = direction[2];
+    } else if (Array.isArray(x)) {
+      this.x = x[0];
+      this.y = x[1];
+      this.z = x[2];
+    } else {
+      if (!x || !x.x && x.x !== 0 || !x.y && x.y !== 0 || !x.z && x.z !== 0) {
+        _Vec3.log.error(new Error("Invalid vector"), x);
+        throw new Error("Invalid vector");
+      }
+      this.x = x.x;
+      this.y = x.y;
+      this.z = x.z;
+    }
+  }
+  static from(x, y, z) {
+    if (typeof x === "number") {
+      if (y !== void 0 && z !== void 0)
+        return new _Vec3(x, y, z);
+    } else if (x instanceof _Vec3) {
+      return x;
+    } else if (typeof x === "string") {
+      const direction = _Vec3.fromDirection(x);
+      if (direction)
+        return direction;
+    } else if (x) {
+      return new _Vec3(x);
+    }
+    _Vec3.log.error(new Error("Invalid arguments"), x, y, z);
+    throw new Error("Invalid arguments");
+  }
+  /**
+   * Returns the shared constant vector for the given direction, or undefined.
+   */
+  static fromDirection(direction) {
+    switch (direction) {
+      case Direction2.Down:
+        return _Vec3.Down;
+      case Direction2.Up:
+        return _Vec3.Up;
+      case Direction2.North:
+        return _Vec3.North;
+      case Direction2.South:
+        return _Vec3.South;
+      case Direction2.East:
+        return _Vec3.East;
+      case Direction2.West:
+        return _Vec3.West;
+    }
+    return void 0;
+  }
+  static _from(x, y, z) {
+    if (typeof x === "number") {
+      if (y === void 0 && z === void 0)
+        return new _Vec3(x, x, x);
+      if (y !== void 0 && z !== void 0)
+        return new _Vec3(x, y, z);
+    } else if (x instanceof _Vec3) {
+      return x;
+    } else if (typeof x === "string") {
+      const direction = _Vec3.fromDirection(x);
+      if (direction)
+        return direction;
+    } else if (x) {
+      return new _Vec3(x);
+    }
+    _Vec3.log.error(new Error("Invalid arguments"), x, y, z);
+    throw new Error("Invalid arguments");
+  }
+  /**
+   * Creates a copy of the current vector.
+   *
+   * @returns A new vector with the same values as the current vector.
+   */
+  copy() {
+    return new _Vec3(this.x, this.y, this.z);
+  }
+  /**
+   * Adds a vector to the current vector. Unlike `add`, this method takes only
+   * a vector and skips the argument dispatch, which makes it the faster choice in
+   * code that runs every tick.
+   *
+   * @param v - The vector to be added.
+   * @returns The resulting vector.
+   */
+  addVec(v) {
+    return new _Vec3(this.x + v.x, this.y + v.y, this.z + v.z);
+  }
+  /**
+   * Subtracts a vector from the current vector. Fast-path variant of `subtract`.
+   *
+   * @param v - The vector to be subtracted.
+   * @returns The resulting vector.
+   */
+  subtractVec(v) {
+    return new _Vec3(this.x - v.x, this.y - v.y, this.z - v.z);
+  }
+  /**
+   * Multiplies the current vector component-wise by a vector. Fast-path variant
+   * of `multiply`; use `scale` for scalars.
+   *
+   * @param v - The vector multiplier.
+   * @returns The resulting vector.
+   */
+  multiplyVec(v) {
+    return new _Vec3(this.x * v.x, this.y * v.y, this.z * v.z);
+  }
+  /**
+   * Divides the current vector component-wise by a vector. Fast-path variant of
+   * `divide`.
+   *
+   * @param v - The vector divisor.
+   * @returns The resulting vector.
+   * @throws If any component of the divisor is zero.
+   */
+  divideVec(v) {
+    if (v.x === 0 || v.y === 0 || v.z === 0)
+      throw new Error("Cannot divide by zero");
+    return new _Vec3(this.x / v.x, this.y / v.y, this.z / v.z);
+  }
+  /**
+   * Computes the dot product with a vector. Fast-path variant of `dot`.
+   *
+   * @param v - The other vector.
+   * @returns The dot product.
+   */
+  dotVec(v) {
+    return this.x * v.x + this.y * v.y + this.z * v.z;
+  }
+  /**
+   * Computes the cross product with a vector. Fast-path variant of `cross`.
+   *
+   * @param v - The other vector.
+   * @returns The cross product.
+   */
+  crossVec(v) {
+    return new _Vec3(
+      this.y * v.z - this.z * v.y,
+      this.z * v.x - this.x * v.z,
+      this.x * v.y - this.y * v.x
+    );
+  }
+  /**
+   * Computes the distance to a vector. Fast-path variant of `distance`.
+   *
+   * @param v - The other vector.
+   * @returns The distance between the vectors.
+   */
+  distanceVec(v) {
+    return Math.hypot(this.x - v.x, this.y - v.y, this.z - v.z);
+  }
+  /**
+   * Computes the squared distance to a vector. Fast-path variant of
+   * `distanceSquared`.
+   *
+   * @param v - The other vector.
+   * @returns The squared distance between the vectors.
+   */
+  distanceSquaredVec(v) {
+    const dx = this.x - v.x;
+    const dy = this.y - v.y;
+    const dz = this.z - v.z;
+    return dx * dx + dy * dy + dz * dz;
+  }
+  /**
+   * Converts this immutable vector to a new mutable vector.
+   */
+  toMutable() {
+    return new MutVec3(this.x, this.y, this.z);
+  }
+  static fromRotation(yawOrRotation, pitch) {
+    let yaw;
+    if (typeof yawOrRotation === "number") {
+      yaw = yawOrRotation;
+      pitch = pitch;
+    } else {
+      yaw = yawOrRotation.y;
+      pitch = yawOrRotation.x;
+    }
+    const psi = yaw * (Math.PI / 180);
+    const theta = pitch * (Math.PI / 180);
+    const x = -Math.cos(theta) * Math.sin(psi);
+    const y = -Math.sin(theta);
+    const z = Math.cos(theta) * Math.cos(psi);
+    return new _Vec3(x, y, z);
+  }
+  /**
+   * Converts the normal vector to yaw and pitch values.
+   *
+   * @returns A Vector2 containing the yaw and pitch values.
+   */
+  toRotation() {
+    if (this.isZero()) {
+      _Vec3.log.error(
+        new Error("Cannot convert zero-length vector to direction")
+      );
+      throw new Error("Cannot convert zero-length vector to direction");
+    }
+    const direction = this.normalize();
+    const yaw = -Math.atan2(direction.x, direction.z) * (180 / Math.PI);
+    const pitch = Math.asin(-direction.y) * (180 / Math.PI);
+    return {
+      x: pitch,
+      y: yaw
+    };
+  }
+  add(x, y, z) {
+    const v = x instanceof _Vec3 ? x : _Vec3._from(x, y, z);
+    return new _Vec3(v.x + this.x, v.y + this.y, v.z + this.z);
+  }
+  directionTo(x, y, z) {
+    const v = x instanceof _Vec3 ? x : _Vec3._from(x, y, z);
+    return v.subtract(this).normalize();
+  }
+  subtract(x, y, z) {
+    const v = x instanceof _Vec3 ? x : _Vec3._from(x, y, z);
+    return new _Vec3(this.x - v.x, this.y - v.y, this.z - v.z);
+  }
+  multiply(x, y, z) {
+    if (typeof x === "number" && y === void 0 && z === void 0) {
+      return new _Vec3(this.x * x, this.y * x, this.z * x);
+    }
+    const v = x instanceof _Vec3 ? x : _Vec3._from(x, y, z);
+    return new _Vec3(v.x * this.x, v.y * this.y, v.z * this.z);
+  }
+  /**
+   * Scales the current vector by a scalar.
+   *
+   * @param scalar - The scalar to scale the vector by.
+   * @returns The updated vector after scaling.
+   */
+  scale(scalar) {
+    return new _Vec3(this.x * scalar, this.y * scalar, this.z * scalar);
+  }
+  divide(x, y, z) {
+    if (typeof x === "number" && y === void 0 && z === void 0) {
+      if (x === 0)
+        throw new Error("Cannot divide by zero");
+      return new _Vec3(this.x / x, this.y / x, this.z / x);
+    }
+    const v = x instanceof _Vec3 ? x : _Vec3._from(x, y, z);
+    if (v.x === 0 || v.y === 0 || v.z === 0)
+      throw new Error("Cannot divide by zero");
+    return new _Vec3(this.x / v.x, this.y / v.y, this.z / v.z);
+  }
+  /**
+   * Normalizes the vector to have a length (magnitude) of 1.
+   * Normalized vectors are often used as a direction vectors.
+   *
+   * @returns The normalized vector.
+   */
+  normalize() {
+    if (this.isZero()) {
+      _Vec3.log.error(new Error("Cannot normalize zero-length vector"));
+      throw new Error("Cannot normalize zero-length vector");
+    }
+    const len = this.length();
+    return new _Vec3(this.x / len, this.y / len, this.z / len);
+  }
+  /**
+   * Computes the length (magnitude) of the vector.
+   *
+   * @returns The length of the vector.
+   */
+  length() {
+    return Math.hypot(this.x, this.y, this.z);
+  }
+  /**
+   * Computes the squared length of the vector.
+   * This is faster than computing the actual length and can be useful for comparison purposes.
+   *
+   * @returns The squared length of the vector.
+   */
+  lengthSquared() {
+    return this.x * this.x + this.y * this.y + this.z * this.z;
+  }
+  cross(x, y, z) {
+    const v = x instanceof _Vec3 ? x : _Vec3._from(x, y, z);
+    return _Vec3.from(
+      this.y * v.z - this.z * v.y,
+      this.z * v.x - this.x * v.z,
+      this.x * v.y - this.y * v.x
+    );
+  }
+  distance(x, y, z) {
+    const v = x instanceof _Vec3 ? x : _Vec3._from(x, y, z);
+    return Math.hypot(this.x - v.x, this.y - v.y, this.z - v.z);
+  }
+  distanceSquared(x, y, z) {
+    const v = x instanceof _Vec3 ? x : _Vec3._from(x, y, z);
+    const dx = this.x - v.x;
+    const dy = this.y - v.y;
+    const dz = this.z - v.z;
+    return dx * dx + dy * dy + dz * dz;
+  }
+  /**
+   * Computes the linear interpolation between the current vector and another vector, when t is in the range [0, 1].
+   * Computes the extrapolation when t is outside this range.
+   *
+   * @param v - The other vector.
+   * @param t - The interpolation factor.
+   * @returns A new vector after performing the lerp operation.
+   */
+  lerp(v, t) {
+    if (!v || !t)
+      return _Vec3.from(this);
+    if (t === 1)
+      return _Vec3.from(v);
+    if (t === 0)
+      return _Vec3.from(this);
+    return _Vec3.from(
+      this.x + (v.x - this.x) * t,
+      this.y + (v.y - this.y) * t,
+      this.z + (v.z - this.z) * t
+    );
+  }
+  /**
+   * Computes the spherical linear interpolation between the current vector and another vector, when t is in the range [0, 1].
+   * Computes the extrapolation when t is outside this range.
+   *
+   * @param v - The other vector.
+   * @param t - The interpolation factor.
+   * @returns A new vector after performing the slerp operation.
+   */
+  slerp(v, t) {
+    if (!v || !t)
+      return _Vec3.from(this);
+    if (t === 1)
+      return _Vec3.from(v);
+    if (t === 0)
+      return _Vec3.from(this);
+    const dot = this.dot(v);
+    const theta = Math.acos(dot) * t;
+    const relative = _Vec3.from(v).subtract(this.multiply(dot)).normalize();
+    return this.multiply(Math.cos(theta)).add(
+      relative.multiply(Math.sin(theta))
+    );
+  }
+  dot(x, y, z) {
+    const v = x instanceof _Vec3 ? x : _Vec3._from(x, y, z);
+    return this.x * v.x + this.y * v.y + this.z * v.z;
+  }
+  angleBetween(x, y, z) {
+    const v = x instanceof _Vec3 ? x : _Vec3._from(x, y, z);
+    const dotProduct = this.dot(v);
+    const lenSq1 = this.lengthSquared();
+    if (lenSq1 === 0) {
+      return 0;
+    }
+    const lenSq2 = v.lengthSquared();
+    if (lenSq2 === 0) {
+      return 0;
+    }
+    const denom = Math.sqrt(lenSq1 * lenSq2);
+    const cosAngle = Math.min(1, Math.max(-1, dotProduct / denom));
+    return Math.acos(cosAngle);
+  }
+  projectOnto(x, y, z) {
+    const v = x instanceof _Vec3 ? x : _Vec3._from(x, y, z);
+    if (v.isZero()) {
+      return _Vec3.Zero;
+    }
+    const denom = v.dot(v);
+    if (denom === 0) {
+      return _Vec3.Zero;
+    }
+    const scale = this.dot(v) / denom;
+    return new _Vec3(v.x * scale, v.y * scale, v.z * scale);
+  }
+  reflect(x, y, z) {
+    const normal = _Vec3._from(x, y, z);
+    const proj = this.projectOnto(normal);
+    return this.subtract(proj.multiply(2));
+  }
+  /**
+   * Rotates the current normalized vector by a given angle around a given axis.
+   *
+   * @param axis - The axis of rotation.
+   * @param angle - The angle of rotation in degrees.
+   * @returns The rotated vector.
+   */
+  rotate(axis, angle) {
+    const halfAngle = angle * Math.PI / 180 / 2;
+    const w = Math.cos(halfAngle);
+    const x = axis.x * Math.sin(halfAngle);
+    const y = axis.y * Math.sin(halfAngle);
+    const z = axis.z * Math.sin(halfAngle);
+    const v = this;
+    const qv_x = w * w * v.x + 2 * y * w * v.z - 2 * z * w * v.y + x * x * v.x + 2 * y * x * v.y + 2 * z * x * v.z - z * z * v.x - y * y * v.x;
+    const qv_y = 2 * x * y * v.x + y * y * v.y + 2 * z * y * v.z + 2 * w * z * v.x - z * z * v.y + w * w * v.y - 2 * x * w * v.z - x * x * v.y;
+    const qv_z = 2 * x * z * v.x + 2 * y * z * v.y + z * z * v.z - 2 * w * y * v.x - y * y * v.z + 2 * w * x * v.y - x * x * v.z + w * w * v.z;
+    return new _Vec3(qv_x, qv_y, qv_z);
+  }
+  /**
+   * Updates the X, Y, and Z components of the vector.
+   *
+   * @param x - The function to use to update the X value.
+   * @param y - The function to use to update the Y value.
+   * @param z - The function to use to update the Z value.
+   * @returns The updated vector with the new values.
+   */
+  update(x, y, z) {
+    if (!x) {
+      x = (value) => value;
+    }
+    if (!y) {
+      y = (value) => value;
+    }
+    if (!z) {
+      z = (value) => value;
+    }
+    return new _Vec3(x(this.x), y(this.y), z(this.z));
+  }
+  setX(value) {
+    if (typeof value === "number") {
+      return new _Vec3(value, this.y, this.z);
+    }
+    return new _Vec3(value(this.x), this.y, this.z);
+  }
+  setY(value) {
+    if (typeof value === "number") {
+      return new _Vec3(this.x, value, this.z);
+    }
+    return new _Vec3(this.x, value(this.y), this.z);
+  }
+  setZ(value) {
+    if (typeof value === "number") {
+      return new _Vec3(this.x, this.y, value);
+    }
+    return new _Vec3(this.x, this.y, value(this.z));
+  }
+  /**
+   * Calculates the shortest distance between a point (represented by this Vector3 instance) and a line segment.
+   *
+   * This method finds the perpendicular projection of the point onto the line defined by the segment. If this
+   * projection lies outside the line segment, then the method calculates the distance from the point to the
+   * nearest segment endpoint.
+   *
+   * @param start - The starting point of the line segment.
+   * @param end - The ending point of the line segment.
+   * @returns The shortest distance between the point and the line segment.
+   */
+  distanceToLineSegment(start, end) {
+    const lineDirection = _Vec3.from(end).subtract(start);
+    if (lineDirection.lengthSquared() === 0) {
+      return this.subtract(start).length();
+    }
+    const t = Math.max(
+      0,
+      Math.min(
+        1,
+        this.subtract(start).dot(lineDirection) / lineDirection.dot(lineDirection)
+      )
+    );
+    const projection = _Vec3.from(start).add(lineDirection.multiply(t));
+    return this.subtract(projection).length();
+  }
+  /**
+   * Floors the X, Y, and Z components of the vector.
+   * @returns A new vector with the floored components.
+   */
+  floor() {
+    return this.update(Math.floor, Math.floor, Math.floor);
+  }
+  /**
+   * Floors the X component of the vector.
+   * @returns A new vector with the floored X component.
+   */
+  floorX() {
+    return this.setX(Math.floor);
+  }
+  /**
+   * Floors the Y component of the vector.
+   * @returns A new vector with the floored Y component.
+   */
+  floorY() {
+    return this.setY(Math.floor);
+  }
+  /**
+   * Floors the Z component of the vector.
+   * @returns A new vector with the floored Z component.
+   */
+  floorZ() {
+    return this.setZ(Math.floor);
+  }
+  /**
+   * Ceils the X, Y, and Z components of the vector.
+   * @returns A new vector with the ceiled components.
+   */
+  ceil() {
+    return new _Vec3(
+      Math.ceil(this.x),
+      Math.ceil(this.y),
+      Math.ceil(this.z)
+    );
+  }
+  /**
+   * Ceils the X component of the vector.
+   * @returns A new vector with the ceiled X component.
+   */
+  ceilX() {
+    return this.setX(Math.ceil);
+  }
+  /**
+   * Ceils the Y component of the vector.
+   * @returns A new vector with the ceiled Y component.
+   */
+  ceilY() {
+    return this.setY(Math.ceil);
+  }
+  /**
+   * Ceils the Z component of the vector.
+   * @returns A new vector with the ceiled Z component.
+   */
+  ceilZ() {
+    return this.setZ(Math.ceil);
+  }
+  /**
+   * Rounds the X, Y, and Z components of the vector.
+   * @returns A new vector with the rounded components.
+   */
+  round() {
+    return this.update(Math.round, Math.round, Math.round);
+  }
+  /**
+   * Rounds the X component of the vector.
+   * @returns A new vector with the rounded X component.
+   */
+  roundX() {
+    return this.setX(Math.round);
+  }
+  /**
+   * Rounds the Y component of the vector.
+   * @returns A new vector with the rounded Y component.
+   */
+  roundY() {
+    return this.setY(Math.round);
+  }
+  /**
+   * Rounds the Z component of the vector.
+   * @returns A new vector with the rounded Z component.
+   */
+  roundZ() {
+    return this.setZ(Math.round);
+  }
+  /**
+   * Returns a new vector offset from the current vector up by 1 block.
+   * @returns A new vector offset from the current vector up by 1 block.
+   */
+  up() {
+    return this.add(_Vec3.Up);
+  }
+  /**
+   * Returns a new vector offset from the current vector down by 1 block.
+   * @returns A new vector offset from the current vector down by 1 block.
+   */
+  down() {
+    return this.add(_Vec3.Down);
+  }
+  /**
+   * Returns a new vector offset from the current vector north by 1 block.
+   * @returns A new vector offset from the current vector north by 1 block.
+   */
+  north() {
+    return this.add(_Vec3.North);
+  }
+  /**
+   * Returns a new vector offset from the current vector south by 1 block.
+   * @returns A new vector offset from the current vector south by 1 block.
+   */
+  south() {
+    return this.add(_Vec3.South);
+  }
+  /**
+   * Returns a new vector offset from the current vector east by 1 block.
+   * @returns A new vector offset from the current vector east by 1 block.
+   */
+  east() {
+    return this.add(_Vec3.East);
+  }
+  /**
+   * Returns a new vector offset from the current vector west by 1 block.
+   * @returns A new vector offset from the current vector west by 1 block.
+   */
+  west() {
+    return this.add(_Vec3.West);
+  }
+  /**
+   * Checks if the current vector is equal to the zero vector.
+   * @returns true if the vector is equal to the zero vector, else returns false.
+   */
+  isZero() {
+    return this.x === 0 && this.y === 0 && this.z === 0;
+  }
+  /**
+   * Converts the vector to an array containing the X, Y, and Z components of the vector.
+   * @returns An array containing the X, Y, and Z components of the vector.
+   */
+  toArray() {
+    return [this.x, this.y, this.z];
+  }
+  /**
+   * Converts the vector to a direction.
+   * If the vector is not a unit vector, then it will be normalized and rounded to the nearest direction.
+   */
+  toDirection() {
+    if (this.isZero()) {
+      _Vec3.log.error(
+        new Error("Cannot convert zero-length vector to direction")
+      );
+      throw new Error("Cannot convert zero-length vector to direction");
+    }
+    const normalized = this.normalize();
+    const maxValue = Math.max(
+      Math.abs(normalized.x),
+      Math.abs(normalized.y),
+      Math.abs(normalized.z)
+    );
+    if (maxValue === normalized.x)
+      return Direction2.East;
+    if (maxValue === -normalized.x)
+      return Direction2.West;
+    if (maxValue === normalized.y)
+      return Direction2.Up;
+    if (maxValue === -normalized.y)
+      return Direction2.Down;
+    if (maxValue === normalized.z)
+      return Direction2.South;
+    if (maxValue === -normalized.z)
+      return Direction2.North;
+    _Vec3.log.error(new Error("Cannot convert vector to direction"), this);
+    throw new Error("Cannot convert vector to direction");
+  }
+  /**
+   * Converts the vector to a structure rotation.
+   * If the vector is not a unit vector, then it will be normalized and rounded to the nearest 90 degrees rotation.
+   */
+  toStructureRotation() {
+    const rotation = this.toRotation();
+    let aligned = Math.round(rotation.y / 90) * 90;
+    if (aligned < 0) {
+      aligned += 360;
+    }
+    if (aligned >= 360) {
+      aligned -= 360;
+    }
+    if (aligned === 0)
+      return StructureRotation2.None;
+    if (aligned === 90)
+      return StructureRotation2.Rotate90;
+    if (aligned === 180)
+      return StructureRotation2.Rotate180;
+    if (aligned === 270)
+      return StructureRotation2.Rotate270;
+    _Vec3.log.error(
+      new Error("Cannot convert vector to structure rotation"),
+      this
+    );
+    throw new Error("Cannot convert vector to structure rotation");
+  }
+  /**
+   * Returns a new vector with the X, Y, and Z components rounded to the nearest block location.
+   */
+  toBlockLocation() {
+    return _Vec3.from(
+      (this.x << 0) - (this.x < 0 && this.x !== this.x << 0 ? 1 : 0),
+      (this.y << 0) - (this.y < 0 && this.y !== this.y << 0 ? 1 : 0),
+      (this.z << 0) - (this.z < 0 && this.z !== this.z << 0 ? 1 : 0)
+    );
+  }
+  almostEqual(x, y, z, delta) {
+    try {
+      let other;
+      if (typeof x !== "number" && z === void 0) {
+        other = _Vec3._from(x, void 0, void 0);
+        delta = y;
+      } else {
+        other = _Vec3._from(x, y, z);
+      }
+      return Math.abs(this.x - other.x) <= delta && Math.abs(this.y - other.y) <= delta && Math.abs(this.z - other.z) <= delta;
+    } catch (e) {
+      return false;
+    }
+  }
+  equals(x, y, z) {
+    try {
+      const other = _Vec3._from(x, y, z);
+      return this.x === other.x && this.y === other.y && this.z === other.z;
+    } catch (e) {
+      return false;
+    }
+  }
+  /**
+   * Converts the vector to a string representation.
+   *
+   * @param format - The format of the string representation. Defaults to "long".
+   * @param separator - The separator to use between components. Defaults to ", ".
+   * @returns The string representation of the vector.
+   * @remarks
+   * The "long" format is "Vec3(x, y, z)".
+   * The "short" format is "x, y, z".
+   */
+  toString(format = "long", separator = ", ") {
+    const result = `${this.x + separator + this.y + separator + this.z}`;
+    return format === "long" ? `Vec3(${result})` : result;
+  }
+  /**
+   * Parses a string representation of a vector.
+   *
+   * @param str - The string representation of the vector.
+   * @param format - The format of the string representation. Defaults to "long".
+   * @param separator - The separator to use between components. Defaults to ", ".
+   * @returns The vector parsed from the string.
+   * @throws {Error} If the string format is invalid.
+   */
+  static fromString(str, format = "long", separator = ", ") {
+    if (format === "long") {
+      const match = str.match(/^Vec3\((.*)\)$/);
+      if (!match) {
+        throw new Error("Invalid string format");
+      }
+      const components = match[1].split(separator);
+      if (components.length !== 3) {
+        throw new Error("Invalid string format");
+      }
+      return _Vec3.from(
+        Number(components[0]),
+        Number(components[1]),
+        Number(components[2])
+      );
+    } else {
+      const components = str.split(separator);
+      if (components.length !== 3) {
+        throw new Error("Invalid string format");
+      }
+      return _Vec3.from(
+        Number(components[0]),
+        Number(components[1]),
+        Number(components[2])
+      );
+    }
+  }
+};
+var MutVec2 = class _MutVec2 {
+  x;
+  y;
+  constructor(x, y) {
+    if (x === Direction3.Down || x === Direction3.Up) {
+      throw new Error("Invalid direction");
+    } else if (x === Direction3.North) {
+      this.x = 0;
+      this.y = 1;
+    } else if (x === Direction3.South) {
+      this.x = 0;
+      this.y = -1;
+    } else if (x === Direction3.East) {
+      this.x = 1;
+      this.y = 0;
+    } else if (x === Direction3.West) {
+      this.x = -1;
+      this.y = 0;
+    } else if (typeof x === "number") {
+      if (y === void 0) {
+        throw new Error("Invalid vector");
+      }
+      this.x = x;
+      this.y = y;
+    } else if (Array.isArray(x)) {
+      this.x = x[0];
+      this.y = x[1];
+    } else if (x instanceof _MutVec2 || x instanceof Vec2) {
+      this.x = x.x;
+      this.y = x.y;
+    } else {
+      const anyX = x;
+      if (!anyX || !anyX.x && anyX.x !== 0 || !anyX.y && anyX.y !== 0 && !anyX.z && anyX.z !== 0) {
+        throw new Error("Invalid vector");
+      }
+      this.x = anyX.x;
+      if (anyX.y || anyX.y === 0) {
+        this.y = anyX.y;
+      } else if (anyX.z || anyX.z === 0) {
+        this.y = anyX.z;
+      } else {
+        throw new Error("Invalid vector");
+      }
+    }
+  }
+  static from(x, y) {
+    if (x instanceof _MutVec2)
+      return new _MutVec2(x);
+    if (x instanceof Vec2)
+      return new _MutVec2(x);
+    if (typeof x === "number" && y !== void 0)
+      return new _MutVec2(x, y);
+    if (Array.isArray(x))
+      return new _MutVec2(x);
+    if (x === Direction3.Down || x === Direction3.Up) {
+      throw new Error("Invalid direction");
+    }
+    if (x === Direction3.North)
+      return new _MutVec2(Direction3.North);
+    if (x === Direction3.South)
+      return new _MutVec2(Direction3.South);
+    if (x === Direction3.East)
+      return new _MutVec2(Direction3.East);
+    if (x === Direction3.West)
+      return new _MutVec2(Direction3.West);
+    return new _MutVec2(x, y);
+  }
+  static _from(x, y) {
+    if (typeof x === "number" && y === void 0) {
+      return new _MutVec2(x, x);
+    }
+    if (x instanceof _MutVec2)
+      return x;
+    if (x instanceof Vec2)
+      return new _MutVec2(x);
+    if (typeof x === "number" && y !== void 0)
+      return new _MutVec2(x, y);
+    if (Array.isArray(x))
+      return new _MutVec2(x);
+    if (x === Direction3.Down || x === Direction3.Up) {
+      throw new Error("Invalid direction");
+    }
+    if (x === Direction3.North)
+      return new _MutVec2(Direction3.North);
+    if (x === Direction3.South)
+      return new _MutVec2(Direction3.South);
+    if (x === Direction3.East)
+      return new _MutVec2(Direction3.East);
+    if (x === Direction3.West)
+      return new _MutVec2(Direction3.West);
+    return new _MutVec2(x, y);
+  }
+  copy() {
+    return new _MutVec2(this.x, this.y);
+  }
+  toImmutable() {
+    return new Vec2(this.x, this.y);
+  }
+  static fromYaw(yaw) {
+    const psi = yaw * (Math.PI / 180);
+    const x = Math.sin(psi);
+    const z = Math.cos(psi);
+    return new _MutVec2(x, z);
+  }
+  toYaw() {
+    if (this.isZero()) {
+      throw new Error("Cannot convert zero-length vector to direction");
+    }
+    const direction = this.copy().normalize();
+    return Math.atan2(direction.x, direction.y) * (180 / Math.PI);
+  }
+  add(x, y) {
+    const v = _MutVec2._from(x, y);
+    this.x += v.x;
+    this.y += v.y;
+    return this;
+  }
+  directionTo(x, y) {
+    const v = _MutVec2._from(x, y);
+    v.subtract(this).normalize();
+    return this;
+  }
+  subtract(x, y) {
+    const v = _MutVec2._from(x, y);
+    this.x -= v.x;
+    this.y -= v.y;
+    return this;
+  }
+  multiply(x, y) {
+    if (typeof x === "number" && y === void 0) {
+      this.x *= x;
+      this.y *= x;
+      return this;
+    }
+    const v = _MutVec2._from(x, y);
+    this.x *= v.x;
+    this.y *= v.y;
+    return this;
+  }
+  scale(scalar) {
+    this.x *= scalar;
+    this.y *= scalar;
+    return this;
+  }
+  divide(x, y) {
+    if (typeof x === "number" && y === void 0) {
+      if (x === 0)
+        throw new Error("Cannot divide by zero");
+      this.x /= x;
+      this.y /= x;
+      return this;
+    }
+    const v = _MutVec2._from(x, y);
+    if (v.x === 0 || v.y === 0)
+      throw new Error("Cannot divide by zero");
+    this.x /= v.x;
+    this.y /= v.y;
+    return this;
+  }
+  normalize() {
+    if (this.isZero()) {
+      throw new Error("Cannot normalize zero-length vector");
+    }
+    const len = this.length();
+    this.x /= len;
+    this.y /= len;
+    return this;
+  }
+  length() {
+    return Math.hypot(this.x, this.y);
+  }
+  lengthSquared() {
+    return this.x * this.x + this.y * this.y;
+  }
+  distance(x, y) {
+    const v = _MutVec2._from(x, y);
+    return this.copy().subtract(v).length();
+  }
+  distanceSquared(x, y) {
+    const v = _MutVec2._from(x, y);
+    return this.copy().subtract(v).lengthSquared();
+  }
+  lerp(v, t) {
+    if (!v || t === void 0)
+      return this;
+    if (t === 1) {
+      this.x = v.x;
+      this.y = v.y;
+      return this;
+    }
+    if (t === 0)
+      return this;
+    this.x = this.x + (v.x - this.x) * t;
+    this.y = this.y + (v.y - this.y) * t;
+    return this;
+  }
+  slerp(v, t) {
+    if (!v || t === void 0)
+      return this;
+    if (t === 1) {
+      this.x = v.x;
+      this.y = v.y;
+      return this;
+    }
+    if (t === 0)
+      return this;
+    const dot = this.dot(v);
+    const theta = Math.acos(dot) * t;
+    const relative = _MutVec2.from(v).subtract(this.copy().multiply(dot)).normalize();
+    const cosT = Math.cos(theta);
+    const sinT = Math.sin(theta);
+    this.multiply(cosT);
+    this.x += relative.x * sinT;
+    this.y += relative.y * sinT;
+    return this;
+  }
+  dot(x, y) {
+    const v = _MutVec2._from(x, y);
+    return this.x * v.x + this.y * v.y;
+  }
+  angleBetween(x, y) {
+    const v = _MutVec2._from(x, y);
+    const dotProduct = this.dot(v);
+    const lengths = this.length() * v.length();
+    if (lengths === 0) {
+      return 0;
+    }
+    return Math.acos(dotProduct / lengths);
+  }
+  projectOnto(x, y) {
+    const v = _MutVec2._from(x, y);
+    if (v.isZero()) {
+      this.x = 0;
+      this.y = 0;
+      return this;
+    }
+    const scale = this.dot(v) / v.dot(v);
+    this.x = v.x * scale;
+    this.y = v.y * scale;
+    return this;
+  }
+  reflect(x, y) {
+    const normal = _MutVec2._from(x, y);
+    const projection = this.copy().projectOnto(normal);
+    return this.subtract(projection.multiply(2));
+  }
+  toVec3(z) {
+    return new Vec3(this.x, this.y, z || 0);
+  }
+  setX(value) {
+    if (typeof value === "number") {
+      this.x = value;
+    } else {
+      this.x = value(this.x);
+    }
+    return this;
+  }
+  setY(value) {
+    if (typeof value === "number") {
+      this.y = value;
+    } else {
+      this.y = value(this.y);
+    }
+    return this;
+  }
+  update(x, y) {
+    if (!x)
+      x = (v) => v;
+    if (!y)
+      y = (v) => v;
+    this.x = x(this.x);
+    this.y = y(this.y);
+    return this;
+  }
+  floor() {
+    return this.update(Math.floor, Math.floor);
+  }
+  floorX() {
+    return this.setX(Math.floor);
+  }
+  floorY() {
+    return this.setY(Math.floor);
+  }
+  ceil() {
+    return this.update(Math.ceil, Math.ceil);
+  }
+  ceilX() {
+    return this.setX(Math.ceil);
+  }
+  ceilY() {
+    return this.setY(Math.ceil);
+  }
+  round() {
+    return this.update(Math.round, Math.round);
+  }
+  roundX() {
+    return this.setX(Math.round);
+  }
+  roundY() {
+    return this.setY(Math.round);
+  }
+  north() {
+    return this.add(Direction3.North);
+  }
+  south() {
+    return this.add(Direction3.South);
+  }
+  east() {
+    return this.add(Direction3.East);
+  }
+  west() {
+    return this.add(Direction3.West);
+  }
+  isZero() {
+    return this.x === 0 && this.y === 0;
+  }
+  toArray() {
+    return [this.x, this.y];
+  }
+  toDirection() {
+    if (this.isZero()) {
+      throw new Error("Cannot convert zero-length vector to direction");
+    }
+    const normalized = this.copy().normalize();
+    const maxValue = Math.max(
+      Math.abs(normalized.x),
+      Math.abs(normalized.y)
+    );
+    if (maxValue === normalized.x)
+      return Direction3.East;
+    if (maxValue === -normalized.x)
+      return Direction3.West;
+    if (maxValue === normalized.y)
+      return Direction3.North;
+    if (maxValue === -normalized.y)
+      return Direction3.South;
+    throw new Error("Cannot convert vector to direction");
+  }
+  toBlockLocation() {
+    const blockX = (this.x << 0) - (this.x < 0 && this.x !== this.x << 0 ? 1 : 0);
+    const blockY = (this.y << 0) - (this.y < 0 && this.y !== this.y << 0 ? 1 : 0);
+    this.x = blockX;
+    this.y = blockY;
+    return this;
+  }
+  almostEqual(x, y, delta) {
+    try {
+      let other;
+      if (typeof x !== "number" && delta === void 0) {
+        other = _MutVec2._from(x, void 0);
+        delta = y;
+      } else {
+        other = _MutVec2._from(x, y);
+      }
+      return Math.abs(this.x - other.x) <= delta && Math.abs(this.y - other.y) <= delta;
+    } catch (e) {
+      return false;
+    }
+  }
+  equals(x, y) {
+    try {
+      const other = _MutVec2._from(x, y);
+      return this.x === other.x && this.y === other.y;
+    } catch (e) {
+      return false;
+    }
+  }
+  toString(format = "long", separator = ", ") {
+    const result = `${this.x + separator + this.y}`;
+    return format === "long" ? `MutVec2(${result})` : result;
+  }
+};
+var Vec2 = class _Vec2 {
+  static log = /* @__PURE__ */ Logger.getLogger(
+    "vec2",
+    "vec2",
+    "bedrock-boost"
+  );
+  static Zero = /* @__PURE__ */ new _Vec2(0, 0);
+  static North = /* @__PURE__ */ new _Vec2(Direction4.North);
+  static South = /* @__PURE__ */ new _Vec2(Direction4.South);
+  static East = /* @__PURE__ */ new _Vec2(Direction4.East);
+  static West = /* @__PURE__ */ new _Vec2(Direction4.West);
+  x;
+  y;
+  constructor(x, y) {
+    if (x === Direction4.Down || x === Direction4.Up) {
+      _Vec2.log.error(new Error("Invalid direction"), x);
+      throw new Error("Invalid direction");
+    } else if (x === Direction4.North) {
+      this.x = 0;
+      this.y = 1;
+    } else if (x === Direction4.South) {
+      this.x = 0;
+      this.y = -1;
+    } else if (x === Direction4.East) {
+      this.x = 1;
+      this.y = 0;
+    } else if (x === Direction4.West) {
+      this.x = -1;
+      this.y = 0;
+    } else if (typeof x === "number") {
+      this.x = x;
+      this.y = y;
+    } else if (Array.isArray(x)) {
+      this.x = x[0];
+      this.y = x[1];
+    } else if (x instanceof _Vec2) {
+      this.x = x.x;
+      this.y = x.y;
+    } else if (x instanceof MutVec2) {
+      this.x = x.x;
+      this.y = x.y;
+    } else if (x instanceof Vec3) {
+      this.x = x.x;
+      this.y = x.y;
+    } else {
+      const anyX = x;
+      if (!anyX || !anyX.x && anyX.x !== 0 || !anyX.y && anyX.y !== 0 && !anyX.z && anyX.z !== 0) {
+        _Vec2.log.error(new Error("Invalid vector"), x);
+        throw new Error("Invalid vector");
+      }
+      this.x = x.x;
+      if (anyX.y || anyX.y === 0) {
+        this.y = anyX.y;
+      } else if (anyX.z || anyX.z === 0) {
+        this.y = anyX.z;
+      } else {
+        _Vec2.log.error(new Error("Invalid vector"), x);
+        throw new Error("Invalid vector");
+      }
+    }
+  }
+  static from(x, y) {
+    if (x instanceof _Vec2)
+      return x;
+    if (x instanceof MutVec2)
+      return new _Vec2(x.x, x.y);
+    if (typeof x === "number" && y !== void 0) {
+      return new _Vec2(x, y);
+    }
+    if (Array.isArray(x)) {
+      return new _Vec2(x);
+    }
+    if (x === Direction4.Down || x === Direction4.Up) {
+      _Vec2.log.error(new Error("Invalid direction"), x);
+      throw new Error("Invalid direction");
+    }
+    if (x === Direction4.North)
+      return _Vec2.North;
+    if (x === Direction4.South)
+      return _Vec2.South;
+    if (x === Direction4.East)
+      return _Vec2.East;
+    if (x === Direction4.West)
+      return _Vec2.West;
+    return new _Vec2(x, y);
+  }
+  static _from(x, y) {
+    if (typeof x === "number" && y === void 0) {
+      return new _Vec2(x, x);
+    }
+    if (x instanceof _Vec2)
+      return x;
+    if (x instanceof MutVec2)
+      return new _Vec2(x.x, x.y);
+    if (typeof x === "number" && y !== void 0) {
+      return new _Vec2(x, y);
+    }
+    if (Array.isArray(x)) {
+      return new _Vec2(x);
+    }
+    if (x === Direction4.Down || x === Direction4.Up) {
+      _Vec2.log.error(new Error("Invalid direction"), x);
+      throw new Error("Invalid direction");
+    }
+    if (x === Direction4.North)
+      return _Vec2.North;
+    if (x === Direction4.South)
+      return _Vec2.South;
+    if (x === Direction4.East)
+      return _Vec2.East;
+    if (x === Direction4.West)
+      return _Vec2.West;
+    return new _Vec2(x, y);
+  }
+  /**
+   * Creates a copy of the current vector.
+   *
+   * @returns A new vector with the same values as the current vector.
+   */
+  copy() {
+    return new _Vec2(this.x, this.y);
+  }
+  /**
+   * Creates a mutable copy of the current vector.
+   *
+   * @returns A mutable vector with the same values as the current vector.
+   */
+  toMutable() {
+    return new MutVec2(this.x, this.y);
+  }
+  /**
+   * Creates a new direction vector from yaw rotation.
+   *
+   * @param yaw - The yaw value in degrees.
+   * @returns A new vector representing the direction.
+   */
+  static fromYaw(yaw) {
+    const psi = yaw * (Math.PI / 180);
+    const x = Math.sin(psi);
+    const z = Math.cos(psi);
+    return new _Vec2(x, z);
+  }
+  /**
+   * Converts the normal vector to yaw and pitch values.
+   *
+   * @returns A Vector2 containing the yaw and pitch values.
+   */
+  toYaw() {
+    if (this.isZero()) {
+      _Vec2.log.error(
+        new Error("Cannot convert zero-length vector to direction")
+      );
+      throw new Error("Cannot convert zero-length vector to direction");
+    }
+    const direction = this.normalize();
+    const yaw = Math.atan2(direction.x, direction.y) * (180 / Math.PI);
+    return yaw;
+  }
+  add(x, y) {
+    const v = _Vec2._from(x, y);
+    return _Vec2.from(v.x + this.x, v.y + this.y);
+  }
+  directionTo(x, y) {
+    const v = _Vec2._from(x, y);
+    return v.subtract(this).normalize();
+  }
+  subtract(x, y) {
+    const v = _Vec2._from(x, y);
+    return _Vec2.from(this.x - v.x, this.y - v.y);
+  }
+  multiply(x, y) {
+    const v = _Vec2._from(x, y);
+    return _Vec2.from(v.x * this.x, v.y * this.y);
+  }
+  /**
+   * Scales the current vector by a scalar.
+   *
+   * @param v - The scalar to scale by.
+   * @returns The updated vector after scaling.
+   */
+  scale(scalar) {
+    return _Vec2.from(this.x * scalar, this.y * scalar);
+  }
+  divide(x, y) {
+    const v = _Vec2._from(x, y);
+    if (v.x === 0 || v.y === 0)
+      throw new Error("Cannot divide by zero");
+    return _Vec2.from(this.x / v.x, this.y / v.y);
+  }
+  /**
+   * Normalizes the vector to have a length (magnitude) of 1.
+   * Normalized vectors are often used as a direction vectors.
+   *
+   * @returns The normalized vector.
+   */
+  normalize() {
+    if (this.isZero()) {
+      _Vec2.log.error(new Error("Cannot normalize zero-length vector"));
+      throw new Error("Cannot normalize zero-length vector");
+    }
+    const len = this.length();
+    return _Vec2.from(this.x / len, this.y / len);
+  }
+  /**
+   * Computes the length (magnitude) of the vector.
+   *
+   * @returns The length of the vector.
+   */
+  length() {
+    return Math.sqrt(this.lengthSquared());
+  }
+  /**
+   * Computes the squared length of the vector.
+   * This is faster than computing the actual length and can be useful for comparison purposes.
+   *
+   * @returns The squared length of the vector.
+   */
+  lengthSquared() {
+    return this.x * this.x + this.y * this.y;
+  }
+  distance(x, y) {
+    const v = _Vec2._from(x, y);
+    return Math.sqrt(this.distanceSquared(v));
+  }
+  distanceSquared(x, y) {
+    const v = _Vec2._from(x, y);
+    return this.subtract(v).lengthSquared();
+  }
+  /**
+   * Computes the linear interpolation between the current vector and another vector, when t is in the range [0, 1].
+   * Computes the extrapolation when t is outside this range.
+   *
+   * @param v - The other vector.
+   * @param t - The interpolation factor.
+   * @returns A new vector after performing the lerp operation.
+   */
+  lerp(v, t) {
+    if (!v || !t)
+      return _Vec2.from(this);
+    if (t === 1)
+      return _Vec2.from(v);
+    if (t === 0)
+      return _Vec2.from(this);
+    return _Vec2.from(
+      this.x + (v.x - this.x) * t,
+      this.y + (v.y - this.y) * t
+    );
+  }
+  /**
+   * Computes the spherical linear interpolation between the current vector and another vector, when t is in the range [0, 1].
+   * Computes the extrapolation when t is outside this range.
+   *
+   * @param v - The other vector.
+   * @param t - The interpolation factor.
+   * @returns A new vector after performing the slerp operation.
+   */
+  slerp(v, t) {
+    if (!v || !t)
+      return _Vec2.from(this);
+    if (t === 1)
+      return _Vec2.from(v);
+    if (t === 0)
+      return _Vec2.from(this);
+    const dot = this.dot(v);
+    const theta = Math.acos(dot) * t;
+    const relative = _Vec2.from(v).subtract(this.multiply(dot)).normalize();
+    return this.multiply(Math.cos(theta)).add(
+      relative.multiply(Math.sin(theta))
+    );
+  }
+  dot(x, y) {
+    const v = _Vec2._from(x, y);
+    return this.x * v.x + this.y * v.y;
+  }
+  angleBetween(x, y) {
+    const v = _Vec2._from(x, y);
+    const dotProduct = this.dot(v);
+    const lengths = this.length() * v.length();
+    if (lengths === 0) {
+      return 0;
+    }
+    return Math.acos(dotProduct / lengths);
+  }
+  projectOnto(x, y) {
+    const v = _Vec2._from(x, y);
+    if (v.isZero()) {
+      return _Vec2.Zero;
+    }
+    return v.scale(this.dot(v) / v.dot(v));
+  }
+  reflect(x, y) {
+    const normal = _Vec2._from(x, y);
+    const proj = this.projectOnto(normal);
+    return this.subtract(proj.multiply(2));
+  }
+  /**
+   * Converts the current vector to a 3d vetor with the given y-value.
+   *
+   * @param z - The optional z value for the 3d vetor.
+   * @returns The converted vector.
+   */
+  toVec3(z) {
+    return new Vec3(this.x, this.y, z || 0);
+  }
+  /**
+   * Sets the X component of the vector.
+   *
+   * @param value - The new X value.
+   * @returns The updated vector with the new X value.
+   */
+  setX(value) {
+    return new _Vec2(value, this.y);
+  }
+  /**
+   * Sets the Y component of the vector.
+   *
+   * @param value - The new Y value.
+   * @returns The updated vector with the new Y value.
+   */
+  setY(value) {
+    return new _Vec2(this.x, value);
+  }
+  /**
+   * Calculates the shortest distance between a point (represented by this Vector3 instance) and a line segment.
+   *
+   * This method finds the perpendicular projection of the point onto the line defined by the segment. If this
+   * projection lies outside the line segment, then the method calculates the distance from the point to the
+   * nearest segment endpoint.
+   *
+   * @param start - The starting point of the line segment.
+   * @param end - The ending point of the line segment.
+   * @returns The shortest distance between the point and the line segment.
+   */
+  distanceToLineSegment(start, end) {
+    const lineDirection = _Vec2.from(end).subtract(start);
+    if (lineDirection.lengthSquared() === 0) {
+      return this.subtract(start).length();
+    }
+    const t = Math.max(
+      0,
+      Math.min(
+        1,
+        this.subtract(start).dot(lineDirection) / lineDirection.dot(lineDirection)
+      )
+    );
+    const projection = _Vec2.from(start).add(lineDirection.multiply(t));
+    return this.subtract(projection).length();
+  }
+  /**
+   * Floors the X, Y, and Z components of the vector.
+   * @returns A new vector with the floored components.
+   */
+  floor() {
+    return new _Vec2(Math.floor(this.x), Math.floor(this.y));
+  }
+  /**
+   * Floors the X component of the vector.
+   * @returns A new vector with the floored X component.
+   */
+  floorX() {
+    return new _Vec2(Math.floor(this.x), this.y);
+  }
+  /**
+   * Floors the Y component of the vector.
+   * @returns A new vector with the floored Y component.
+   */
+  floorY() {
+    return new _Vec2(this.x, Math.floor(this.y));
+  }
+  /**
+   * Ceils the X, Y, and Z components of the vector.
+   * @returns A new vector with the ceiled components.
+   */
+  ceil() {
+    return new _Vec2(Math.ceil(this.x), Math.ceil(this.y));
+  }
+  /**
+   * Ceils the X component of the vector.
+   * @returns A new vector with the ceiled X component.
+   */
+  ceilX() {
+    return new _Vec2(Math.ceil(this.x), this.y);
+  }
+  /**
+   * Ceils the Y component of the vector.
+   * @returns A new vector with the ceiled Y component.
+   */
+  ceilY() {
+    return new _Vec2(this.x, Math.ceil(this.y));
+  }
+  /**
+   * Rounds the X, Y, and Z components of the vector.
+   * @returns A new vector with the rounded components.
+   */
+  round() {
+    return new _Vec2(Math.round(this.x), Math.round(this.y));
+  }
+  /**
+   * Rounds the X component of the vector.
+   * @returns A new vector with the rounded X component.
+   */
+  roundX() {
+    return new _Vec2(Math.round(this.x), this.y);
+  }
+  /**
+   * Rounds the Y component of the vector.
+   * @returns A new vector with the rounded Y component.
+   */
+  roundY() {
+    return new _Vec2(this.x, Math.round(this.y));
+  }
+  /**
+   * Returns a new vector offset from the current vector north by 1 block.
+   * @returns A new vector offset from the current vector north by 1 block.
+   */
+  north() {
+    return this.add(_Vec2.North);
+  }
+  /**
+   * Returns a new vector offset from the current vector south by 1 block.
+   * @returns A new vector offset from the current vector south by 1 block.
+   */
+  south() {
+    return this.add(_Vec2.South);
+  }
+  /**
+   * Returns a new vector offset from the current vector east by 1 block.
+   * @returns A new vector offset from the current vector east by 1 block.
+   */
+  east() {
+    return this.add(_Vec2.East);
+  }
+  /**
+   * Returns a new vector offset from the current vector west by 1 block.
+   * @returns A new vector offset from the current vector west by 1 block.
+   */
+  west() {
+    return this.add(_Vec2.West);
+  }
+  /**
+   * Checks if the current vector is equal to the zero vector.
+   * @returns true if the vector is equal to the zero vector, else returns false.
+   */
+  isZero() {
+    return this.x === 0 && this.y === 0;
+  }
+  /**
+   * Converts the vector to an array containing the X, Y, and Z components of the vector.
+   * @returns An array containing the X, Y, and Z components of the vector.
+   */
+  toArray() {
+    return [this.x, this.y];
+  }
+  /**
+   * Converts the vector to a direction.
+   * If the vector is not a unit vector, then it will be normalized and rounded to the nearest direction.
+   */
+  toDirection() {
+    if (this.isZero()) {
+      _Vec2.log.error(
+        new Error("Cannot convert zero-length vector to direction")
+      );
+      throw new Error("Cannot convert zero-length vector to direction");
+    }
+    const normalized = this.normalize();
+    const maxValue = Math.max(
+      Math.abs(normalized.x),
+      Math.abs(normalized.y)
+    );
+    if (maxValue === normalized.x)
+      return Direction4.East;
+    if (maxValue === -normalized.x)
+      return Direction4.West;
+    if (maxValue === normalized.y)
+      return Direction4.North;
+    if (maxValue === -normalized.y)
+      return Direction4.South;
+    _Vec2.log.error(new Error("Cannot convert vector to direction"), this);
+    throw new Error("Cannot convert vector to direction");
+  }
+  /**
+   * Returns a new vector with the X, Y, and Z components rounded to the nearest block location.
+   */
+  toBlockLocation() {
+    return _Vec2.from(
+      (this.x << 0) - (this.x < 0 && this.x !== this.x << 0 ? 1 : 0),
+      (this.y << 0) - (this.y < 0 && this.y !== this.y << 0 ? 1 : 0)
+    );
+  }
+  almostEqual(x, y, delta) {
+    try {
+      let other;
+      if (typeof x !== "number" && delta === void 0) {
+        other = _Vec2._from(x, void 0);
+        delta = y;
+      } else {
+        other = _Vec2._from(x, y);
+      }
+      return Math.abs(this.x - other.x) <= delta && Math.abs(this.y - other.y) <= delta;
+    } catch (e) {
+      return false;
+    }
+  }
+  equals(x, y) {
+    try {
+      const other = _Vec2._from(x, y);
+      return this.x === other.x && this.y === other.y;
+    } catch (e) {
+      return false;
+    }
+  }
+  toString(format = "long", separator = ", ") {
+    const result = `${this.x + separator + this.y}`;
+    return format === "long" ? `Vec2(${result})` : result;
+  }
+};
+var Timings = class _Timings {
+  static log = /* @__PURE__ */ Logger.getLogger(
+    "Timings",
+    "timings"
+  );
+  static lastTime = -1;
+  static lastOperation = "";
+  /**
+   * Begin measuring the time it takes to perform an operation.
+   * @remarks
+   * If another operation is already being measured, the measurement will be ended.
+   *
+   * @param operation The name of the operation.
+   */
+  static begin(operation) {
+    this.end();
+    this.lastTime = (/* @__PURE__ */ new Date()).getTime();
+    this.lastOperation = operation;
+  }
+  /**
+   * End measuring the time it takes to perform an operation and log the result.
+   * @remarks
+   * If no operation is being measured, this method will do nothing.
+   */
+  static end() {
+    const time = (/* @__PURE__ */ new Date()).getTime();
+    if (this.lastTime > 0) {
+      _Timings.log.debug(
+        `Operation ${this.lastOperation} took ${time - this.lastTime}ms`
+      );
+    }
+    this.lastTime = -1;
+  }
+};
+var log = Logger.getLogger("jobUtils", "bedrock-boost", "jobUtils");
+var DirectionUtils = class {
+  /**
+   * The opposite directions of the given directions.
+   */
+  static Opposites = {
+    [Direction5.Down]: Direction5.Up,
+    [Direction5.Up]: Direction5.Down,
+    [Direction5.North]: Direction5.South,
+    [Direction5.South]: Direction5.North,
+    [Direction5.East]: Direction5.West,
+    [Direction5.West]: Direction5.East
+  };
+  /**
+   * The positive perpendicular directions of the given directions.
+   */
+  static PositivePerpendiculars = {
+    [Direction5.Down]: [Direction5.East, Direction5.North],
+    [Direction5.Up]: [Direction5.East, Direction5.North],
+    [Direction5.North]: [Direction5.East, Direction5.Up],
+    [Direction5.South]: [Direction5.East, Direction5.Up],
+    [Direction5.East]: [Direction5.North, Direction5.Up],
+    [Direction5.West]: [Direction5.North, Direction5.Up]
+  };
+  /**
+   * The negative perpendicular directions of the given directions.
+   */
+  static NegativePerpendiculars = {
+    [Direction5.Down]: [Direction5.West, Direction5.South],
+    [Direction5.Up]: [Direction5.West, Direction5.South],
+    [Direction5.North]: [Direction5.West, Direction5.Down],
+    [Direction5.South]: [Direction5.West, Direction5.Down],
+    [Direction5.East]: [Direction5.South, Direction5.Down],
+    [Direction5.West]: [Direction5.South, Direction5.Down]
+  };
+  /**
+   * The clockwise perpendicular directions of the given directions.
+   */
+  static ClockwisePerpendiculars = {
+    [Direction5.North]: Direction5.East,
+    [Direction5.East]: Direction5.South,
+    [Direction5.South]: Direction5.West,
+    [Direction5.West]: Direction5.North,
+    // Not sure what should be here
+    [Direction5.Up]: Direction5.Down,
+    [Direction5.Down]: Direction5.Up
+  };
+  /**
+   * The counter-clockwise perpendicular directions of the given directions.
+   */
+  static CounterClockwisePerpendiculars = {
+    [Direction5.North]: Direction5.West,
+    [Direction5.East]: Direction5.North,
+    [Direction5.South]: Direction5.East,
+    [Direction5.West]: Direction5.South,
+    // Not sure what should be here
+    [Direction5.Up]: Direction5.Down,
+    [Direction5.Down]: Direction5.Up
+  };
+  /**
+   * The same axis directions of the given directions.
+   */
+  static SameAxis = {
+    [Direction5.North]: Direction5.North,
+    [Direction5.South]: Direction5.North,
+    [Direction5.East]: Direction5.East,
+    [Direction5.West]: Direction5.East,
+    [Direction5.Up]: Direction5.Up,
+    [Direction5.Down]: Direction5.Up
+  };
+  /**
+   * Directions by their string representation.
+   */
+  static FromString = {
+    north: Direction5.North,
+    east: Direction5.East,
+    south: Direction5.South,
+    west: Direction5.West,
+    up: Direction5.Up,
+    down: Direction5.Down
+  };
+  /**
+   * Strings by their direction representation.
+   */
+  static ToString = {
+    [Direction5.North]: "north",
+    [Direction5.East]: "east",
+    [Direction5.South]: "south",
+    [Direction5.West]: "west",
+    [Direction5.Up]: "up",
+    [Direction5.Down]: "down"
+  };
+  /**
+   * All directions.
+   */
+  static Values = [
+    Direction5.Down,
+    Direction5.Up,
+    Direction5.North,
+    Direction5.South,
+    Direction5.East,
+    Direction5.West
+  ];
+};
+var log2 = Logger.getLogger("itemUtils", "bedrock-boost", "itemUtils");
+
 // src/territories/commands.ts
 init_types();
 init_ui();
 function registerCommands(manager, db2, modules2) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
-  system2.beforeEvents.startup.subscribe((event) => {
+  system7.beforeEvents.startup.subscribe((event) => {
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:create",
@@ -801,7 +4323,7 @@ function registerCommands(manager, db2, modules2) {
         if (!enabled()) {
           return { status: CustomCommandStatus.Failure, message: "Le module Territoires est désactivé." };
         }
-        system2.run(() => openCreateMenu(player, manager));
+        system7.run(() => openCreateMenu(player, manager));
         return { status: CustomCommandStatus.Success };
       }
     );
@@ -817,7 +4339,7 @@ function registerCommands(manager, db2, modules2) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus.Failure, message: "Seuls les joueurs peuvent utiliser cette commande." };
         }
-        system2.run(() => openTerritoriesMenu(player, manager));
+        system7.run(() => openTerritoriesMenu(player, manager));
         return { status: CustomCommandStatus.Success };
       }
     );
@@ -869,7 +4391,7 @@ function registerCommands(manager, db2, modules2) {
         switch (action) {
           case "menu": {
             if (db2.loaded) {
-              system2.run(() => {
+              system7.run(() => {
                 void openDbMenu(db2, _origin.sourceEntity).catch(
                   (error) => console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`)
                 );
@@ -908,7 +4430,7 @@ function registerCommands(manager, db2, modules2) {
             if (doc === void 0) {
               return { status: CustomCommandStatus.Failure, message: `§c[DB] "${arg2}" introuvable dans "${arg1}".` };
             }
-            return { status: CustomCommandStatus.Success, message: `§a[DB] ${JSON.stringify(doc)}` };
+            return { status: CustomCommandStatus.Success, message: ColorJSON.DEFAULT.stringify(doc) };
           }
           case "save": {
             const wrote = db2.save(true);
@@ -927,15 +4449,15 @@ function registerCommands(manager, db2, modules2) {
 
 // src/territories/protection.ts
 init_manager();
-import { world as world2, system as system3, GameMode, Player } from "@minecraft/server";
+import { world as world7, system as system8, GameMode as GameMode2, Player as Player3 } from "@minecraft/server";
 var DENY_BREAK = "§c[Territoires] Chunk protégé : destruction impossible.";
 var DENY_PLACE = "§c[Territoires] Chunk protégé : construction impossible.";
 var DENY_INTERACT = "§c[Territoires] Chunk protégé : interaction impossible.";
 var DENY_COMBAT = "§c[Territoires] Zone protégée : ce joueur ne peut pas être attaqué ici.";
 var DENY_ITEM = "§c[Territoires] Chunk protégé : objet inutilisable ici.";
 function isCreative(playerName) {
-  const player = world2.getAllPlayers().find((candidate) => candidate.name === playerName);
-  return player !== void 0 && player.getGameMode() === GameMode.Creative;
+  const player = world7.getAllPlayers().find((candidate) => candidate.name === playerName);
+  return player !== void 0 && player.getGameMode() === GameMode2.Creative;
 }
 function isProtectedForId(block, player, manager) {
   const key = chunkKeyFromPosition(block.dimension.id, block.location.x, block.location.z);
@@ -943,7 +4465,7 @@ function isProtectedForId(block, player, manager) {
 }
 function registerProtection(manager, modules2) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
-  world2.beforeEvents.playerBreakBlock.subscribe((event) => {
+  world7.beforeEvents.playerBreakBlock.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -952,7 +4474,7 @@ function registerProtection(manager, modules2) {
       player.sendMessage(DENY_BREAK);
     }
   });
-  world2.afterEvents.playerPlaceBlock.subscribe((event) => {
+  world7.afterEvents.playerPlaceBlock.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -963,7 +4485,7 @@ function registerProtection(manager, modules2) {
     const x = Math.floor(location.x);
     const y = Math.floor(location.y);
     const z = Math.floor(location.z);
-    system3.run(() => {
+    system8.run(() => {
       try {
         dimension.runCommand(`setblock ${x} ${y} ${z} air`);
       } catch {
@@ -971,7 +4493,7 @@ function registerProtection(manager, modules2) {
     });
     player.sendMessage(DENY_PLACE);
   });
-  world2.beforeEvents.playerInteractWithBlock.subscribe((event) => {
+  world7.beforeEvents.playerInteractWithBlock.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -980,7 +4502,7 @@ function registerProtection(manager, modules2) {
       player.sendMessage(DENY_INTERACT);
     }
   });
-  world2.beforeEvents.itemUse.subscribe((event) => {
+  world7.beforeEvents.itemUse.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.source;
     if (isCreative(player.name)) return;
@@ -990,7 +4512,7 @@ function registerProtection(manager, modules2) {
       player.sendMessage(DENY_ITEM);
     }
   });
-  world2.beforeEvents.playerInteractWithEntity.subscribe((event) => {
+  world7.beforeEvents.playerInteractWithEntity.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -1000,10 +4522,10 @@ function registerProtection(manager, modules2) {
       player.sendMessage(DENY_INTERACT);
     }
   });
-  world2.beforeEvents.entityHurt.subscribe((event) => {
+  world7.beforeEvents.entityHurt.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const attacker = event.damageSource.damagingEntity;
-    if (!(attacker instanceof Player)) return;
+    if (!(attacker instanceof Player3)) return;
     const victim = event.hurtEntity;
     if (victim.typeId === "minecraft:player") {
       const victimKey = chunkKeyFromPosition(victim.dimension.id, victim.location.x, victim.location.z);
@@ -1024,7 +4546,7 @@ function registerProtection(manager, modules2) {
       attacker.sendMessage("§c[Territoires] Chunk protégé : les créatures ici sont sous la protection du propriétaire.");
     }
   });
-  world2.beforeEvents.explosion.subscribe((event) => {
+  world7.beforeEvents.explosion.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const impacted = event.getImpactedBlocks();
     const allowed = impacted.filter((block) => {
@@ -1044,17 +4566,17 @@ function registerProtection(manager, modules2) {
 // src/territories/announce.ts
 init_manager();
 init_types();
-import { system as system4, world as world3 } from "@minecraft/server";
+import { system as system9, world as world8 } from "@minecraft/server";
 var NO_TERRITORY_MESSAGE = "§7Zone libre";
 function registerAnnouncer(manager, modules2, intervalTicks = 10) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
   const lastKeyByPlayer = /* @__PURE__ */ new Map();
-  world3.afterEvents.playerLeave.subscribe((event) => {
+  world8.afterEvents.playerLeave.subscribe((event) => {
     lastKeyByPlayer.delete(event.playerName);
   });
-  system4.runInterval(() => {
+  system9.runInterval(() => {
     if (!manager.loaded || !enabled()) return;
-    for (const player of world3.getAllPlayers()) {
+    for (const player of world8.getAllPlayers()) {
       const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
       const previous = lastKeyByPlayer.get(player.name);
       if (previous === key) continue;
@@ -1480,7 +5002,7 @@ function openAssignRoleMenu(player, targetName, permissions2) {
 
 // src/permissions/commands.ts
 init_theme();
-import { CustomCommandStatus as CustomCommandStatus2, CommandPermissionLevel as CommandPermissionLevel2, system as system7, PlayerPermissionLevel } from "@minecraft/server";
+import { CustomCommandStatus as CustomCommandStatus2, CommandPermissionLevel as CommandPermissionLevel2, system as system12, PlayerPermissionLevel } from "@minecraft/server";
 import { ActionFormData as ActionFormData8 } from "@minecraft/server-ui";
 
 // src/modules/ui.ts
@@ -1600,7 +5122,7 @@ Action irréversible !`).button2("§4SUPPRIMER TOUT").button1("§aAnnuler").show
 init_theme();
 init_ui();
 import { ActionFormData as ActionFormData7 } from "@minecraft/server-ui";
-import { system as system6 } from "@minecraft/server";
+import { system as system11 } from "@minecraft/server";
 
 // src/moderation/ui.ts
 init_theme();
@@ -1916,7 +5438,7 @@ function openHubMenu(player, deps) {
       actions.push(() => openModulesMenu(player, modules2, territories2));
     }
     const action = actions[response.selection];
-    if (action !== void 0) system6.run(() => action());
+    if (action !== void 0) system11.run(() => action());
   }).catch((error) => console.warn(`[Hub] ${error instanceof Error ? error.message : String(error)}`));
 }
 function openSelfRoleMenu(player, permissions2) {
@@ -1937,7 +5459,7 @@ function canUseAdminPanel(player, permissions2) {
   return permissions2.levelOf(player.name) >= 100 || player.playerPermissionLevel >= PlayerPermissionLevel.Operator;
 }
 function registerAdminCommands(ctx) {
-  system7.beforeEvents.startup.subscribe((event) => {
+  system12.beforeEvents.startup.subscribe((event) => {
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:roles",
@@ -1950,7 +5472,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system7.run(() => {
+        system12.run(() => {
           if (canUseAdminPanel(player, ctx.permissions)) {
             openRolesMenu(player, ctx.permissions);
             return;
@@ -1983,7 +5505,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system7.run(() => openHubMenu(player, ctx));
+        system12.run(() => openHubMenu(player, ctx));
         return { status: CustomCommandStatus2.Success };
       }
     );
@@ -1999,7 +5521,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system7.run(() => {
+        system12.run(() => {
           if (!canUseAdminPanel(player, ctx.permissions)) {
             player.sendMessage("§c[Admin] Il te faut le rôle Admin (ou être op).");
             return;
@@ -2018,7 +5540,7 @@ function registerAdminCommands(ctx) {
 }
 
 // src/permissions/chat.ts
-import { world as world5, system as system8 } from "@minecraft/server";
+import { world as world10, system as system13 } from "@minecraft/server";
 function sanitizeMessage(raw) {
   return raw.replace(/\s+/g, " ").trim().slice(0, 256);
 }
@@ -2026,14 +5548,14 @@ function formatChatMessage(nameTag, message) {
   return `${nameTag}§r §7> §f${message}`;
 }
 function registerChat(permissions2) {
-  world5.beforeEvents.chatSend.subscribe((event) => {
+  world10.beforeEvents.chatSend.subscribe((event) => {
     if (!permissions2.loaded) return;
     const sender = event.sender;
     const tag = permissions2.nameTagFor(sender.name);
     event.cancel = true;
     const message = sanitizeMessage(event.message);
-    system8.run(() => {
-      world5.sendMessage(formatChatMessage(tag, message));
+    system13.run(() => {
+      world10.sendMessage(formatChatMessage(tag, message));
     });
   });
 }
@@ -2046,9 +5568,9 @@ import {
   CustomCommandParamType as CustomCommandParamType2,
   CustomCommandStatus as CustomCommandStatus3,
   CommandPermissionLevel as CommandPermissionLevel3,
-  system as system9
+  system as system14
 } from "@minecraft/server";
-import { world as world6 } from "@minecraft/server";
+import { world as world11 } from "@minecraft/server";
 init_enforcement();
 function canModerate(player, permissions2) {
   return permissions2.levelOf(player.name) >= 60 || player.playerPermissionLevel >= 2;
@@ -2056,12 +5578,12 @@ function canModerate(player, permissions2) {
 var DENIED = "§c[Modération] Niveau de rôle insuffisant (Modo requis).";
 var NOT_PLAYER = "§c[Modération] Réservé aux joueurs.";
 function notifyTarget(targetName, message) {
-  const target = world6.getAllPlayers().find((candidate) => candidate.name === targetName);
-  if (target !== void 0) system9.run(() => target.sendMessage(message));
+  const target = world11.getAllPlayers().find((candidate) => candidate.name === targetName);
+  if (target !== void 0) system14.run(() => target.sendMessage(message));
 }
 function registerModerationCommands(deps) {
   const { sanctions: sanctions2, permissions: permissions2 } = deps;
-  system9.beforeEvents.startup.subscribe((event) => {
+  system14.beforeEvents.startup.subscribe((event) => {
     const guardAndRun = (origin, action) => {
       const player = origin.sourceEntity;
       if (player === void 0 || player.typeId !== "minecraft:player") {
@@ -2070,7 +5592,7 @@ function registerModerationCommands(deps) {
       if (!canModerate(player, permissions2)) {
         return { status: CustomCommandStatus3.Failure, message: DENIED };
       }
-      system9.run(() => action(player));
+      system14.run(() => action(player));
       return { status: CustomCommandStatus3.Success };
     };
     const stringParam = (name) => ({ name, type: CustomCommandParamType2.String });
@@ -2126,7 +5648,7 @@ function registerModerationCommands(deps) {
           `§a[Modération] ${target} banni (${formatDuration(duration)}). Raison : ${reason}`
         );
         notifyTarget(target, `§4[Modération] Tu es banni (${formatDuration(duration)}) : ${reason}`);
-        system9.run(() => kickPlayer(target, reason));
+        system14.run(() => kickPlayer(target, reason));
       })
     );
     event.customCommandRegistry.registerCommand(
@@ -2271,6 +5793,13 @@ function trackPlayerJoin(db2, playerId, playerName, grade = "") {
   return playerId;
 }
 
+// src/lib/log.ts
+var log3 = Logger.getLogger("OpenMontage");
+var logDb = Logger.getLogger("OpenMontage", "db");
+var logTerr = Logger.getLogger("OpenMontage", "territories");
+var logMod = Logger.getLogger("OpenMontage", "moderation");
+var logPerm = Logger.getLogger("OpenMontage", "permissions");
+
 // src/main.ts
 var db = new JsonDatabase(createBedrockStorage(), "openmontage");
 registerAutosave(db, 100);
@@ -2283,26 +5812,27 @@ registerAdminCommands({ permissions, modules, territories, sanctions });
 registerModerationCommands({ sanctions, permissions });
 var protectionRegistered = false;
 function applyNameTag(playerName) {
-  const player = world7.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world12.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return;
   try {
     player.nameTag = permissions.nameTagFor(playerName);
   } catch {
   }
 }
-world7.afterEvents.worldLoad.subscribe(() => {
+world12.afterEvents.worldLoad.subscribe(() => {
+  Timings.begin("worldLoad");
   db.load();
   permissions.markLoaded();
   modules.markLoaded();
   territories.markLoaded();
   if (!permissions.hasAdmin()) {
-    const operator = world7.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+    const operator = world12.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
     if (operator !== void 0) {
       permissions.bootstrapAdmin(operator.name);
-      console.log(`[OpenMontage] Bootstrap : ${operator.name} est promu Admin.`);
+      log3.info(`Bootstrap : ${operator.name} est promu Admin.`);
     }
   }
-  for (const player of world7.getAllPlayers()) {
+  for (const player of world12.getAllPlayers()) {
     applyNameTag(player.name);
   }
   registerChat(permissions);
@@ -2313,34 +5843,35 @@ world7.afterEvents.worldLoad.subscribe(() => {
     registerAnnouncer(territories, modules);
   }
   const stats = db.stats();
-  console.log(
-    `[OpenMontage] worldLoad OK : ${stats.documents} documents, ${stats.bytes} octets. Modules actifs : ${modules.enabledCount()}.`
+  Timings.end();
+  log3.info(
+    `worldLoad OK en ~${Math.round(Timings.lastTime)} ms : ${stats.documents} documents, ${stats.bytes} octets. Modules actifs : ${modules.enabledCount()}.`
   );
 });
 var worldReady = false;
-system10.runInterval(() => {
+system15.runInterval(() => {
   if (worldReady) return;
-  if (world7.getAllPlayers().length === 0) return;
+  if (world12.getAllPlayers().length === 0) return;
   if (!territories.loaded) {
     db.load();
     permissions.markLoaded();
     modules.markLoaded();
     territories.markLoaded();
     if (!permissions.hasAdmin()) {
-      const operator = world7.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+      const operator = world12.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
       if (operator !== void 0) permissions.bootstrapAdmin(operator.name);
     }
-    for (const player of world7.getAllPlayers()) applyNameTag(player.name);
+    for (const player of world12.getAllPlayers()) applyNameTag(player.name);
   }
   if (!protectionRegistered) {
     protectionRegistered = true;
     registerProtection(territories, modules);
     registerAnnouncer(territories, modules);
-    console.warn("[OpenMontage] Activation par fallback (worldLoad non reçu) : protection active.");
+    log3.warn("Activation par fallback (worldLoad non reçu) : protection active.");
   }
   worldReady = true;
 }, 40);
-world7.afterEvents.playerSpawn.subscribe((event) => {
+world12.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
   const player = event.player;
   trackPlayerJoin(db, player.id, player.name, permissions.roleOf(player.name)?.data.name ?? "");
@@ -2348,15 +5879,15 @@ world7.afterEvents.playerSpawn.subscribe((event) => {
   player.sendMessage("§a[OpenMontage]§r Bienvenue ! Menu principal : §f/sn:menu§r — territoire : §f/sn:create");
   player.onScreenDisplay.setTitle("§aOpenMontage §f✔");
 });
-system10.runInterval(() => {
+system15.runInterval(() => {
   if (!permissions.loaded) return;
-  for (const player of world7.getAllPlayers()) {
+  for (const player of world12.getAllPlayers()) {
     applyNameTag(player.name);
   }
 }, 100);
-system10.runInterval(() => {
+system15.runInterval(() => {
   const stats = db.stats();
-  console.log(
-    `[OpenMontage] DB : ${stats.documents} documents, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"}`
+  logDb.info(
+    `${stats.documents} documents, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"}`
   );
 }, 600);

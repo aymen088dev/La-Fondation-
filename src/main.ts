@@ -10,6 +10,8 @@ import {
   registerEnforcement,
 } from "./moderation";
 import { trackPlayerJoin } from "./players";
+import { log, logDb } from "./lib/log";
+import { Timings } from "@bedrock-oss/bedrock-boost";
 /**
  * OpenMontage — point d'entrée du behavior pack (TypeScript).
  * Ce fichier est bundlé vers BP/scripts/main.js, entry déclaré dans BP/manifest.json.
@@ -60,6 +62,7 @@ function applyNameTag(playerName: string): void {
 
 world.afterEvents.worldLoad.subscribe(() => {
   // Lecture de la DB : getDynamicProperty n'est autorisé qu'après worldLoad
+  Timings.begin("worldLoad");
   db.load();
   permissions.markLoaded();
   modules.markLoaded();
@@ -70,7 +73,7 @@ world.afterEvents.worldLoad.subscribe(() => {
     const operator = world.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
     if (operator !== undefined) {
       permissions.bootstrapAdmin(operator.name);
-      console.log(`[OpenMontage] Bootstrap : ${operator.name} est promu Admin.`);
+      log.info(`Bootstrap : ${operator.name} est promu Admin.`);
     }
   }
 
@@ -92,8 +95,9 @@ world.afterEvents.worldLoad.subscribe(() => {
   }
 
   const stats = db.stats();
-  console.log(
-    `[OpenMontage] worldLoad OK : ${stats.documents} documents, ${stats.bytes} octets. Modules actifs : ${modules.enabledCount()}.`,
+  Timings.end();
+  log.info(
+    `worldLoad OK en ~${Math.round(Timings.lastTime)} ms : ${stats.documents} documents, ${stats.bytes} octets. Modules actifs : ${modules.enabledCount()}.`,
   );
 });
 
@@ -119,7 +123,7 @@ system.runInterval(() => {
     protectionRegistered = true;
     registerProtection(territories, modules);
     registerAnnouncer(territories, modules);
-    console.warn("[OpenMontage] Activation par fallback (worldLoad non reçu) : protection active.");
+    log.warn("Activation par fallback (worldLoad non reçu) : protection active.");
   }
   worldReady = true;
 }, 40);
@@ -151,7 +155,7 @@ system.runInterval(() => {
 // Heartbeat : état de la DB toutes les 30 secondes (600 ticks)
 system.runInterval(() => {
   const stats = db.stats();
-  console.log(
-    `[OpenMontage] DB : ${stats.documents} documents, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"}`,
+  logDb.info(
+    `${stats.documents} documents, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"}`,
   );
 }, 600);

@@ -2,6 +2,7 @@ import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, sy
 import type { CustomCommandOrigin, Player, StartupEvent } from "@minecraft/server";
 import type { JsonDatabase } from "../db/database";
 import { openDbMenu } from "../db/menu";
+import { ColorJSON } from "@bedrock-oss/bedrock-boost";
 import type { TerritoryManager } from "./manager";
 import type { ModuleManager } from "../modules/manager";
 import { TERRITORY_COLORS } from "./types";
@@ -156,7 +157,8 @@ export function registerCommands(manager: TerritoryManager, db?: JsonDatabase, m
             if (doc === undefined) {
               return { status: CustomCommandStatus.Failure, message: `§c[DB] "${arg2}" introuvable dans "${arg1}".` };
             }
-            return { status: CustomCommandStatus.Success, message: `§a[DB] ${JSON.stringify(doc)}` };
+            // JSON colorisé (clés/valeurs/nombres distinguishables) via bedrock-boost.
+            return { status: CustomCommandStatus.Success, message: ColorJSON.DEFAULT.stringify(doc) };
           }
           case "save": {
             const wrote = db.save(true);

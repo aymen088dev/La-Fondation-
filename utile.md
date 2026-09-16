@@ -20,6 +20,8 @@
 
 | Outil | ⭐ | Pourquoi ça peut servir |
 |---|---|---|
+| **[Bedrock-OSS/bedrock-boost](https://github.com/Bedrock-OSS/bedrock-boost)** | 28 | ✅ **INTÉGRÉ (v2.2.0, mise à jour la veille de l'intégration)** — org officielle Bedrock-OSS (regolith). Utilisé pour : `Logger` (niveaux filtrables en jeu via `/scriptevent log:level` et `log:filter`), `Timings` (perf worldLoad), `ColorJSON` (JSON colorisé dans `/sn:db show`). Vec3, cache dimensions, schedulers dispo pour la suite. Runtime : `@minecraft/server` uniquement |
+|---|---|---|
 | [IMvampireXD/Script-API-Utilities](https://github.com/IMvampireXD/Script-API-Utilities) | 10 | Fonctions prêtes pour scripts Bedrock (inventaire, blocs, entités) — **actif (janv. 2026), licence MIT**. Pas sur npm : fichiers .js à copier dans le projet. Bonne source d'helpers à vendor si besoin (ex : saveInventory/loadInventory via Dynamic Properties, comme notre DB) |
 | [TaranGauri/GalactiXDB](https://github.com/TaranGauri/GalactiXDB) | 3 | Système de DB en Script API — **directement comparable à notre JsonDatabase** : bon miroir pour nos choix (découpage, autosave) |
 | [AmethystJs/AmethystJs](https://github.com/AmethystJs/AmethystJs) | 4 | ❌ **ÉCARTÉ (testé)** : repo mort depuis août 2023, cible Minecraft 1.20.10 (API `@minecraft/server` 1.x — incompatible avec nos breaking changes 2.x). ⚠️ Piège : le package **npm `amethystjs` est un AUTRE projet** (framework Discord.js v14) — ne pas installer |

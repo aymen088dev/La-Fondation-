@@ -4,6 +4,9 @@
   "workspaces": {
     "": {
       "name": "openmontage-bp-scripts",
+      "dependencies": {
+        "@bedrock-oss/bedrock-boost": "^2.2.0",
+      },
       "devDependencies": {
         "@minecraft/server": "2.11.0-beta.1.26.50-preview.27",
         "@minecraft/server-ui": "2.3.0-beta.1.26.50-preview.27",
@@ -15,6 +18,8 @@
     },
   },
   "packages": {
+    "@bedrock-oss/bedrock-boost": ["@bedrock-oss/bedrock-boost@2.2.0", "", { "dependencies": { "@minecraft/common": "latest", "@minecraft/server": "latest" } }, "sha512-h3eaVcr9LgGBd0/zeXOKEEjvAo68UXKxwnAgIxGTL2lYkK/5WtNWMtBu1fUG8+kF+zkD3PNM0R74CDnHmeLkVw=="],
+
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.25.12", "", { "os": "aix", "cpu": "ppc64" }, "sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA=="],
 
     "@esbuild/android-arm": ["@esbuild/android-arm@0.25.12", "", { "os": "android", "cpu": "arm" }, "sha512-VJ+sKvNA/GE7Ccacc9Cha7bpS8nyzVv0jdVgwNDaR4gDMC/2TTRc33Ip8qrNYUcpkOHUT5OZ0bUcNNVZQ9RLlg=="],
@@ -86,5 +91,7 @@
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
+
+    "@bedrock-oss/bedrock-boost/@minecraft/server": ["@minecraft/server@2.10.0", "", { "peerDependencies": { "@minecraft/common": "^1.2.0", "@minecraft/vanilla-data": ">=1.20.70" } }, "sha512-d3t8upGn+q4veQdlT6glfllm5ws3gKmTkKhOiL/fkSuoovJVNfyQn76pXVTZm8HVkWYrC8fbKUjOKHWHU3Xmqw=="],
   }
 }
