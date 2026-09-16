@@ -45,6 +45,7 @@ export function openCreateMenu(player: Player, manager: TerritoryManager): void 
         player.dimension.id,
         player.location.x,
         player.location.z,
+        player.id,
       );
 
       if (!result.ok) {

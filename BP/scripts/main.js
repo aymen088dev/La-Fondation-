@@ -83,14 +83,29 @@ var init_manager = __esm({
           (doc) => doc.data.chunkKeys.includes(key)
         )[0];
       }
-      /** Le territoire d'un joueur (1 territoire par joueur). */
+      /** Le territoire d'un joueur (par son pseudo, v1/v2). */
       findByOwner(owner) {
         return this.db.find(TERRITORY_COLLECTION, (doc) => doc.data.owner === owner)[0];
       }
-      /** Ce joueur peut-il interagir/bâtir dans ce chunk ? */
+      /** Le territoire dont ce joueur (par id Bedrock) est propriétaire. */
+      findByOwnerId(ownerId) {
+        return this.db.find(TERRITORY_COLLECTION, (doc) => doc.data.ownerId === ownerId)[0];
+      }
+      /** Ce joueur (pseudo) peut-il interagir/bâtir dans ce chunk ? */
       isAllowed(playerName, key) {
         const territory = this.findByChunk(key);
         return territory === void 0 || territory.data.owner === playerName;
+      }
+      /**
+       * Ce joueur (id Bedrock) peut-il construire dans ce chunk ?
+       * Vrai si chunk libre, s'il est propriétaire, ou membre du territoire.
+       */
+      isAllowedFor(playerId, playerName, key) {
+        const territory = this.findByChunk(key);
+        if (territory === void 0) return true;
+        if (territory.data.ownerId === playerId) return true;
+        if (territory.data.owner === playerName) return true;
+        return territory.data.members.some((member) => member.playerId === playerId);
       }
       /** Ce chunk est-il revendiqué par quelqu'un ? */
       isProtected(key) {
@@ -102,10 +117,12 @@ var init_manager = __esm({
       }
       /**
        * Crée un territoire sur le chunk à la position donnée.
+       * `ownerId` = Player.id Bedrock (identité stable) ; `owner` = pseudo.
        * Valide : nom, 1 territoire par joueur, chunk libre.
        */
-      create(owner, name, colorId, dimensionId, x, z) {
+      create(owner, name, colorId, dimensionId, x, z, ownerId) {
         const cleanName = name.trim().replace(/\s+/g, " ");
+        const stableOwnerId = ownerId ?? `name:${owner}`;
         if (cleanName.length < NAME_MIN || cleanName.length > NAME_MAX) {
           return { ok: false, error: `Le nom doit faire entre ${NAME_MIN} et ${NAME_MAX} caractères.` };
         }
@@ -124,7 +141,16 @@ var init_manager = __esm({
         }
         const territory = this.db.insert(
           TERRITORY_COLLECTION,
-          { name: cleanName, owner, color: colorId, chunkKeys: [key], createdAt: Date.now() },
+          {
+            name: cleanName,
+            owner,
+            ownerId: stableOwnerId,
+            ownerName: owner,
+            members: [],
+            color: colorId,
+            chunkKeys: [key],
+            createdAt: Date.now()
+          },
           cleanName
         );
         this.db.save();
@@ -200,10 +226,10 @@ __export(ui_exports, {
   openTerritoriesMenu: () => openTerritoriesMenu,
   showTerritoryInfo: () => showTerritoryInfo
 });
-import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
+import { ActionFormData as ActionFormData2, ModalFormData as ModalFormData2 } from "@minecraft/server-ui";
 function openCreateMenu(player, manager) {
   const colorItems = TERRITORY_COLORS.map((color) => `${color.code}■ ${color.id}`);
-  new ModalFormData().title("Créer un territoire").textField("Nom du territoire (3-24 caractères)", "Ex : Forteresse du Nord").dropdown("Couleur du drapeau", colorItems, { defaultValueIndex: 0 }).submitButton("Revendiquer ce chunk !").show(player).then((response) => {
+  new ModalFormData2().title("Créer un territoire").textField("Nom du territoire (3-24 caractères)", "Ex : Forteresse du Nord").dropdown("Couleur du drapeau", colorItems, { defaultValueIndex: 0 }).submitButton("Revendiquer ce chunk !").show(player).then((response) => {
     if (response.canceled) return;
     const values = response.formValues ?? [];
     const strings = values.filter((value) => typeof value === "string");
@@ -217,7 +243,8 @@ function openCreateMenu(player, manager) {
       color.id,
       player.dimension.id,
       player.location.x,
-      player.location.z
+      player.location.z,
+      player.id
     );
     if (!result.ok) {
       player.sendMessage(`§c[Territoires] ${result.error}`);
@@ -236,7 +263,7 @@ function openTerritoriesMenu(player, manager) {
     player.sendMessage("§7[Territoires] Aucun territoire pour l'instant. Sois le premier avec §f/sn:create§7 !");
     return;
   }
-  const form = new ActionFormData().title(windowTitle("Territoires")).body(`§7${territories2.length} territoire(s) revendiqué(s). Clique pour voir les infos.`);
+  const form = new ActionFormData2().title(windowTitle("Territoires")).body(`§7${territories2.length} territoire(s) revendiqué(s). Clique pour voir les infos.`);
   for (const territory of territories2) {
     const color = getColor(territory.data.color);
     form.button(`${color.code}■ ${territory.data.name}§r
@@ -266,7 +293,7 @@ function showTerritoryInfo(player, territory, manager) {
     `§7Ce territoire est protégé : seuls le propriétaire`,
     `§7peut y construire, y ouvrir des conteneurs ou y combattre.`
   ].join("\n");
-  new ActionFormData().title(windowTitle(data.name)).body(body).button("§fRetour à la liste", ICONS.arrow).button("§4Fermer", ICONS.barrier).show(player).then((response) => {
+  new ActionFormData2().title(windowTitle(data.name)).body(body).button("§fRetour à la liste", ICONS.arrow).button("§4Fermer", ICONS.barrier).show(player).then((response) => {
     if (response.canceled || response.selection === void 0) return;
     if (response.selection === 0) openTerritoriesMenu(player, manager);
   }).catch((error) => {
@@ -337,7 +364,7 @@ var init_enforcement = __esm({
 import { world as world7, system as system10 } from "@minecraft/server";
 
 // src/db/types.ts
-var DB_SCHEMA_VERSION = 1;
+var DB_SCHEMA_VERSION = 2;
 var DB_STORAGE_PARTITION = "openmontage_db";
 
 // src/db/storage.ts
@@ -348,6 +375,63 @@ function splitIntoChunks(payload) {
     chunks.push(payload.slice(i, i + CHUNK_SIZE));
   }
   return chunks;
+}
+
+// src/db/migrations.ts
+function migrateDatabase(file) {
+  const from = typeof file.schemaVersion === "number" ? file.schemaVersion : 0;
+  if (from >= DB_SCHEMA_VERSION) return file;
+  if (from < 2) migrateV1ToV2(file);
+  file.schemaVersion = DB_SCHEMA_VERSION;
+  return file;
+}
+function migrateV1ToV2(file) {
+  const collections = file.collections ?? {};
+  const oldMembers = collections["role_members"];
+  if (oldMembers !== void 0) {
+    const members = collections["members"] ?? [];
+    const known = new Set(members.map((doc) => doc.id));
+    for (const doc of oldMembers) {
+      if (!known.has(doc.id)) members.push(doc);
+    }
+    collections["members"] = members;
+    delete collections["role_members"];
+  }
+  const oldPlayers = collections["players"];
+  if (oldPlayers !== void 0) {
+    const index = collections["players_index"] ?? [];
+    const known = new Set(index.map((doc) => doc.id));
+    for (const doc of oldPlayers) {
+      const name = typeof doc.data?.name === "string" ? doc.data.name : doc.id;
+      if (known.has(name)) continue;
+      index.push({
+        id: `name:${name}`,
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+        data: {
+          playerId: null,
+          // sera résolu au prochain join
+          name,
+          firstSeen: doc.createdAt,
+          lastSeen: doc.updatedAt,
+          sessions: typeof doc.data?.sessions === "number" ? doc.data.sessions : 1
+        }
+      });
+    }
+    collections["players_index"] = index;
+    delete collections["players"];
+  }
+  const territories2 = collections["territories"];
+  if (territories2 !== void 0) {
+    for (const doc of territories2) {
+      const data = doc?.data ?? {};
+      if (typeof data.owner === "string") {
+        if (typeof data.ownerName !== "string") data.ownerName = data.owner;
+        if (typeof data.ownerId !== "string") data.ownerId = `name:${data.owner}`;
+      }
+      if (!Array.isArray(data.members)) data.members = [];
+    }
+  }
 }
 
 // src/db/database.ts
@@ -377,9 +461,10 @@ var JsonDatabase = class {
       if (typeof parsed !== "object" || parsed === null || typeof parsed.collections !== "object" || parsed.collections === null) {
         throw new Error("structure inattendue");
       }
+      migrateDatabase(parsed);
       if (parsed.schemaVersion !== DB_SCHEMA_VERSION) {
         console.warn(
-          `[DB] Version de schéma ${parsed.schemaVersion} != ${DB_SCHEMA_VERSION} : migration à prévoir.`
+          `[DB] Version de schéma ${parsed.schemaVersion} != ${DB_SCHEMA_VERSION} après migration.`
         );
       }
       this.file = {
@@ -388,7 +473,7 @@ var JsonDatabase = class {
         savedAt: parsed.savedAt ?? 0,
         collections: parsed.collections
       };
-      this.dirty = false;
+      this.dirty = true;
       this.loaded = true;
     } catch (error) {
       console.warn(
@@ -556,9 +641,148 @@ init_types();
 init_manager();
 
 // src/territories/commands.ts
+import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system2 } from "@minecraft/server";
+
+// src/db/menu.ts
+import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
+var COLLECTION_LABELS = {
+  players_index: "👥 Joueurs",
+  territories: "🚩 Territoires",
+  roles: "👑 Rôles",
+  members: "🎭 Grades attribués",
+  bans: "🔨 Bans",
+  mutes: "🔇 Mutes",
+  warns: "⚠️ Avertissements",
+  infractions: "📜 Infractions",
+  modules: "🧩 Modules"
+};
+var SECTION_ORDER = Object.keys(COLLECTION_LABELS);
+function labelOf(collection) {
+  return COLLECTION_LABELS[collection] ?? `📁 ${collection}`;
+}
+function listSections(db2) {
+  const stats = db2.stats();
+  const names = Object.keys(stats.collections).filter((name) => stats.collections[name] > 0);
+  return names.sort((a, b) => {
+    const ia = SECTION_ORDER.indexOf(a);
+    const ib = SECTION_ORDER.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+}
+function summarize(doc) {
+  const data = doc.data ?? {};
+  const name = typeof data.name === "string" && data.name || typeof data.playerId === "string" && `id:${String(data.playerId).slice(0, 8)}` || doc.id;
+  const extra = typeof data.role === "string" ? ` (${data.role})` : typeof data.sessions === "number" ? ` · ${data.sessions} sessions` : typeof data.enabled === "boolean" ? data.enabled ? " · ON" : " · OFF" : "";
+  return `§f${name}§r§7${extra}`;
+}
+async function openDbMenu(db2, player) {
+  const stats = db2.stats();
+  const sections = listSections(db2);
+  const form = new ActionFormData().title("OpenMontage » Base de données").body(
+    `§7${stats.documents} documents · ${stats.bytes} octets
+§7État : ${stats.dirty ? "§eà sauvegarder" : "§aà jour"}
+§7Choisis une section à explorer :`
+  );
+  for (const section2 of sections) {
+    form.button(`${labelOf(section2)}
+§8${stats.collections[section2]} doc(s)`, "textures/ui/icon_setting");
+  }
+  form.button("💾 Forcer la sauvegarde", "textures/ui/icon_save");
+  form.button("§c« Retour", "textures/ui/icon_import");
+  const response = await form.show(player);
+  if (response.canceled) return;
+  if (response.selection === sections.length) {
+    db2.save(true);
+    player.sendMessage("§a[DB] Sauvegarde forcée.");
+    return;
+  }
+  if (response.selection === sections.length + 1) return;
+  const section = sections[response.selection ?? 0];
+  await openSectionMenu(db2, player, section);
+}
+async function openSectionMenu(db2, player, section) {
+  const docs = db2.find(section);
+  const form = new ActionFormData().title(`OpenMontage » ${labelOf(section)}`).body(`§7${docs.length} document(s) — clique pour inspecter/modifier :`);
+  for (const doc2 of docs) form.button(summarize(doc2));
+  form.button("§c🗑 Vider la section", "textures/ui/icon_missing_item");
+  form.button("§7« Retour", "textures/ui/icon_import");
+  const response = await form.show(player);
+  if (response.canceled) return;
+  if (response.selection === docs.length) {
+    const removed = db2.clear(section);
+    db2.save();
+    player.sendMessage(`§c[DB] Section "${section}" vidée (${removed} document(s) supprimés).`);
+    return;
+  }
+  if (response.selection === docs.length + 1) {
+    await openDbMenu(db2, player);
+    return;
+  }
+  const doc = docs[response.selection ?? 0];
+  await openDocumentMenu(db2, player, section, doc.id);
+}
+async function openDocumentMenu(db2, player, section, docId) {
+  const doc = db2.findOne(section, docId);
+  if (doc === void 0) {
+    player.sendMessage("§c[DB] Document introuvable (déjà supprimé ?).");
+    return;
+  }
+  const entries = Object.entries(doc.data).filter(([key]) => key !== "chunkKeys");
+  const form = new ModalFormData().title(`OpenMontage » ${docId}`);
+  const editableKeys = [];
+  const kinds = [];
+  const readonlyLines = [];
+  for (const [key, value] of entries) {
+    if (typeof value === "string") {
+      form.textField(`§e${key}`, value, { defaultValue: value });
+      editableKeys.push(key);
+      kinds.push("string");
+    } else if (typeof value === "number") {
+      form.textField(`§e${key} §7(nombre)`, String(value), { defaultValue: String(value) });
+      editableKeys.push(key);
+      kinds.push("number");
+    } else {
+      readonlyLines.push(`§7${key}: §f${JSON.stringify(value)}`);
+    }
+  }
+  form.label(`§7id: §f${docId}
+${readonlyLines.join("\n")}`);
+  form.submitButton("💾 Appliquer");
+  const response = await form.show(player);
+  if (response.canceled) return;
+  const values = response.formValues ?? [];
+  const patch = {};
+  let changed = false;
+  for (let i = 0; i < editableKeys.length; i++) {
+    const key = editableKeys[i];
+    const raw = String(values[i] ?? "");
+    if (kinds[i] === "number") {
+      const num = Number(raw);
+      if (!Number.isNaN(num) && num !== doc.data[key]) {
+        patch[key] = num;
+        changed = true;
+      }
+    } else if (raw !== doc.data[key]) {
+      patch[key] = raw;
+      changed = true;
+    }
+  }
+  if (changed) {
+    db2.update(section, docId, patch);
+    db2.save();
+    player.sendMessage(`§a[DB] "${docId}" mis à jour (${Object.keys(patch).length} champ(s)).`);
+  } else {
+    player.sendMessage("§7[DB] Aucun changement.");
+  }
+  await openSectionMenu(db2, player, section);
+}
+
+// src/territories/commands.ts
 init_types();
 init_ui();
-import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system2 } from "@minecraft/server";
 function registerCommands(manager, db2, modules2) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
   system2.beforeEvents.startup.subscribe((event) => {
@@ -643,6 +867,17 @@ function registerCommands(manager, db2, modules2) {
           return { status: CustomCommandStatus.Failure, message: "DB indisponible." };
         }
         switch (action) {
+          case "menu": {
+            if (db2.loaded) {
+              system2.run(() => {
+                void openDbMenu(db2, _origin.sourceEntity).catch(
+                  (error) => console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`)
+                );
+              });
+              return { status: CustomCommandStatus.Success };
+            }
+            return { status: CustomCommandStatus.Failure, message: "§c[DB] Base pas encore chargée (worldLoad)." };
+          }
           case "stats": {
             const stats = db2.stats();
             const collections = Object.entries(stats.collections).map(([name, count]) => `${name}=${count}`).join(", ");
@@ -682,7 +917,7 @@ function registerCommands(manager, db2, modules2) {
           default:
             return {
               status: CustomCommandStatus.Failure,
-              message: "Actions : stats, list <collection>, show <collection> <id>, save"
+              message: "Actions : menu, stats, list <collection>, show <collection> <id>, save"
             };
         }
       }
@@ -702,9 +937,9 @@ function isCreative(playerName) {
   const player = world2.getAllPlayers().find((candidate) => candidate.name === playerName);
   return player !== void 0 && player.getGameMode() === GameMode.Creative;
 }
-function isProtectedFor(block, playerName, manager) {
+function isProtectedForId(block, player, manager) {
   const key = chunkKeyFromPosition(block.dimension.id, block.location.x, block.location.z);
-  return !manager.isAllowed(playerName, key);
+  return !manager.isAllowedFor(player.id, player.name, key);
 }
 function registerProtection(manager, modules2) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
@@ -712,7 +947,7 @@ function registerProtection(manager, modules2) {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
-    if (isProtectedFor(event.block, player.name, manager)) {
+    if (isProtectedForId(event.block, player, manager)) {
       event.cancel = true;
       player.sendMessage(DENY_BREAK);
     }
@@ -723,7 +958,7 @@ function registerProtection(manager, modules2) {
     if (isCreative(player.name)) return;
     const { block, dimension } = event;
     const key = chunkKeyFromPosition(dimension.id, block.location.x, block.location.z);
-    if (manager.isAllowed(player.name, key)) return;
+    if (manager.isAllowedFor(player.id, player.name, key)) return;
     const location = block.location;
     const x = Math.floor(location.x);
     const y = Math.floor(location.y);
@@ -740,7 +975,7 @@ function registerProtection(manager, modules2) {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
-    if (isProtectedFor(event.block, player.name, manager)) {
+    if (isProtectedForId(event.block, player, manager)) {
       event.cancel = true;
       player.sendMessage(DENY_INTERACT);
     }
@@ -750,7 +985,7 @@ function registerProtection(manager, modules2) {
     const player = event.source;
     if (isCreative(player.name)) return;
     const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
-    if (!manager.isAllowed(player.name, key)) {
+    if (!manager.isAllowedFor(player.id, player.name, key)) {
       event.cancel = true;
       player.sendMessage(DENY_ITEM);
     }
@@ -760,7 +995,7 @@ function registerProtection(manager, modules2) {
     const player = event.player;
     if (isCreative(player.name)) return;
     const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
-    if (!manager.isAllowed(player.name, key)) {
+    if (!manager.isAllowedFor(player.id, player.name, key)) {
       event.cancel = true;
       player.sendMessage(DENY_INTERACT);
     }
@@ -776,8 +1011,9 @@ function registerProtection(manager, modules2) {
       if (territory === void 0) return;
       const attackerKey = chunkKeyFromPosition(attacker.dimension.id, attacker.location.x, attacker.location.z);
       const attackerTerritory = manager.findByChunk(attackerKey);
-      if (territory.data.owner === attacker.name) return;
-      if (attackerTerritory !== void 0 && attackerTerritory.data.owner === attacker.name) return;
+      const defendsTerritory = territory.data.ownerId === attacker.id || territory.data.owner === attacker.name || territory.data.members.some((member) => member.playerId === attacker.id);
+      const fightsFromHome = attackerTerritory !== void 0 && (attackerTerritory.data.ownerId === attacker.id || attackerTerritory.data.owner === attacker.name);
+      if (defendsTerritory || fightsFromHome) return;
       event.cancel = true;
       attacker.sendMessage(DENY_COMBAT);
       return;
@@ -843,7 +1079,7 @@ init_ui();
 
 // src/permissions/manager.ts
 var ROLES_COLLECTION = "roles";
-var MEMBERS_COLLECTION = "role_members";
+var MEMBERS_COLLECTION = "members";
 var ROLE_COLORS = [
   { id: "rouge", code: "§c" },
   { id: "vert", code: "§a" },
@@ -1032,10 +1268,10 @@ var PermissionManager = class {
 
 // src/permissions/ui.ts
 init_theme();
-import { ActionFormData as ActionFormData2, ModalFormData as ModalFormData2 } from "@minecraft/server-ui";
+import { ActionFormData as ActionFormData3, ModalFormData as ModalFormData3 } from "@minecraft/server-ui";
 function openRolesMenu(player, permissions2) {
   const roles = permissions2.allRoles();
-  const form = new ActionFormData2().title(windowTitle("Rôles")).body(`§7${roles.length} rôle(s). Sélectionne pour configurer.`).button("§a+ Créer un rôle", ICONS.plus);
+  const form = new ActionFormData3().title(windowTitle("Rôles")).body(`§7${roles.length} rôle(s). Sélectionne pour configurer.`).button("§a+ Créer un rôle", ICONS.plus);
   for (const role of roles) {
     form.button(
       `${role.data.color}[${role.data.name}]§r
@@ -1054,7 +1290,7 @@ function openRolesMenu(player, permissions2) {
 }
 function openCreateRoleMenu(player, permissions2) {
   const colorItems = ROLE_COLORS.map((color) => `${color.code}■ ${color.id}`);
-  new ModalFormData2().title("Créer un rôle").textField("Nom du rôle (2-16 caractères)", "Ex : Modo, VIP,_builder").slider("Niveau hiérarchique", 0, 100, { valueStep: 5, defaultValue: 10 }).dropdown("Couleur", colorItems, { defaultValueIndex: 0 }).submitButton("Créer").show(player).then((response) => {
+  new ModalFormData3().title("Créer un rôle").textField("Nom du rôle (2-16 caractères)", "Ex : Modo, VIP,_builder").slider("Niveau hiérarchique", 0, 100, { valueStep: 5, defaultValue: 10 }).dropdown("Couleur", colorItems, { defaultValueIndex: 0 }).submitButton("Créer").show(player).then((response) => {
     if (response.canceled) return;
     const values = response.formValues ?? [];
     const strings = values.filter((value) => typeof value === "string");
@@ -1072,7 +1308,7 @@ function openCreateRoleMenu(player, permissions2) {
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
 function openRoleConfigMenu(player, role, permissions2) {
-  new ActionFormData2().title(windowTitle(`Rôle ${role.data.color}${role.data.name}`)).body(
+  new ActionFormData3().title(windowTitle(`Rôle ${role.data.color}${role.data.name}`)).body(
     `§7Niveau : §f${role.data.level}
 §7Membres : §f${permissions2.membersWithRole(role.data.name).length}
 §7Prefix : §f${role.data.prefix}`
@@ -1109,7 +1345,7 @@ function openRoleConfigMenu(player, role, permissions2) {
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
 function openLevelMenu(player, role, permissions2) {
-  new ModalFormData2().title(`Niveau de [${role.data.name}]`).slider("Niveau (100 = admin max)", 0, 100, { valueStep: 5, defaultValue: role.data.level }).submitButton("Valider").show(player).then((response) => {
+  new ModalFormData3().title(`Niveau de [${role.data.name}]`).slider("Niveau (100 = admin max)", 0, 100, { valueStep: 5, defaultValue: role.data.level }).submitButton("Valider").show(player).then((response) => {
     if (response.canceled) return;
     const numbers = (response.formValues ?? []).filter((value) => typeof value === "number");
     const result = permissions2.setRoleLevel(role.data.name, numbers[0] ?? role.data.level);
@@ -1118,7 +1354,7 @@ function openLevelMenu(player, role, permissions2) {
 }
 function openRoleMembersMenu(player, role, permissions2) {
   const members = permissions2.membersWithRole(role.data.name);
-  const form = new ActionFormData2().title(`Membres ${role.data.color}[${role.data.name}]`).body(members.length === 0 ? "§7Aucun membre." : "§7Clique sur un membre pour lui retirer le rôle.");
+  const form = new ActionFormData3().title(`Membres ${role.data.color}[${role.data.name}]`).body(members.length === 0 ? "§7Aucun membre." : "§7Clique sur un membre pour lui retirer le rôle.");
   for (const member of members) form.button(`§f${member.data.name}`);
   form.button("§8← Retour");
   form.show(player).then((response) => {
@@ -1133,7 +1369,7 @@ function openRoleMembersMenu(player, role, permissions2) {
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
 function openColorPicker(player, title, onPick) {
-  const form = new ActionFormData2().title(windowTitle(title)).body("§7Choisis une couleur :").button("§8← Annuler", ICONS.arrow);
+  const form = new ActionFormData3().title(windowTitle(title)).body("§7Choisis une couleur :").button("§8← Annuler", ICONS.arrow);
   for (const color of ROLE_COLORS) {
     form.button(`${color.code}■■■ §7${color.id}`, ICONS.diamond);
   }
@@ -1145,7 +1381,7 @@ function openColorPicker(player, title, onPick) {
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
 function openPrefixMenu(player, title, onDone) {
-  new ModalFormData2().title(title).textField("Prefix (vide = défaut [Nom])", "Ex : ★ Boss, [VIP+]").submitButton("Valider").show(player).then((response) => {
+  new ModalFormData3().title(title).textField("Prefix (vide = défaut [Nom])", "Ex : ★ Boss, [VIP+]").submitButton("Valider").show(player).then((response) => {
     if (response.canceled) return;
     const strings = (response.formValues ?? []).filter((value) => typeof value === "string");
     onDone(strings[0] ?? "");
@@ -1153,11 +1389,11 @@ function openPrefixMenu(player, title, onDone) {
 }
 
 // src/permissions/players-ui.ts
-import { ActionFormData as ActionFormData3, MessageFormData, ModalFormData as ModalFormData3 } from "@minecraft/server-ui";
+import { ActionFormData as ActionFormData4, MessageFormData, ModalFormData as ModalFormData4 } from "@minecraft/server-ui";
 init_theme();
 function openPlayersMenu(player, permissions2) {
   const members = permissions2.allMembers();
-  const form = new ActionFormData3().title(windowTitle("Joueurs")).body("§7Joueurs avec un rôle. Tu peux aussi gérer un joueur manuellement.").button("§a+ Gérer un joueur (saisir le pseudo)", ICONS.plus);
+  const form = new ActionFormData4().title(windowTitle("Joueurs")).body("§7Joueurs avec un rôle. Tu peux aussi gérer un joueur manuellement.").button("§a+ Gérer un joueur (saisir le pseudo)", ICONS.plus);
   for (const member of members) {
     const role = permissions2.getRole(member.data.role);
     form.button(`${role?.data.color ?? "§7"}${member.data.name}§r
@@ -1173,7 +1409,7 @@ function openPlayersMenu(player, permissions2) {
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
 function openPlayerLookupMenu(player, permissions2) {
-  new ModalFormData3().title("Gérer un joueur").textField("Pseudo du joueur", "Ex : Steve").submitButton("Rechercher").show(player).then((response) => {
+  new ModalFormData4().title("Gérer un joueur").textField("Pseudo du joueur", "Ex : Steve").submitButton("Rechercher").show(player).then((response) => {
     if (response.canceled) return;
     const strings = (response.formValues ?? []).filter((value) => typeof value === "string");
     const name = (strings[0] ?? "").trim();
@@ -1186,7 +1422,7 @@ function openPlayerConfigMenu(player, targetName, permissions2) {
   const roleLabel = member === void 0 ? "§7aucun" : `${permissions2.getRole(member.data.role)?.data.color ?? "§7"}${member.data.role}`;
   const prefixLabel = member?.data.customPrefix ?? "(défaut du rôle)";
   const colorLabel = member?.data.customColor ?? "(défaut du rôle)";
-  const form = new ActionFormData3().title(windowTitle(targetName)).body(`§7Rôle : ${roleLabel}
+  const form = new ActionFormData4().title(windowTitle(targetName)).body(`§7Rôle : ${roleLabel}
 §7Prefix perso : §f${prefixLabel}
 §7Couleur perso : §f${colorLabel}`).button("§eAttribuer / changer de rôle", ICONS.crown).button("§ePrefix personnalisé", ICONS.sign).button("§eCouleur de nom personnalisée", ICONS.diamond);
   if (member !== void 0) {
@@ -1223,7 +1459,7 @@ function openAssignRoleMenu(player, targetName, permissions2) {
     player.sendMessage("§c[Rôles] Aucun rôle existant. Crée-en un d'abord (/sn:roles).");
     return;
   }
-  const form = new ActionFormData3().title(`Rôle de ${targetName}`).body("§7Choisis le rôle à attribuer :");
+  const form = new ActionFormData4().title(`Rôle de ${targetName}`).body("§7Choisis le rôle à attribuer :");
   for (const role of roles) {
     form.button(`${role.data.color}[${role.data.name}]§r
 §7niveau ${role.data.level}`);
@@ -1245,11 +1481,11 @@ function openAssignRoleMenu(player, targetName, permissions2) {
 // src/permissions/commands.ts
 init_theme();
 import { CustomCommandStatus as CustomCommandStatus2, CommandPermissionLevel as CommandPermissionLevel2, system as system7, PlayerPermissionLevel } from "@minecraft/server";
-import { ActionFormData as ActionFormData7 } from "@minecraft/server-ui";
+import { ActionFormData as ActionFormData8 } from "@minecraft/server-ui";
 
 // src/modules/ui.ts
 init_theme();
-import { ActionFormData as ActionFormData4, MessageFormData as MessageFormData2 } from "@minecraft/server-ui";
+import { ActionFormData as ActionFormData5, MessageFormData as MessageFormData2 } from "@minecraft/server-ui";
 
 // src/modules/manager.ts
 var MODULES_COLLECTION = "modules";
@@ -1293,7 +1529,7 @@ var ModuleManager = class {
 
 // src/modules/ui.ts
 function openModulesMenu(player, modules2, territories2) {
-  const form = new ActionFormData4().title(windowTitle("Modules")).body(`§7${modules2.enabledCount()}/${MODULE_CATALOG.length} module(s) actif(s).`);
+  const form = new ActionFormData5().title(windowTitle("Modules")).body(`§7${modules2.enabledCount()}/${MODULE_CATALOG.length} module(s) actif(s).`);
   for (const info of MODULE_CATALOG) {
     const enabled = modules2.isEnabled(info.id);
     const icon = info.id === "territories" ? ICONS.flag : ICONS.shield;
@@ -1314,7 +1550,7 @@ function openModuleConfigMenu(player, moduleId, modules2, territories2) {
   const info = MODULE_CATALOG.find((candidate) => candidate.id === moduleId);
   if (info === void 0) return;
   const enabled = modules2.isEnabled(moduleId);
-  const form = new ActionFormData4().title(windowTitle(info.name)).body(`§7${info.description}
+  const form = new ActionFormData5().title(windowTitle(info.name)).body(`§7${info.description}
 
 §7État : ${enabled ? "§aactivé" : "§cdésactivé"}`).button(enabled ? "§cDésactiver le module" : "§aActiver le module", enabled ? ICONS.barrier : ICONS.plus);
   if (moduleId === "territories" && territories2 !== void 0) {
@@ -1363,12 +1599,12 @@ Action irréversible !`).button2("§4SUPPRIMER TOUT").button1("§aAnnuler").show
 // src/ui/hub.ts
 init_theme();
 init_ui();
-import { ActionFormData as ActionFormData6 } from "@minecraft/server-ui";
+import { ActionFormData as ActionFormData7 } from "@minecraft/server-ui";
 import { system as system6 } from "@minecraft/server";
 
 // src/moderation/ui.ts
 init_theme();
-import { ActionFormData as ActionFormData5, ModalFormData as ModalFormData4 } from "@minecraft/server-ui";
+import { ActionFormData as ActionFormData6, ModalFormData as ModalFormData5 } from "@minecraft/server-ui";
 
 // src/moderation/manager.ts
 var BANS_COLLECTION = "bans";
@@ -1524,7 +1760,7 @@ var SanctionsManager = class {
 // src/moderation/ui.ts
 function openSanctionsMenu(player, sanctions2, permissions2) {
   const stats = sanctions2.stats();
-  new ActionFormData5().title(windowTitle("Modération")).body(
+  new ActionFormData6().title(windowTitle("Modération")).body(
     `§7Bans actifs : §f${stats.bans}
 §7Mutes actifs : §f${stats.mutes}
 §7Warns au total : §f${stats.warns}`
@@ -1552,7 +1788,7 @@ function openBansList(player, sanctions2, permissions2) {
     player.sendMessage("§7[Modération] Aucun ban actif.");
     return;
   }
-  const form = new ActionFormData5().title("§4Bans actifs").body("§7Clique sur un ban pour le lever.");
+  const form = new ActionFormData6().title("§4Bans actifs").body("§7Clique sur un ban pour le lever.");
   for (const ban of bans) {
     const expiry = ban.data.expiresAt === 0 ? "§4permanent" : `§7(${formatDuration(Math.ceil((ban.data.expiresAt - Date.now()) / 6e4))})`;
     form.button(`§f${ban.data.name} ${expiry}
@@ -1575,7 +1811,7 @@ function openMutesList(player, sanctions2, permissions2) {
     player.sendMessage("§7[Modération] Aucun mute actif.");
     return;
   }
-  const form = new ActionFormData5().title("§6Mutes actifs").body("§7Clique sur un mute pour le lever.");
+  const form = new ActionFormData6().title("§6Mutes actifs").body("§7Clique sur un mute pour le lever.");
   for (const mute of mutes) {
     const expiry = mute.data.expiresAt === 0 ? "§cpermanent" : `§7(${formatDuration(Math.ceil((mute.data.expiresAt - Date.now()) / 6e4))})`;
     form.button(`§f${mute.data.name} ${expiry}
@@ -1593,7 +1829,7 @@ function openMutesList(player, sanctions2, permissions2) {
   }).catch((error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`));
 }
 function openSanctionForm(player, sanctions2) {
-  new ModalFormData4().title("Sanctionner un joueur").textField("Pseudo du joueur", "Ex : Griefer_42").dropdown("Type de sanction", ["§aKick", "§4Ban", "§6Mute", "§eWarn"], { defaultValueIndex: 3 }).slider("Durée en minutes (0 = permanent)", 0, 1440, { valueStep: 15, defaultValue: 60 }).textField("Raison", "Ex : grief zone spawn").submitButton("Appliquer").show(player).then((response) => {
+  new ModalFormData5().title("Sanctionner un joueur").textField("Pseudo du joueur", "Ex : Griefer_42").dropdown("Type de sanction", ["§aKick", "§4Ban", "§6Mute", "§eWarn"], { defaultValueIndex: 3 }).slider("Durée en minutes (0 = permanent)", 0, 1440, { valueStep: 15, defaultValue: 60 }).textField("Raison", "Ex : grief zone spawn").submitButton("Appliquer").show(player).then((response) => {
     if (response.canceled) return;
     const values = response.formValues ?? [];
     const strings = values.filter((value) => typeof value === "string");
@@ -1625,7 +1861,7 @@ function openSanctionForm(player, sanctions2) {
   }).catch((error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`));
 }
 function openHistoryLookup(player, sanctions2) {
-  new ModalFormData4().title("Historique").textField("Pseudo du joueur", "Ex : Steve").submitButton("Voir").show(player).then((response) => {
+  new ModalFormData5().title("Historique").textField("Pseudo du joueur", "Ex : Steve").submitButton("Voir").show(player).then((response) => {
     if (response.canceled) return;
     const strings = (response.formValues ?? []).filter((value) => typeof value === "string");
     const target = (strings[0] ?? "").trim();
@@ -1650,7 +1886,7 @@ function openHubMenu(player, deps) {
   const isAdmin = canUseAdminPanel(player, permissions2);
   const isMod = permissions2.levelOf(player.name) >= 60 || player.playerPermissionLevel >= 2;
   const hasRole = permissions2.getMember(player.name) !== void 0;
-  const form = new ActionFormData6().title(windowTitle("Menu")).body(
+  const form = new ActionFormData7().title(windowTitle("Menu")).body(
     `${divider()}
 §7Salut §f${player.name}§7 !
 ` + (hasRole ? `§7Ton rôle : ${permissions2.nameTagFor(player.name)}§r
@@ -1768,7 +2004,7 @@ function registerAdminCommands(ctx) {
             player.sendMessage("§c[Admin] Il te faut le rôle Admin (ou être op).");
             return;
           }
-          new ActionFormData7().title(windowTitle("Administration")).body("§7Que veux-tu gérer ?").button("§6Rôles\n§7créer, couleurs, niveaux", ICONS.crown).button("§bJoueurs\n§7attribuer rôles et prefixes", ICONS.paper).button("§aModules\n§7activer/désactiver les features", ICONS.wrench).button("§4Fermer", ICONS.barrier).show(player).then((response) => {
+          new ActionFormData8().title(windowTitle("Administration")).body("§7Que veux-tu gérer ?").button("§6Rôles\n§7créer, couleurs, niveaux", ICONS.crown).button("§bJoueurs\n§7attribuer rôles et prefixes", ICONS.paper).button("§aModules\n§7activer/désactiver les features", ICONS.wrench).button("§4Fermer", ICONS.barrier).show(player).then((response) => {
             if (response.canceled || response.selection === void 0) return;
             if (response.selection === 0) openRolesMenu(player, ctx.permissions);
             else if (response.selection === 1) openPlayersMenu(player, ctx.permissions);
@@ -1986,12 +2222,53 @@ function registerModerationCommands(deps) {
 }
 
 // src/players.ts
-function trackPlayerJoin(db2, playerName) {
-  const record = db2.findOne("players", playerName);
-  db2.upsert("players", playerName, {
-    name: playerName,
-    sessions: (record?.data.sessions ?? 0) + 1
-  });
+var PLAYERS_COLLECTION = "players_index";
+function findPlayerById(db2, playerId) {
+  return db2.findOne(PLAYERS_COLLECTION, playerId);
+}
+function findPlayerByName(db2, playerName) {
+  return db2.find(
+    PLAYERS_COLLECTION,
+    (doc) => doc.data.name === playerName
+  )[0];
+}
+function trackPlayerJoin(db2, playerId, playerName, grade = "") {
+  const now = Date.now();
+  const existing = findPlayerById(db2, playerId);
+  const legacy = findPlayerByName(db2, playerName);
+  if (existing !== void 0) {
+    existing.data.name = playerName;
+    existing.data.lastSeen = now;
+    existing.data.sessions += 1;
+    if (grade !== "") existing.data.grade = grade;
+    existing.updatedAt = now;
+    db2.save();
+    return existing.id;
+  }
+  if (legacy !== void 0 && legacy.id.startsWith("name:")) {
+    db2.delete(PLAYERS_COLLECTION, legacy.id);
+    const promoted = db2.insert(
+      PLAYERS_COLLECTION,
+      {
+        playerId,
+        name: playerName,
+        firstSeen: legacy.data.firstSeen,
+        lastSeen: now,
+        sessions: legacy.data.sessions + 1,
+        grade: grade !== "" ? grade : legacy.data.grade
+      },
+      playerId
+    );
+    db2.save();
+    return promoted.id;
+  }
+  db2.insert(
+    PLAYERS_COLLECTION,
+    { playerId, name: playerName, firstSeen: now, lastSeen: now, sessions: 1, grade },
+    playerId
+  );
+  db2.save();
+  return playerId;
 }
 
 // src/main.ts
@@ -2066,7 +2343,7 @@ system10.runInterval(() => {
 world7.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
   const player = event.player;
-  trackPlayerJoin(db, player.name);
+  trackPlayerJoin(db, player.id, player.name, permissions.roleOf(player.name)?.data.name ?? "");
   applyNameTag(player.name);
   player.sendMessage("§a[OpenMontage]§r Bienvenue ! Menu principal : §f/sn:menu§r — territoire : §f/sn:create");
   player.onScreenDisplay.setTitle("§aOpenMontage §f✔");

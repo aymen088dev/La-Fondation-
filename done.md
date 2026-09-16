@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : après le chantier Resource Pack / JSON UI / chat custom.
+> Dernière mise à jour : grosse mise à jour DB (v2) — index joueurs par ID, territoires multi-membres, menu DB complet.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -8,18 +8,22 @@
 ## 🧱 Fondations
 
 ### Base de données locale (TypeScript + JSON) — `src/db/`
-- [x] `JsonDatabase` : collections de documents, CRUD complet (`insert`, `upsert`, `find`, `findOne`, `remove`)
+- [x] `JsonDatabase` : collections de documents, CRUD complet (`insert`, `upsert`, **`update`**, `find`, `findOne`, `remove`)
+- [x] **Migrations de schéma (v2)** : `src/db/migrations.ts` — renommage `role_members`→`members`, conversion `players`→`players_index`, enrichissement territoires (testées, 5 tests dédiés)
+- [x] **Index joueurs `players_index`** : identité stable par **Player.id Bedrock** (le xuid n'existe pas dans l'API 2.11), résolution pseudo↔id, promotion auto des entrées migrées au join, compteur de sessions, grade copié (`src/players.ts`)
+- [x] **Territoires v2** : `ownerId` (id Bedrock stable) + `ownerName` + **membres** (member/officer) — le propriétaire ET ses membres peuvent construire ; les protections et le PvP utilisent les IDs
+- [x] **Menu DB `/sn:db menu`** (admin) : navigation par sections (joueurs, territoires, rôles, grades, bans, mutes, warns, modules…), vue document avec **édition des champs texte/nombre**, vidage de section, sauvegarde forcée — tout persisté
 - [x] Persistance **Dynamic Properties** du monde (stockage Bedrock natif, `src/db/bedrock-storage.ts`)
 - [x] **Dirty tracking** : on ne sauvegarde que si des données ont changé
 - [x] **Autosave** toutes les 5 s (`src/db/autosave.ts`), sûr en early execution
 - [x] **Découpage** : les gros payloads sont fragmentés automatiquement (limite de taille des Dynamic Properties)
 - [x] Chargement **post-worldLoad uniquement** (le `getDynamicProperty` est interdit en early execution — bug corrigé, voir Historique)
-- [x] Commandes admin `/sn:db` (stats, list, show, save)
+- [x] Commandes admin `/sn:db` (menu, stats, list, show, save)
 
 ### Scripts & toolchain
 - [x] TypeScript strict compilé en **un seul bundle** `BP/scripts/main.js` (esbuild) — c'est normal qu'il n'y ait qu'un .js dans BP/scripts
 - [x] Manifest BP en TypeScript-compat (API **`@minecraft/server` 2.11.0-beta** = Minecraft **1.26.50**, expérimentation Beta APIs requise)
-- [x] 20/20 tests unitaires (bun test) : DB, chunks, territoires, sanctions
+- [x] 25/25 tests unitaires (bun test) : DB, migrations v1→v2, chunks, territoires, sanctions
 
 ---
 
@@ -72,6 +76,11 @@
 
 ---
 
+## 🧰 Veille outils
+- [x] `utile.md` : outils GitHub classés (toolchain, Script API, serveurs, JSON UI) — déjà utilisés vs à évaluer
+
+---
+
 ## 🗺️ Roadmap (proposée, non commencée)
 - **Phase 2 modération (suite)** : logs de grief (qui a cassé quoi + rollback), config globale GUI
 - **Phase 1 socle** : économie (`/sn:money`, `/sn:pay`), homes & TP (`/sn:sethome`, `/sn:tpa`...), stats joueurs (`/sn:top`)
@@ -85,3 +94,4 @@
 2. **Formulaire de création** : `formValues` indexait aussi header/label → "nom entre 3 et 24 caractères" à tort. Corrigé (lecture par type).
 3. **Chat** : `chatSend` absent de la stable 2.9.0 (uniquement doc) → migration vers la bêta 2.11.0 (Minecraft 1.26.50), où il existe bel et bien.
 4. **JSON UI** : les éléments custom dans un fichier séparé ne sont pas instanciés par le HUD → remplacement du `hud_screen.json` entier (méthode officielle des packs UI).
+5. **Identité joueurs** : pas de `xuid` dans l'API bêta 2.11 → identité stable par `Player.id` + migration des anciennes entrées (clés `name:<pseudo>` promues automatiquement au join).

@@ -10,7 +10,6 @@ import {
   registerEnforcement,
 } from "./moderation";
 import { trackPlayerJoin } from "./players";
-
 /**
  * OpenMontage — point d'entrée du behavior pack (TypeScript).
  * Ce fichier est bundlé vers BP/scripts/main.js, entry déclaré dans BP/manifest.json.
@@ -132,7 +131,7 @@ world.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
 
   const player = event.player;
-  trackPlayerJoin(db, player.name);
+  trackPlayerJoin(db, player.id, player.name, permissions.roleOf(player.name)?.data.name ?? "");
   applyNameTag(player.name);
 
   player.sendMessage("§a[OpenMontage]§r Bienvenue ! Menu principal : §f/sn:menu§r — territoire : §f/sn:create");

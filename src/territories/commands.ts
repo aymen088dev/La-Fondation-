@@ -1,6 +1,7 @@
 import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system } from "@minecraft/server";
 import type { CustomCommandOrigin, Player, StartupEvent } from "@minecraft/server";
 import type { JsonDatabase } from "../db/database";
+import { openDbMenu } from "../db/menu";
 import type { TerritoryManager } from "./manager";
 import type { ModuleManager } from "../modules/manager";
 import { TERRITORY_COLORS } from "./types";
@@ -109,6 +110,17 @@ export function registerCommands(manager: TerritoryManager, db?: JsonDatabase, m
         }
 
         switch (action) {
+          case "menu": {
+            if (db.loaded) {
+              system.run(() => {
+                void openDbMenu(db, _origin.sourceEntity as Player).catch((error: unknown) =>
+                  console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`),
+                );
+              });
+              return { status: CustomCommandStatus.Success };
+            }
+            return { status: CustomCommandStatus.Failure, message: "§c[DB] Base pas encore chargée (worldLoad)." };
+          }
           case "stats": {
             const stats = db.stats();
             const collections = Object.entries(stats.collections)
@@ -153,7 +165,7 @@ export function registerCommands(manager: TerritoryManager, db?: JsonDatabase, m
           default:
             return {
               status: CustomCommandStatus.Failure,
-              message: "Actions : stats, list <collection>, show <collection> <id>, save",
+              message: "Actions : menu, stats, list <collection>, show <collection> <id>, save",
             };
         }
       },

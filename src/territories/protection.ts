@@ -15,10 +15,14 @@ function isCreative(playerName: string): boolean {
   return player !== undefined && player.getGameMode() === GameMode.Creative;
 }
 
-/** Le bloc est-il dans un territoire où ce joueur n'a pas le droit de construire ? */
-function isProtectedFor(block: { dimension: { id: string }; location: { x: number; y: number; z: number } }, playerName: string, manager: TerritoryManager): boolean {
+/** Le bloc est-il dans un territoire où ce joueur (par id Bedrock) ne peut pas construire ? */
+function isProtectedForId(
+  block: { dimension: { id: string }; location: { x: number; y: number; z: number } },
+  player: { id: string; name: string },
+  manager: TerritoryManager,
+): boolean {
   const key = chunkKeyFromPosition(block.dimension.id, block.location.x, block.location.z);
-  return !manager.isAllowed(playerName, key);
+  return !manager.isAllowedFor(player.id, player.name, key);
 }
 
 /**
@@ -43,7 +47,7 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
     const player = event.player;
     if (isCreative(player.name)) return;
 
-    if (isProtectedFor(event.block, player.name, manager)) {
+    if (isProtectedForId(event.block, player, manager)) {
       event.cancel = true;
       player.sendMessage(DENY_BREAK);
     }
@@ -58,7 +62,7 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
 
     const { block, dimension } = event;
     const key = chunkKeyFromPosition(dimension.id, block.location.x, block.location.z);
-    if (manager.isAllowed(player.name, key)) return;
+    if (manager.isAllowedFor(player.id, player.name, key)) return;
 
     // Rollback au tick suivant : remet le bloc remplacé (air par défaut).
     // (l'API stable n'a pas d'event playerPlaceBlock annulable)
@@ -85,7 +89,7 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
     const player = event.player;
     if (isCreative(player.name)) return;
 
-    if (isProtectedFor(event.block, player.name, manager)) {
+    if (isProtectedForId(event.block, player, manager)) {
       event.cancel = true;
       player.sendMessage(DENY_INTERACT);
     }
@@ -99,7 +103,7 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
     if (isCreative(player.name)) return;
 
     const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
-    if (!manager.isAllowed(player.name, key)) {
+    if (!manager.isAllowedFor(player.id, player.name, key)) {
       event.cancel = true;
       player.sendMessage(DENY_ITEM);
     }
@@ -113,7 +117,7 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
     if (isCreative(player.name)) return;
 
     const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
-    if (!manager.isAllowed(player.name, key)) {
+    if (!manager.isAllowedFor(player.id, player.name, key)) {
       event.cancel = true;
       player.sendMessage(DENY_INTERACT);
     }
@@ -134,13 +138,18 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
       const territory = manager.findByChunk(victimKey);
       if (territory === undefined) return; // chunk libre : PvP autorisé
 
-      // Autorisé si l'attaquant est le propriétaire du territoire
-      // (il peut frapper quiconque se trouve chez lui), ou s'il combat
-      // depuis son propre territoire (légitime défense depuis chez soi).
+      // Autorisé si l'attaquant défend le territoire (propriétaire ou
+      // membre) ou s'il combat depuis son propre territoire.
       const attackerKey = chunkKeyFromPosition(attacker.dimension.id, attacker.location.x, attacker.location.z);
       const attackerTerritory = manager.findByChunk(attackerKey);
-      if (territory.data.owner === attacker.name) return;
-      if (attackerTerritory !== undefined && attackerTerritory.data.owner === attacker.name) return;
+      const defendsTerritory =
+        territory.data.ownerId === attacker.id ||
+        territory.data.owner === attacker.name ||
+        territory.data.members.some((member) => member.playerId === attacker.id);
+      const fightsFromHome =
+        attackerTerritory !== undefined &&
+        (attackerTerritory.data.ownerId === attacker.id || attackerTerritory.data.owner === attacker.name);
+      if (defendsTerritory || fightsFromHome) return;
 
       event.cancel = true;
       attacker.sendMessage(DENY_COMBAT);

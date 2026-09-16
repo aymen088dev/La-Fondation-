@@ -1,6 +1,7 @@
 import { DB_SCHEMA_VERSION } from "./types";
 import type { DatabaseFile, StoredDocument } from "./types";
 import type { StorageAdapter } from "./storage";
+import { migrateDatabase } from "./migrations";
 
 /** Génère un identifiant unique suffisant pour une DB locale. */
 function generateId(): string {
@@ -62,9 +63,10 @@ export class JsonDatabase {
       ) {
         throw new Error("structure inattendue");
       }
+      migrateDatabase(parsed);
       if (parsed.schemaVersion !== DB_SCHEMA_VERSION) {
         console.warn(
-          `[DB] Version de schéma ${parsed.schemaVersion} != ${DB_SCHEMA_VERSION} : migration à prévoir.`,
+          `[DB] Version de schéma ${parsed.schemaVersion} != ${DB_SCHEMA_VERSION} après migration.`,
         );
       }
       this.file = {
@@ -73,7 +75,7 @@ export class JsonDatabase {
         savedAt: parsed.savedAt ?? 0,
         collections: parsed.collections,
       };
-      this.dirty = false;
+      this.dirty = true; // la version migrée sera persistée au prochain save
       this.loaded = true;
     } catch (error) {
       console.warn(

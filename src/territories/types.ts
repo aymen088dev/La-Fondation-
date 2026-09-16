@@ -28,9 +28,26 @@ export function getColor(id: string): TerritoryColor {
 }
 
 /** Données persistées d'un territoire (collection "territories" de la DB). */
+export interface TerritoryMember {
+  /** Player.id Bedrock du membre. */
+  playerId: string;
+  /** Dernier pseudo connu du membre. */
+  name: string;
+  /** "officer" peut construire mais pas gérer ; "member" peut construire. */
+  rank: "member" | "officer";
+}
+
+/** Données persistées d'un territoire (collection "territories" de la DB). */
 export interface TerritoryData {
   name: string;
+  /** Pseudo du propriétaire (compatibilité v1 / affichage). */
   owner: string;
+  /** Player.id Bedrock du propriétaire (identité stable v2). */
+  ownerId: string;
+  /** Pseudo du propriétaire (résolution rapide, v2). */
+  ownerName: string;
+  /** Membres autorisés à construire (v2). */
+  members: TerritoryMember[];
   /** Identifiant de la couleur du drapeau (voir TERRITORY_COLORS). */
   color: string;
   /** Clés des chunks contrôlés : `${dimensionId}:${cx}:${cz}`. */

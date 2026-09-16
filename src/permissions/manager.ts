@@ -13,8 +13,8 @@ import type { JsonDatabase } from "../db/database";
 /** Collection DB des rôles (id = nom du rôle, ex : "Admin"). */
 export const ROLES_COLLECTION = "roles";
 
-/** Collection DB des attributions (id = pseudo du joueur). */
-export const MEMBERS_COLLECTION = "role_members";
+/** Collection DB des attributions (id = pseudo du joueur) — v2 : "members". */
+export const MEMBERS_COLLECTION = "members";
 
 /** Palette de couleurs disponibles pour les rôles. */
 export const ROLE_COLORS: { id: string; code: string }[] = [

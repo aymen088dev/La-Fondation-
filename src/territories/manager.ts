@@ -74,15 +74,32 @@ export class TerritoryManager {
     )[0];
   }
 
-  /** Le territoire d'un joueur (1 territoire par joueur). */
+  /** Le territoire d'un joueur (par son pseudo, v1/v2). */
   findByOwner(owner: string): StoredDocument<TerritoryData> | undefined {
     return this.db.find<TerritoryData>(TERRITORY_COLLECTION, (doc) => doc.data.owner === owner)[0];
   }
 
-  /** Ce joueur peut-il interagir/bâtir dans ce chunk ? */
+  /** Le territoire dont ce joueur (par id Bedrock) est propriétaire. */
+  findByOwnerId(ownerId: string): StoredDocument<TerritoryData> | undefined {
+    return this.db.find<TerritoryData>(TERRITORY_COLLECTION, (doc) => doc.data.ownerId === ownerId)[0];
+  }
+
+  /** Ce joueur (pseudo) peut-il interagir/bâtir dans ce chunk ? */
   isAllowed(playerName: string, key: string): boolean {
     const territory = this.findByChunk(key);
     return territory === undefined || territory.data.owner === playerName;
+  }
+
+  /**
+   * Ce joueur (id Bedrock) peut-il construire dans ce chunk ?
+   * Vrai si chunk libre, s'il est propriétaire, ou membre du territoire.
+   */
+  isAllowedFor(playerId: string, playerName: string, key: string): boolean {
+    const territory = this.findByChunk(key);
+    if (territory === undefined) return true;
+    if (territory.data.ownerId === playerId) return true;
+    if (territory.data.owner === playerName) return true; // compat v1
+    return territory.data.members.some((member) => member.playerId === playerId);
   }
 
   /** Ce chunk est-il revendiqué par quelqu'un ? */
@@ -97,10 +114,20 @@ export class TerritoryManager {
 
   /**
    * Crée un territoire sur le chunk à la position donnée.
+   * `ownerId` = Player.id Bedrock (identité stable) ; `owner` = pseudo.
    * Valide : nom, 1 territoire par joueur, chunk libre.
    */
-  create(owner: string, name: string, colorId: string, dimensionId: string, x: number, z: number): CreateResult {
+  create(
+    owner: string,
+    name: string,
+    colorId: string,
+    dimensionId: string,
+    x: number,
+    z: number,
+    ownerId?: string,
+  ): CreateResult {
     const cleanName = name.trim().replace(/\s+/g, " ");
+    const stableOwnerId = ownerId ?? `name:${owner}`;
 
     if (cleanName.length < NAME_MIN || cleanName.length > NAME_MAX) {
       return { ok: false, error: `Le nom doit faire entre ${NAME_MIN} et ${NAME_MAX} caractères.` };
@@ -122,7 +149,16 @@ export class TerritoryManager {
 
     const territory = this.db.insert<TerritoryData>(
       TERRITORY_COLLECTION,
-      { name: cleanName, owner, color: colorId, chunkKeys: [key], createdAt: Date.now() },
+      {
+        name: cleanName,
+        owner,
+        ownerId: stableOwnerId,
+        ownerName: owner,
+        members: [],
+        color: colorId,
+        chunkKeys: [key],
+        createdAt: Date.now(),
+      },
       cleanName,
     );
     this.db.save();
