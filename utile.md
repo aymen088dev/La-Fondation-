@@ -20,9 +20,9 @@
 
 | Outil | ⭐ | Pourquoi ça peut servir |
 |---|---|---|
-| [IMvampireXD/Script-API-Utilities](https://github.com/IMvampireXD/Script-API-Utilities) | 10 | Fonctions prêtes pour scripts Bedrock (comparer avec nos utils DB/UI) |
+| [IMvampireXD/Script-API-Utilities](https://github.com/IMvampireXD/Script-API-Utilities) | 10 | Fonctions prêtes pour scripts Bedrock (inventaire, blocs, entités) — **actif (janv. 2026), licence MIT**. Pas sur npm : fichiers .js à copier dans le projet. Bonne source d'helpers à vendor si besoin (ex : saveInventory/loadInventory via Dynamic Properties, comme notre DB) |
 | [TaranGauri/GalactiXDB](https://github.com/TaranGauri/GalactiXDB) | 3 | Système de DB en Script API — **directement comparable à notre JsonDatabase** : bon miroir pour nos choix (découpage, autosave) |
-| [AmethystJs/AmethystJs](https://github.com/AmethystJs/AmethystJs) | 4 | Wrapper Script API, inspiration possible pour l'architecture de modules |
+| [AmethystJs/AmethystJs](https://github.com/AmethystJs/AmethystJs) | 4 | ❌ **ÉCARTÉ (testé)** : repo mort depuis août 2023, cible Minecraft 1.20.10 (API `@minecraft/server` 1.x — incompatible avec nos breaking changes 2.x). ⚠️ Piège : le package **npm `amethystjs` est un AUTRE projet** (framework Discord.js v14) — ne pas installer |
 | [CAIMEOX/pure_bedrock](https://github.com/CAIMEOX/pure_bedrock) | 5 | Bindings PureScript — curieux mais montre des patterns typés avancés |
 
 ## 🖥️ Héberger un vrai serveur (quand l'add-on deviendra un serveur)
