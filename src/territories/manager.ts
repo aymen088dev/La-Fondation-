@@ -148,4 +148,9 @@ export class TerritoryManager {
 
     return this.db.delete(TERRITORY_COLLECTION, territoryId);
   }
+
+  /** Supprime un territoire sans vérification de propriétaire (usage admin). */
+  removeForced(territoryId: string): boolean {
+    return this.db.delete(TERRITORY_COLLECTION, territoryId);
+  }
 }

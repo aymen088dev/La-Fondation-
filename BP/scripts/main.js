@@ -1,5 +1,248 @@
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
+// src/territories/types.ts
+function getColor(id) {
+  return TERRITORY_COLORS.find((color) => color.id === id) ?? TERRITORY_COLORS[0];
+}
+var TERRITORY_COLORS;
+var init_types = __esm({
+  "src/territories/types.ts"() {
+    "use strict";
+    TERRITORY_COLORS = [
+      { id: "rouge", code: "§c" },
+      { id: "vert", code: "§a" },
+      { id: "bleu", code: "§9" },
+      { id: "jaune", code: "§e" },
+      { id: "or", code: "§6" },
+      { id: "violet", code: "§5" },
+      { id: "rose", code: "§d" },
+      { id: "aqua", code: "§b" },
+      { id: "blanc", code: "§f" },
+      { id: "gris", code: "§7" }
+    ];
+  }
+});
+
+// src/territories/manager.ts
+function chunkKey(dimensionId, cx, cz) {
+  return `${dimensionId}:${cx}:${cz}`;
+}
+function chunkKeyFromPosition(dimensionId, x, z) {
+  return chunkKey(dimensionId, Math.floor(x / 16), Math.floor(z / 16));
+}
+function parseChunkKey(key) {
+  const parts = key.split(":");
+  const cx = Number(parts[parts.length - 2]);
+  const cz = Number(parts[parts.length - 1]);
+  const dimensionId = parts.slice(0, -2).join(":");
+  return { dimensionId, cx, cz };
+}
+function chunkCenter(key) {
+  const { dimensionId, cx, cz } = parseChunkKey(key);
+  return { dimensionId, x: cx * 16 + 8, z: cz * 16 + 8 };
+}
+function formatDate(timestamp) {
+  const d = new Date(timestamp);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+var TERRITORY_COLLECTION, MAX_CHUNKS_PER_TERRITORY, NAME_MIN, NAME_MAX, NAME_PATTERN, TerritoryManager;
+var init_manager = __esm({
+  "src/territories/manager.ts"() {
+    "use strict";
+    TERRITORY_COLLECTION = "territories";
+    MAX_CHUNKS_PER_TERRITORY = 64;
+    NAME_MIN = 3;
+    NAME_MAX = 24;
+    NAME_PATTERN = /^[A-Za-z0-9 _-]+$/;
+    TerritoryManager = class {
+      constructor(db2) {
+        this.db = db2;
+      }
+      /** Passe à true après le chargement de la DB (worldLoad). */
+      loaded = false;
+      markLoaded() {
+        this.loaded = true;
+      }
+      /** Tous les territoires. */
+      all() {
+        return this.db.find(TERRITORY_COLLECTION);
+      }
+      /** Le territoire contrôlant ce chunk, s'il existe. */
+      findByChunk(key) {
+        return this.db.find(
+          TERRITORY_COLLECTION,
+          (doc) => doc.data.chunkKeys.includes(key)
+        )[0];
+      }
+      /** Le territoire d'un joueur (1 territoire par joueur). */
+      findByOwner(owner) {
+        return this.db.find(TERRITORY_COLLECTION, (doc) => doc.data.owner === owner)[0];
+      }
+      /** Ce joueur peut-il interagir/bâtir dans ce chunk ? */
+      isAllowed(playerName, key) {
+        const territory = this.findByChunk(key);
+        return territory === void 0 || territory.data.owner === playerName;
+      }
+      /** Ce chunk est-il revendiqué par quelqu'un ? */
+      isProtected(key) {
+        return this.findByChunk(key) !== void 0;
+      }
+      /** Sauvegarde immédiate de la DB sous-jacente. */
+      save() {
+        this.db.save();
+      }
+      /**
+       * Crée un territoire sur le chunk à la position donnée.
+       * Valide : nom, 1 territoire par joueur, chunk libre.
+       */
+      create(owner, name, colorId, dimensionId, x, z) {
+        const cleanName = name.trim().replace(/\s+/g, " ");
+        if (cleanName.length < NAME_MIN || cleanName.length > NAME_MAX) {
+          return { ok: false, error: `Le nom doit faire entre ${NAME_MIN} et ${NAME_MAX} caractères.` };
+        }
+        if (!NAME_PATTERN.test(cleanName)) {
+          return { ok: false, error: "Le nom ne peut contenir que lettres, chiffres, espaces, _ et -." };
+        }
+        if (this.db.findOne(TERRITORY_COLLECTION, cleanName) !== void 0) {
+          return { ok: false, error: "Ce nom de territoire est déjà pris." };
+        }
+        if (this.findByOwner(owner) !== void 0) {
+          return { ok: false, error: "Tu possèdes déjà un territoire." };
+        }
+        const key = chunkKeyFromPosition(dimensionId, x, z);
+        if (this.isProtected(key)) {
+          return { ok: false, error: "Ce chunk est déjà revendiqué par un autre joueur." };
+        }
+        const territory = this.db.insert(
+          TERRITORY_COLLECTION,
+          { name: cleanName, owner, color: colorId, chunkKeys: [key], createdAt: Date.now() },
+          cleanName
+        );
+        this.db.save();
+        return { ok: true, territory };
+      }
+      /** Ajoute un chunk à un territoire (pour /sn:claim futur). */
+      addChunk(territoryId, key) {
+        const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+        if (territory === void 0 || territory.data.chunkKeys.includes(key)) return false;
+        if (territory.data.chunkKeys.length >= MAX_CHUNKS_PER_TERRITORY) return false;
+        territory.data.chunkKeys.push(key);
+        territory.updatedAt = Date.now();
+        this.db.save();
+        return true;
+      }
+      /** Supprime un territoire (par son propriétaire). */
+      remove(territoryId, requester) {
+        const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+        if (territory === void 0 || territory.data.owner !== requester) return false;
+        return this.db.delete(TERRITORY_COLLECTION, territoryId);
+      }
+      /** Supprime un territoire sans vérification de propriétaire (usage admin). */
+      removeForced(territoryId) {
+        return this.db.delete(TERRITORY_COLLECTION, territoryId);
+      }
+    };
+  }
+});
+
+// src/territories/ui.ts
+var ui_exports = {};
+__export(ui_exports, {
+  openCreateMenu: () => openCreateMenu,
+  openTerritoriesMenu: () => openTerritoriesMenu,
+  showTerritoryInfo: () => showTerritoryInfo
+});
+import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
+function openCreateMenu(player, manager) {
+  const colorItems = TERRITORY_COLORS.map((color) => `${color.code}■ ${color.id}`);
+  new ModalFormData().title("Créer un territoire").textField("Nom du territoire (3-24 caractères)", "Ex : Forteresse du Nord").dropdown("Couleur du drapeau", colorItems, { defaultValueIndex: 0 }).submitButton("Revendiquer ce chunk !").show(player).then((response) => {
+    if (response.canceled) return;
+    const values = response.formValues ?? [];
+    const strings = values.filter((value) => typeof value === "string");
+    const numbers = values.filter((value) => typeof value === "number");
+    const name = (strings[0] ?? "").trim();
+    const colorIndex = numbers[0] ?? 0;
+    const color = TERRITORY_COLORS[colorIndex] ?? TERRITORY_COLORS[0];
+    const result = manager.create(
+      player.name,
+      name,
+      color.id,
+      player.dimension.id,
+      player.location.x,
+      player.location.z
+    );
+    if (!result.ok) {
+      player.sendMessage(`§c[Territoires] ${result.error}`);
+      return;
+    }
+    player.sendMessage(
+      `§a[Territoires] Territoire §r${color.code}■ ${result.territory.data.name} §r§acrée ! Ce chunk est désormais sous ta bannière.`
+    );
+  }).catch((error) => {
+    console.warn(`[Territoires] Erreur menu création : ${error instanceof Error ? error.message : String(error)}`);
+  });
+}
+function openTerritoriesMenu(player, manager) {
+  const territories2 = manager.all();
+  if (territories2.length === 0) {
+    player.sendMessage("§7[Territoires] Aucun territoire pour l'instant. Sois le premier avec §f/sn:create§7 !");
+    return;
+  }
+  const form = new ActionFormData().title("Territoires").body(`§7${territories2.length} territoire(s) revendiqué(s). Clique pour voir les infos.`);
+  for (const territory of territories2) {
+    const color = getColor(territory.data.color);
+    form.button(`${color.code}■ ${territory.data.name}§r
+§7par ${territory.data.owner}`);
+  }
+  form.button("§4Fermer");
+  form.show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    if (response.selection >= territories2.length) return;
+    const selected = territories2[response.selection];
+    if (selected !== void 0) showTerritoryInfo(player, selected, manager);
+  }).catch((error) => {
+    console.warn(`[Territoires] Erreur menu liste : ${error instanceof Error ? error.message : String(error)}`);
+  });
+}
+function showTerritoryInfo(player, territory, manager) {
+  const data = territory.data;
+  const color = getColor(data.color);
+  const center = chunkCenter(data.chunkKeys[0] ?? "");
+  const body = [
+    `§ePropriétaire : §f${data.owner}`,
+    `§eCréé le : §f${formatDate(data.createdAt)}`,
+    `§eChunks contrôlés : §f${data.chunkKeys.length}`,
+    `§eZone : §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
+    "",
+    `§7Ce territoire est protégé : seuls le propriétaire`,
+    `§7peut y construire, y ouvrir des conteneurs ou y combattre.`
+  ].join("\n");
+  new ActionFormData().title(`${color.code}■ ${data.name}`).body(body).button("§fRetour à la liste").button("§4Fermer").show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    if (response.selection === 0) openTerritoriesMenu(player, manager);
+  }).catch((error) => {
+    console.warn(`[Territoires] Erreur fiche territoire : ${error instanceof Error ? error.message : String(error)}`);
+  });
+}
+var init_ui = __esm({
+  "src/territories/ui.ts"() {
+    "use strict";
+    init_types();
+    init_manager();
+  }
+});
+
 // src/main.ts
-import { world as world3, system as system4 } from "@minecraft/server";
+import { world as world3, system as system5 } from "@minecraft/server";
 
 // src/db/types.ts
 var DB_SCHEMA_VERSION = 1;
@@ -216,215 +459,16 @@ function registerAutosave(db2, intervalTicks = 100) {
   return () => system.clearRun(runId);
 }
 
-// src/territories/types.ts
-var TERRITORY_COLORS = [
-  { id: "rouge", code: "§c" },
-  { id: "vert", code: "§a" },
-  { id: "bleu", code: "§9" },
-  { id: "jaune", code: "§e" },
-  { id: "or", code: "§6" },
-  { id: "violet", code: "§5" },
-  { id: "rose", code: "§d" },
-  { id: "aqua", code: "§b" },
-  { id: "blanc", code: "§f" },
-  { id: "gris", code: "§7" }
-];
-function getColor(id) {
-  return TERRITORY_COLORS.find((color) => color.id === id) ?? TERRITORY_COLORS[0];
-}
-
-// src/territories/manager.ts
-var TERRITORY_COLLECTION = "territories";
-var MAX_CHUNKS_PER_TERRITORY = 64;
-var NAME_MIN = 3;
-var NAME_MAX = 24;
-var NAME_PATTERN = /^[A-Za-z0-9 _-]+$/;
-function chunkKey(dimensionId, cx, cz) {
-  return `${dimensionId}:${cx}:${cz}`;
-}
-function chunkKeyFromPosition(dimensionId, x, z) {
-  return chunkKey(dimensionId, Math.floor(x / 16), Math.floor(z / 16));
-}
-function parseChunkKey(key) {
-  const parts = key.split(":");
-  const cx = Number(parts[parts.length - 2]);
-  const cz = Number(parts[parts.length - 1]);
-  const dimensionId = parts.slice(0, -2).join(":");
-  return { dimensionId, cx, cz };
-}
-function chunkCenter(key) {
-  const { dimensionId, cx, cz } = parseChunkKey(key);
-  return { dimensionId, x: cx * 16 + 8, z: cz * 16 + 8 };
-}
-function formatDate(timestamp) {
-  const d = new Date(timestamp);
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-var TerritoryManager = class {
-  constructor(db2) {
-    this.db = db2;
-  }
-  /** Passe à true après le chargement de la DB (worldLoad). */
-  loaded = false;
-  markLoaded() {
-    this.loaded = true;
-  }
-  /** Tous les territoires. */
-  all() {
-    return this.db.find(TERRITORY_COLLECTION);
-  }
-  /** Le territoire contrôlant ce chunk, s'il existe. */
-  findByChunk(key) {
-    return this.db.find(
-      TERRITORY_COLLECTION,
-      (doc) => doc.data.chunkKeys.includes(key)
-    )[0];
-  }
-  /** Le territoire d'un joueur (1 territoire par joueur). */
-  findByOwner(owner) {
-    return this.db.find(TERRITORY_COLLECTION, (doc) => doc.data.owner === owner)[0];
-  }
-  /** Ce joueur peut-il interagir/bâtir dans ce chunk ? */
-  isAllowed(playerName, key) {
-    const territory = this.findByChunk(key);
-    return territory === void 0 || territory.data.owner === playerName;
-  }
-  /** Ce chunk est-il revendiqué par quelqu'un ? */
-  isProtected(key) {
-    return this.findByChunk(key) !== void 0;
-  }
-  /** Sauvegarde immédiate de la DB sous-jacente. */
-  save() {
-    this.db.save();
-  }
-  /**
-   * Crée un territoire sur le chunk à la position donnée.
-   * Valide : nom, 1 territoire par joueur, chunk libre.
-   */
-  create(owner, name, colorId, dimensionId, x, z) {
-    const cleanName = name.trim().replace(/\s+/g, " ");
-    if (cleanName.length < NAME_MIN || cleanName.length > NAME_MAX) {
-      return { ok: false, error: `Le nom doit faire entre ${NAME_MIN} et ${NAME_MAX} caractères.` };
-    }
-    if (!NAME_PATTERN.test(cleanName)) {
-      return { ok: false, error: "Le nom ne peut contenir que lettres, chiffres, espaces, _ et -." };
-    }
-    if (this.db.findOne(TERRITORY_COLLECTION, cleanName) !== void 0) {
-      return { ok: false, error: "Ce nom de territoire est déjà pris." };
-    }
-    if (this.findByOwner(owner) !== void 0) {
-      return { ok: false, error: "Tu possèdes déjà un territoire." };
-    }
-    const key = chunkKeyFromPosition(dimensionId, x, z);
-    if (this.isProtected(key)) {
-      return { ok: false, error: "Ce chunk est déjà revendiqué par un autre joueur." };
-    }
-    const territory = this.db.insert(
-      TERRITORY_COLLECTION,
-      { name: cleanName, owner, color: colorId, chunkKeys: [key], createdAt: Date.now() },
-      cleanName
-    );
-    this.db.save();
-    return { ok: true, territory };
-  }
-  /** Ajoute un chunk à un territoire (pour /sn:claim futur). */
-  addChunk(territoryId, key) {
-    const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
-    if (territory === void 0 || territory.data.chunkKeys.includes(key)) return false;
-    if (territory.data.chunkKeys.length >= MAX_CHUNKS_PER_TERRITORY) return false;
-    territory.data.chunkKeys.push(key);
-    territory.updatedAt = Date.now();
-    this.db.save();
-    return true;
-  }
-  /** Supprime un territoire (par son propriétaire). */
-  remove(territoryId, requester) {
-    const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
-    if (territory === void 0 || territory.data.owner !== requester) return false;
-    return this.db.delete(TERRITORY_COLLECTION, territoryId);
-  }
-};
+// src/territories/index.ts
+init_types();
+init_manager();
 
 // src/territories/commands.ts
+init_types();
+init_ui();
 import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system2 } from "@minecraft/server";
-
-// src/territories/ui.ts
-import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
-function openCreateMenu(player, manager) {
-  const colorItems = TERRITORY_COLORS.map((color) => `${color.code}■ ${color.id}`);
-  new ModalFormData().title("Créer un territoire").textField("Nom du territoire (3-24 caractères)", "Ex : Forteresse du Nord").dropdown("Couleur du drapeau", colorItems, { defaultValueIndex: 0 }).submitButton("Revendiquer ce chunk !").show(player).then((response) => {
-    if (response.canceled) return;
-    const values = response.formValues ?? [];
-    const strings = values.filter((value) => typeof value === "string");
-    const numbers = values.filter((value) => typeof value === "number");
-    const name = (strings[0] ?? "").trim();
-    const colorIndex = numbers[0] ?? 0;
-    const color = TERRITORY_COLORS[colorIndex] ?? TERRITORY_COLORS[0];
-    const result = manager.create(
-      player.name,
-      name,
-      color.id,
-      player.dimension.id,
-      player.location.x,
-      player.location.z
-    );
-    if (!result.ok) {
-      player.sendMessage(`§c[Territoires] ${result.error}`);
-      return;
-    }
-    player.sendMessage(
-      `§a[Territoires] Territoire §r${color.code}■ ${result.territory.data.name} §r§acrée ! Ce chunk est désormais sous ta bannière.`
-    );
-  }).catch((error) => {
-    console.warn(`[Territoires] Erreur menu création : ${error instanceof Error ? error.message : String(error)}`);
-  });
-}
-function openTerritoriesMenu(player, manager) {
-  const territories2 = manager.all();
-  if (territories2.length === 0) {
-    player.sendMessage("§7[Territoires] Aucun territoire pour l'instant. Sois le premier avec §f/sn:create§7 !");
-    return;
-  }
-  const form = new ActionFormData().title("Territoires").body(`§7${territories2.length} territoire(s) revendiqué(s). Clique pour voir les infos.`);
-  for (const territory of territories2) {
-    const color = getColor(territory.data.color);
-    form.button(`${color.code}■ ${territory.data.name}§r
-§7par ${territory.data.owner}`);
-  }
-  form.button("§4Fermer");
-  form.show(player).then((response) => {
-    if (response.canceled || response.selection === void 0) return;
-    if (response.selection >= territories2.length) return;
-    const selected = territories2[response.selection];
-    if (selected !== void 0) showTerritoryInfo(player, selected, manager);
-  }).catch((error) => {
-    console.warn(`[Territoires] Erreur menu liste : ${error instanceof Error ? error.message : String(error)}`);
-  });
-}
-function showTerritoryInfo(player, territory, manager) {
-  const data = territory.data;
-  const color = getColor(data.color);
-  const center = chunkCenter(data.chunkKeys[0] ?? "");
-  const body = [
-    `§ePropriétaire : §f${data.owner}`,
-    `§eCréé le : §f${formatDate(data.createdAt)}`,
-    `§eChunks contrôlés : §f${data.chunkKeys.length}`,
-    `§eZone : §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
-    "",
-    `§7Ce territoire est protégé : seuls le propriétaire`,
-    `§7peut y construire, y ouvrir des conteneurs ou y combattre.`
-  ].join("\n");
-  new ActionFormData().title(`${color.code}■ ${data.name}`).body(body).button("§fRetour à la liste").button("§4Fermer").show(player).then((response) => {
-    if (response.canceled || response.selection === void 0) return;
-    if (response.selection === 0) openTerritoriesMenu(player, manager);
-  }).catch((error) => {
-    console.warn(`[Territoires] Erreur fiche territoire : ${error instanceof Error ? error.message : String(error)}`);
-  });
-}
-
-// src/territories/commands.ts
-function registerCommands(manager, db2) {
+function registerCommands(manager, db2, modules2) {
+  const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
   system2.beforeEvents.startup.subscribe((event) => {
     event.customCommandRegistry.registerCommand(
       {
@@ -437,6 +481,9 @@ function registerCommands(manager, db2) {
         const player = origin.sourceEntity;
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus.Failure, message: "Seuls les joueurs peuvent utiliser cette commande." };
+        }
+        if (!enabled()) {
+          return { status: CustomCommandStatus.Failure, message: "Le module Territoires est désactivé." };
         }
         system2.run(() => openCreateMenu(player, manager));
         return { status: CustomCommandStatus.Success };
@@ -552,6 +599,7 @@ function registerCommands(manager, db2) {
 }
 
 // src/territories/protection.ts
+init_manager();
 import { world as world2, system as system3, GameMode, Player } from "@minecraft/server";
 var DENY_BREAK = "§c[Territoires] Chunk protégé : destruction impossible.";
 var DENY_PLACE = "§c[Territoires] Chunk protégé : construction impossible.";
@@ -566,9 +614,10 @@ function isProtectedFor(block, playerName, manager) {
   const key = chunkKeyFromPosition(block.dimension.id, block.location.x, block.location.z);
   return !manager.isAllowed(playerName, key);
 }
-function registerProtection(manager) {
+function registerProtection(manager, modules2) {
+  const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
   world2.beforeEvents.playerBreakBlock.subscribe((event) => {
-    if (!manager.loaded) return;
+    if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
     if (isProtectedFor(event.block, player.name, manager)) {
@@ -577,7 +626,7 @@ function registerProtection(manager) {
     }
   });
   world2.afterEvents.playerPlaceBlock.subscribe((event) => {
-    if (!manager.loaded) return;
+    if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
     const { block, dimension } = event;
@@ -596,7 +645,7 @@ function registerProtection(manager) {
     player.sendMessage(DENY_PLACE);
   });
   world2.beforeEvents.playerInteractWithBlock.subscribe((event) => {
-    if (!manager.loaded) return;
+    if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
     if (isProtectedFor(event.block, player.name, manager)) {
@@ -605,7 +654,7 @@ function registerProtection(manager) {
     }
   });
   world2.beforeEvents.itemUse.subscribe((event) => {
-    if (!manager.loaded) return;
+    if (!manager.loaded || !enabled()) return;
     const player = event.source;
     if (isCreative(player.name)) return;
     const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
@@ -615,7 +664,7 @@ function registerProtection(manager) {
     }
   });
   world2.beforeEvents.playerInteractWithEntity.subscribe((event) => {
-    if (!manager.loaded) return;
+    if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
     const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
@@ -625,7 +674,7 @@ function registerProtection(manager) {
     }
   });
   world2.beforeEvents.entityHurt.subscribe((event) => {
-    if (!manager.loaded) return;
+    if (!manager.loaded || !enabled()) return;
     const attacker = event.damageSource.damagingEntity;
     if (!(attacker instanceof Player)) return;
     const victim = event.hurtEntity;
@@ -645,7 +694,7 @@ function registerProtection(manager) {
     }
   });
   world2.beforeEvents.explosion.subscribe((event) => {
-    if (!manager.loaded) return;
+    if (!manager.loaded || !enabled()) return;
     const impacted = event.getImpactedBlocks();
     const allowed = impacted.filter((block) => {
       const key = chunkKeyFromPosition(block.dimension.id, block.location.x, block.location.z);
@@ -661,6 +710,584 @@ function registerProtection(manager) {
   });
 }
 
+// src/territories/index.ts
+init_ui();
+
+// src/permissions/manager.ts
+var ROLES_COLLECTION = "roles";
+var MEMBERS_COLLECTION = "role_members";
+var ROLE_COLORS = [
+  { id: "rouge", code: "§c" },
+  { id: "vert", code: "§a" },
+  { id: "bleu", code: "§9" },
+  { id: "jaune", code: "§e" },
+  { id: "or", code: "§6" },
+  { id: "violet", code: "§5" },
+  { id: "rose", code: "§d" },
+  { id: "aqua", code: "§b" },
+  { id: "blanc", code: "§f" },
+  { id: "gris", code: "§7" },
+  { id: "noir", code: "§0" },
+  { id: "vert-fonce", code: "§2" }
+];
+var PermissionManager = class {
+  constructor(db2) {
+    this.db = db2;
+  }
+  /** Passe à true après le chargement DB (worldLoad). */
+  loaded = false;
+  markLoaded() {
+    this.loaded = true;
+  }
+  // -------------------------------------------------------------------------
+  // Rôles
+  // -------------------------------------------------------------------------
+  allRoles() {
+    return this.db.find(ROLES_COLLECTION);
+  }
+  getRole(name) {
+    return this.db.findOne(ROLES_COLLECTION, name);
+  }
+  /** Crée un rôle. Échoue s'il existe déjà. */
+  createRole(name, color, level) {
+    const clean = name.trim();
+    if (clean.length < 2 || clean.length > 16) {
+      return { ok: false, error: "Le nom du rôle doit faire entre 2 et 16 caractères." };
+    }
+    if (this.getRole(clean) !== void 0) {
+      return { ok: false, error: `Le rôle "${clean}" existe déjà.` };
+    }
+    this.db.insert(
+      ROLES_COLLECTION,
+      { name: clean, color, prefix: `[${clean}]`, level },
+      clean
+    );
+    this.db.save();
+    return { ok: true };
+  }
+  deleteRole(name) {
+    const role = this.getRole(name);
+    if (role === void 0) return { ok: false, error: "Rôle introuvable." };
+    if (role.data.level >= 100) return { ok: false, error: "Impossible de supprimer un rôle Admin." };
+    for (const member of this.db.find(MEMBERS_COLLECTION, (doc) => doc.data.role === name)) {
+      this.db.delete(MEMBERS_COLLECTION, member.id);
+    }
+    this.db.delete(ROLES_COLLECTION, name);
+    this.db.save();
+    return { ok: true };
+  }
+  /** Change la couleur d'un rôle. */
+  setRoleColor(name, colorId) {
+    const role = this.getRole(name);
+    if (role === void 0) return { ok: false, error: "Rôle introuvable." };
+    const color = ROLE_COLORS.find((candidate) => candidate.id === colorId);
+    if (color === void 0) return { ok: false, error: "Couleur inconnue." };
+    role.data.color = color.code;
+    role.updatedAt = Date.now();
+    this.db.save();
+    return { ok: true };
+  }
+  /** Change le prefix d'un rôle ("" = revenir au défaut [Nom]). */
+  setRolePrefix(name, prefix) {
+    const role = this.getRole(name);
+    if (role === void 0) return { ok: false, error: "Rôle introuvable." };
+    role.data.prefix = prefix.trim();
+    role.updatedAt = Date.now();
+    this.db.save();
+    return { ok: true };
+  }
+  /** Change le niveau hiérarchique d'un rôle. */
+  setRoleLevel(name, level) {
+    const role = this.getRole(name);
+    if (role === void 0) return { ok: false, error: "Rôle introuvable." };
+    role.data.level = Math.max(0, Math.min(1e3, Math.floor(level)));
+    role.updatedAt = Date.now();
+    this.db.save();
+    return { ok: true };
+  }
+  // -------------------------------------------------------------------------
+  // Membres
+  // -------------------------------------------------------------------------
+  getMember(playerName) {
+    return this.db.findOne(MEMBERS_COLLECTION, playerName);
+  }
+  allMembers() {
+    return this.db.find(MEMBERS_COLLECTION);
+  }
+  membersWithRole(roleName) {
+    return this.db.find(MEMBERS_COLLECTION, (doc) => doc.data.role === roleName);
+  }
+  /** Attribue un rôle à un joueur (upsert). */
+  assignRole(playerName, roleName) {
+    if (this.getRole(roleName) === void 0) {
+      return { ok: false, error: `Le rôle "${roleName}" n'existe pas.` };
+    }
+    const existing = this.getMember(playerName);
+    if (existing === void 0) {
+      this.db.insert(MEMBERS_COLLECTION, { name: playerName, role: roleName }, playerName);
+    } else {
+      existing.data.role = roleName;
+      existing.updatedAt = Date.now();
+    }
+    this.db.save();
+    return { ok: true };
+  }
+  /** Retire le rôle d'un joueur. */
+  removeRole(playerName) {
+    return this.db.delete(MEMBERS_COLLECTION, playerName);
+  }
+  /** Prefix personnalisé d'un joueur ("" pour réinitialiser). */
+  setCustomPrefix(playerName, prefix) {
+    const member = this.getMember(playerName);
+    if (member === void 0) return { ok: false, error: "Ce joueur n'a pas de rôle." };
+    member.data.customPrefix = prefix.trim() || void 0;
+    member.updatedAt = Date.now();
+    this.db.save();
+    return { ok: true };
+  }
+  /** Couleur personnalisée du nom d'un joueur ("" pour réinitialiser). */
+  setCustomColor(playerName, colorId) {
+    const member = this.getMember(playerName);
+    if (member === void 0) return { ok: false, error: "Ce joueur n'a pas de rôle." };
+    if (colorId === "") {
+      member.data.customColor = void 0;
+    } else {
+      const color = ROLE_COLORS.find((candidate) => candidate.id === colorId);
+      if (color === void 0) return { ok: false, error: "Couleur inconnue." };
+      member.data.customColor = color.code;
+    }
+    member.updatedAt = Date.now();
+    this.db.save();
+    return { ok: true };
+  }
+  // -------------------------------------------------------------------------
+  // Rendu visuel
+  // -------------------------------------------------------------------------
+  /** Rôle effectif d'un joueur (ou undefined si aucun). */
+  roleOf(playerName) {
+    const member = this.getMember(playerName);
+    return member === void 0 ? void 0 : this.getRole(member.data.role);
+  }
+  /** Level effectif d'un joueur (0 si aucun rôle). */
+  levelOf(playerName) {
+    return this.roleOf(playerName)?.data.level ?? 0;
+  }
+  /** Le tag complet au-dessus du joueur : "§6[Admin] §fAymen". */
+  nameTagFor(playerName) {
+    const member = this.getMember(playerName);
+    const role = this.roleOf(playerName);
+    if (role === void 0) return `§f${playerName}`;
+    const color = member?.data.customColor ?? role.data.color;
+    const prefix = member?.data.customPrefix ?? role.data.prefix;
+    const prefixPart = prefix === "" ? "" : `${color}${prefix} §r`;
+    return `${prefixPart}${color}${playerName}`;
+  }
+  // -------------------------------------------------------------------------
+  // Bootstrap : premier admin automatique
+  // -------------------------------------------------------------------------
+  /** Le monde a-t-il déjà un admin (quelqu'un avec level >= 100) ? */
+  hasAdmin() {
+    return this.allRoles().some((role) => role.data.level >= 100);
+  }
+  /** Crée le rôle Admin par défaut et l'attribue au premier opérateur vu. */
+  bootstrapAdmin(operatorName) {
+    if (this.getRole("Admin") === void 0) {
+      this.db.insert(
+        ROLES_COLLECTION,
+        { name: "Admin", color: "§c", prefix: "[Admin]", level: 100 },
+        "Admin"
+      );
+    }
+    this.assignRole(operatorName, "Admin");
+  }
+};
+
+// src/permissions/ui.ts
+import { ActionFormData as ActionFormData2, ModalFormData as ModalFormData2 } from "@minecraft/server-ui";
+function openRolesMenu(player, permissions2) {
+  const roles = permissions2.allRoles();
+  const form = new ActionFormData2().title("§lGestion des rôles").body(`§7${roles.length} rôle(s). Sélectionne pour configurer.`).button("§a+ Créer un rôle");
+  for (const role of roles) {
+    form.button(`${role.data.color}[${role.data.name}]§r
+§7niveau ${role.data.level} · ${permissions2.membersWithRole(role.data.name).length} membre(s)`);
+  }
+  form.button("§4Fermer");
+  form.show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    if (response.selection === 0) return void openCreateRoleMenu(player, permissions2);
+    if (response.selection >= roles.length + 1) return;
+    const role = roles[response.selection - 1];
+    if (role !== void 0) openRoleConfigMenu(player, role, permissions2);
+  }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openCreateRoleMenu(player, permissions2) {
+  const colorItems = ROLE_COLORS.map((color) => `${color.code}■ ${color.id}`);
+  new ModalFormData2().title("Créer un rôle").textField("Nom du rôle (2-16 caractères)", "Ex : Modo, VIP,_builder").slider("Niveau hiérarchique", 0, 100, { valueStep: 5, defaultValue: 10 }).dropdown("Couleur", colorItems, { defaultValueIndex: 0 }).submitButton("Créer").show(player).then((response) => {
+    if (response.canceled) return;
+    const values = response.formValues ?? [];
+    const strings = values.filter((value) => typeof value === "string");
+    const numbers = values.filter((value) => typeof value === "number");
+    const name = (strings[0] ?? "").trim();
+    const level = numbers[0] ?? 10;
+    const colorIndex = numbers[1] ?? 0;
+    const color = ROLE_COLORS[colorIndex]?.code ?? "§f";
+    if (name === "") {
+      player.sendMessage("§c[Rôles] Nom vide.");
+      return;
+    }
+    const result = permissions2.createRole(name, color, level);
+    player.sendMessage(result.ok ? `§a[Rôles] Rôle ${color}[${name}]§r§a créé.` : `§c[Rôles] ${result.error}`);
+  }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openRoleConfigMenu(player, role, permissions2) {
+  new ActionFormData2().title(`${role.data.color}[${role.data.name}]`).body(
+    `§7Niveau : §f${role.data.level}
+§7Membres : §f${permissions2.membersWithRole(role.data.name).length}
+§7Prefix : §f${role.data.prefix}`
+  ).button("§eChanger la couleur").button("§eChanger le prefix").button("§eChanger le niveau").button("§bVoir les membres").button("§4Supprimer ce rôle").button("§8← Retour").show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    switch (response.selection) {
+      case 0:
+        openColorPicker(player, "Couleur du rôle", (colorId) => {
+          const result = permissions2.setRoleColor(role.data.name, colorId);
+          player.sendMessage(result.ok ? "§a[Rôles] Couleur mise à jour." : `§c[Rôles] ${result.error}`);
+        });
+        break;
+      case 1:
+        openPrefixMenu(player, `Prefix du rôle [${role.data.name}]`, (prefix) => {
+          const result = permissions2.setRolePrefix(role.data.name, prefix);
+          player.sendMessage(result.ok ? "§a[Rôles] Prefix mis à jour." : `§c[Rôles] ${result.error}`);
+        });
+        break;
+      case 2:
+        openLevelMenu(player, role, permissions2);
+        break;
+      case 3:
+        openRoleMembersMenu(player, role, permissions2);
+        break;
+      case 4: {
+        const result = permissions2.deleteRole(role.data.name);
+        player.sendMessage(result.ok ? "§a[Rôles] Rôle supprimé." : `§c[Rôles] ${result.error}`);
+        break;
+      }
+      case 5:
+        openRolesMenu(player, permissions2);
+        break;
+    }
+  }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openLevelMenu(player, role, permissions2) {
+  new ModalFormData2().title(`Niveau de [${role.data.name}]`).slider("Niveau (100 = admin max)", 0, 100, { valueStep: 5, defaultValue: role.data.level }).submitButton("Valider").show(player).then((response) => {
+    if (response.canceled) return;
+    const numbers = (response.formValues ?? []).filter((value) => typeof value === "number");
+    const result = permissions2.setRoleLevel(role.data.name, numbers[0] ?? role.data.level);
+    player.sendMessage(result.ok ? "§a[Rôles] Niveau mis à jour." : `§c[Rôles] ${result.error}`);
+  }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openRoleMembersMenu(player, role, permissions2) {
+  const members = permissions2.membersWithRole(role.data.name);
+  const form = new ActionFormData2().title(`Membres ${role.data.color}[${role.data.name}]`).body(members.length === 0 ? "§7Aucun membre." : "§7Clique sur un membre pour lui retirer le rôle.");
+  for (const member of members) form.button(`§f${member.data.name}`);
+  form.button("§8← Retour");
+  form.show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    if (response.selection >= members.length) return void openRoleConfigMenu(player, role, permissions2);
+    const member = members[response.selection];
+    if (member !== void 0) {
+      permissions2.removeRole(member.data.name);
+      player.sendMessage(`§a[Rôles] ${member.data.name} ne fait plus partie du rôle.`);
+      openRoleMembersMenu(player, role, permissions2);
+    }
+  }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openColorPicker(player, title, onPick) {
+  const form = new ActionFormData2().title(title).body("§7Choisis une couleur :").button("§8← Annuler");
+  for (const color of ROLE_COLORS) {
+    form.button(`${color.code}■■■ §7${color.id}`);
+  }
+  form.show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    if (response.selection === 0) return;
+    const picked = ROLE_COLORS[response.selection - 1];
+    if (picked !== void 0) onPick(picked.id);
+  }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openPrefixMenu(player, title, onDone) {
+  new ModalFormData2().title(title).textField("Prefix (vide = défaut [Nom])", "Ex : ★ Boss, [VIP+]").submitButton("Valider").show(player).then((response) => {
+    if (response.canceled) return;
+    const strings = (response.formValues ?? []).filter((value) => typeof value === "string");
+    onDone(strings[0] ?? "");
+  }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+}
+
+// src/permissions/players-ui.ts
+import { ActionFormData as ActionFormData3, MessageFormData, ModalFormData as ModalFormData3 } from "@minecraft/server-ui";
+function openPlayersMenu(player, permissions2) {
+  const members = permissions2.allMembers();
+  const form = new ActionFormData3().title("§lGestion des joueurs").body("§7Joueurs avec un rôle. Tu peux aussi ajouter un joueur manuellement.").button("§a+ Gérer un joueur (saisir le pseudo)");
+  for (const member of members) {
+    const role = permissions2.getRole(member.data.role);
+    form.button(`${role?.data.color ?? "§7"}${member.data.name}§r
+§7${member.data.role}`);
+  }
+  form.button("§4Fermer");
+  form.show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    if (response.selection === 0) return void openPlayerLookupMenu(player, permissions2);
+    if (response.selection >= members.length + 1) return;
+    const member = members[response.selection - 1];
+    if (member !== void 0) openPlayerConfigMenu(player, member.data.name, permissions2);
+  }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openPlayerLookupMenu(player, permissions2) {
+  new ModalFormData3().title("Gérer un joueur").textField("Pseudo du joueur", "Ex : Steve").submitButton("Rechercher").show(player).then((response) => {
+    if (response.canceled) return;
+    const strings = (response.formValues ?? []).filter((value) => typeof value === "string");
+    const name = (strings[0] ?? "").trim();
+    if (name === "") return;
+    openPlayerConfigMenu(player, name, permissions2);
+  }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openPlayerConfigMenu(player, targetName, permissions2) {
+  const member = permissions2.getMember(targetName);
+  const roleLabel = member === void 0 ? "§7aucun" : `${permissions2.getRole(member.data.role)?.data.color ?? "§7"}${member.data.role}`;
+  const prefixLabel = member?.data.customPrefix ?? "(défaut du rôle)";
+  const colorLabel = member?.data.customColor ?? "(défaut du rôle)";
+  const form = new ActionFormData3().title(`§l${targetName}`).body(`§7Rôle : ${roleLabel}
+§7Prefix perso : §f${prefixLabel}
+§7Couleur perso : §f${colorLabel}`).button("§eAttribuer / changer de rôle").button("§ePrefix personnalisé").button("§eCouleur de nom personnalisée");
+  if (member !== void 0) {
+    form.button("§4Retirer tous les rôles");
+  }
+  form.button("§8← Retour");
+  form.show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    const removeIndex = member !== void 0 ? 3 : -1;
+    const backIndex = removeIndex + 1;
+    if (response.selection === 0) {
+      openAssignRoleMenu(player, targetName, permissions2);
+    } else if (response.selection === 1) {
+      openPrefixMenu(player, `Prefix perso de ${targetName}`, (prefix) => {
+        const result = permissions2.setCustomPrefix(targetName, prefix);
+        player.sendMessage(result.ok ? "§a[Rôles] Prefix mis à jour." : `§c[Rôles] ${result.error}`);
+      });
+    } else if (response.selection === 2) {
+      openColorPicker(player, `Couleur de ${targetName}`, (colorId) => {
+        const result = permissions2.setCustomColor(targetName, colorId);
+        player.sendMessage(result.ok ? "§a[Rôles] Couleur mise à jour." : `§c[Rôles] ${result.error}`);
+      });
+    } else if (response.selection === removeIndex && member !== void 0) {
+      permissions2.removeRole(targetName);
+      player.sendMessage(`§a[Rôles] Rôles de ${targetName} retirés.`);
+    } else if (response.selection === backIndex) {
+      openPlayersMenu(player, permissions2);
+    }
+  }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openAssignRoleMenu(player, targetName, permissions2) {
+  const roles = permissions2.allRoles();
+  if (roles.length === 0) {
+    player.sendMessage("§c[Rôles] Aucun rôle existant. Crée-en un d'abord (/sn:roles).");
+    return;
+  }
+  const form = new ActionFormData3().title(`Rôle de ${targetName}`).body("§7Choisis le rôle à attribuer :");
+  for (const role of roles) {
+    form.button(`${role.data.color}[${role.data.name}]§r
+§7niveau ${role.data.level}`);
+  }
+  form.button("§8← Retour");
+  form.show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    if (response.selection >= roles.length) return void openPlayerConfigMenu(player, targetName, permissions2);
+    const role = roles[response.selection];
+    if (role === void 0) return;
+    const result = permissions2.assignRole(targetName, role.data.name);
+    player.sendMessage(
+      result.ok ? `§a[Rôles] ${targetName} est maintenant ${role.data.color}[${role.data.name}]§r§a.` : `§c[Rôles] ${result.error}`
+    );
+    openPlayerConfigMenu(player, targetName, permissions2);
+  }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+}
+
+// src/permissions/commands.ts
+import { CustomCommandStatus as CustomCommandStatus2, CommandPermissionLevel as CommandPermissionLevel2, system as system4, PlayerPermissionLevel } from "@minecraft/server";
+import { ActionFormData as ActionFormData5 } from "@minecraft/server-ui";
+
+// src/modules/ui.ts
+import { ActionFormData as ActionFormData4, MessageFormData as MessageFormData2 } from "@minecraft/server-ui";
+
+// src/modules/manager.ts
+var MODULES_COLLECTION = "modules";
+var MODULE_IDS = ["territories"];
+var MODULE_CATALOG = [
+  {
+    id: "territories",
+    name: "Territoires",
+    description: "Revendication de chunks protégés (/sn:create, /sn:info)"
+  }
+];
+var ModuleManager = class {
+  constructor(db2) {
+    this.db = db2;
+  }
+  /** Passe à true après le chargement DB (worldLoad). */
+  loaded = false;
+  markLoaded() {
+    this.loaded = true;
+  }
+  /** Le module est-il activé ? (défaut : activé si absent de la DB) */
+  isEnabled(id) {
+    const state = this.db.findOne(MODULES_COLLECTION, id);
+    return state === void 0 ? true : state.data.enabled;
+  }
+  /** Active/désactive un module. */
+  setEnabled(id, enabled) {
+    this.db.upsert(MODULES_COLLECTION, id, { id, enabled });
+    this.db.save();
+  }
+  /** Nombre de modules activés (affichage). */
+  enabledCount() {
+    return MODULE_IDS.filter((id) => this.isEnabled(id)).length;
+  }
+};
+
+// src/modules/ui.ts
+function openModulesMenu(player, modules2, territories2) {
+  const form = new ActionFormData4().title("§lGestionnaire de modules").body(`§7${modules2.enabledCount()}/${MODULE_CATALOG.length} module(s) actif(s).`);
+  for (const info of MODULE_CATALOG) {
+    const enabled = modules2.isEnabled(info.id);
+    form.button(`${enabled ? "§a✔" : "§c✘"} ${info.name}§r
+§7${info.description}`);
+  }
+  form.button("§4Fermer");
+  form.show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    if (response.selection >= MODULE_CATALOG.length) return;
+    const index = response.selection;
+    const info = MODULE_CATALOG[index];
+    if (info === void 0) return;
+    openModuleConfigMenu(player, info.id, modules2, territories2);
+  }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openModuleConfigMenu(player, moduleId, modules2, territories2) {
+  const info = MODULE_CATALOG.find((candidate) => candidate.id === moduleId);
+  if (info === void 0) return;
+  const enabled = modules2.isEnabled(moduleId);
+  const form = new ActionFormData4().title(`${enabled ? "§a✔" : "§c✘"} ${info.name}`).body(`§7${info.description}
+
+§7État : ${enabled ? "§aactivé" : "§cdésactivé"}`).button(enabled ? "§cDésactiver le module" : "§aActiver le module");
+  if (moduleId === "territories" && territories2 !== void 0) {
+    const territoryCount = territories2.all().length;
+    form.button(`§eVoir les territoires §7(${territoryCount})`);
+    form.button("§4Supprimer TOUS les territoires");
+  }
+  form.button("§8← Retour");
+  form.show(player).then(async (response) => {
+    if (response.canceled || response.selection === void 0) return;
+    const toggleIndex = 0;
+    const isTerritoryModule = moduleId === "territories" && territories2 !== void 0;
+    const listIndex = isTerritoryModule ? 1 : -1;
+    const wipeIndex = isTerritoryModule ? 2 : -1;
+    const backIndex = isTerritoryModule ? 3 : 1;
+    if (response.selection === toggleIndex) {
+      modules2.setEnabled(moduleId, !enabled);
+      player.sendMessage(
+        `§a[Modules] ${info.name} ${!enabled ? "§aactivé" : "§cdésactivé"}§a.`
+      );
+      openModulesMenu(player, modules2, territories2);
+    } else if (isTerritoryModule && response.selection === listIndex) {
+      const { openTerritoriesMenu: openTerritoriesMenu2 } = await Promise.resolve().then(() => (init_ui(), ui_exports));
+      openTerritoriesMenu2(player, territories2);
+    } else if (isTerritoryModule && response.selection === wipeIndex) {
+      openWipeTerritoriesMenu(player, modules2, territories2);
+    } else if (response.selection === backIndex) {
+      openModulesMenu(player, modules2, territories2);
+    }
+  }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openWipeTerritoriesMenu(player, modules2, territories2) {
+  new MessageFormData2().title("§4⚠ DANGER").body(`Supprimer §lTOUS§r§4 les territoires (${territories2.all().length}) ?
+
+Action irréversible !`).button2("§4SUPPRIMER TOUT").button1("§aAnnuler").show(player).then((response) => {
+    if (response.selection !== 1) return;
+    let removed = 0;
+    for (const territory of territories2.all()) {
+      if (territories2.removeForced(territory.id)) removed++;
+    }
+    player.sendMessage(`§a[Modules] ${removed} territoire(s) supprimé(s).`);
+    openModulesMenu(player, modules2, territories2);
+  }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
+}
+
+// src/permissions/commands.ts
+function canUseAdminPanel(player, permissions2) {
+  return permissions2.levelOf(player.name) >= 100 || player.playerPermissionLevel >= PlayerPermissionLevel.Operator;
+}
+function registerAdminCommands(ctx) {
+  system4.beforeEvents.startup.subscribe((event) => {
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:roles",
+        description: "Personnalise ton prefix et ta couleur (si tu as un rôle)",
+        permissionLevel: CommandPermissionLevel2.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
+        }
+        system4.run(() => {
+          if (canUseAdminPanel(player, ctx.permissions)) {
+            openRolesMenu(player, ctx.permissions);
+            return;
+          }
+          const member = ctx.permissions.getMember(player.name);
+          if (member === void 0) {
+            player.sendMessage("§7[Rôles] Tu n'as pas de rôle. Demande à un admin !");
+            return;
+          }
+          player.sendMessage(
+            `§a[Rôles] Ton rôle : ${ctx.permissions.nameTagFor(player.name)}§r§a — personnalisation...`
+          );
+          openColorPicker(player, "Ta couleur de nom", (colorId) => {
+            const result = ctx.permissions.setCustomColor(player.name, colorId);
+            player.sendMessage(result.ok ? "§a[Rôles] Couleur mise à jour !" : `§c[Rôles] ${result.error}`);
+          });
+        });
+        return { status: CustomCommandStatus2.Success };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:admin",
+        description: "Panneau d'administration (rôles, joueurs, modules)",
+        permissionLevel: CommandPermissionLevel2.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
+        }
+        system4.run(() => {
+          if (!canUseAdminPanel(player, ctx.permissions)) {
+            player.sendMessage("§c[Admin] Il te faut le rôle Admin (ou être op).");
+            return;
+          }
+          new ActionFormData5().title("§lAdministration").body("§7Que veux-tu gérer ?").button("§6Rôles\n§7créer, couleurs, niveaux").button("§bJoueurs\n§7attribuer rôles et prefixes").button("§aModules\n§7activer/désactiver les features").button("§4Fermer").show(player).then((response) => {
+            if (response.canceled || response.selection === void 0) return;
+            if (response.selection === 0) openRolesMenu(player, ctx.permissions);
+            else if (response.selection === 1) openPlayersMenu(player, ctx.permissions);
+            else if (response.selection === 2) openModulesMenu(player, ctx.modules, ctx.territories);
+          }).catch((error) => console.warn(`[Admin] ${error instanceof Error ? error.message : String(error)}`));
+        });
+        return { status: CustomCommandStatus2.Success };
+      }
+    );
+  });
+}
+
 // src/players.ts
 function trackPlayerJoin(db2, playerName) {
   const record = db2.findOne("players", playerName);
@@ -673,32 +1300,62 @@ function trackPlayerJoin(db2, playerName) {
 // src/main.ts
 var db = new JsonDatabase(createBedrockStorage(), "openmontage");
 registerAutosave(db, 100);
+var permissions = new PermissionManager(db);
+var modules = new ModuleManager(db);
 var territories = new TerritoryManager(db);
-registerCommands(territories, db);
+registerCommands(territories, db, modules);
+registerAdminCommands({ permissions, modules, territories });
 var protectionRegistered = false;
+function applyNameTag(playerName) {
+  const player = world3.getAllPlayers().find((candidate) => candidate.name === playerName);
+  if (player === void 0) return;
+  try {
+    player.nameTag = permissions.nameTagFor(playerName);
+  } catch {
+  }
+}
 world3.afterEvents.worldLoad.subscribe(() => {
   db.load();
+  permissions.markLoaded();
+  modules.markLoaded();
   territories.markLoaded();
+  if (!permissions.hasAdmin()) {
+    const operator = world3.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+    if (operator !== void 0) {
+      permissions.bootstrapAdmin(operator.name);
+      console.log(`[OpenMontage] Bootstrap : ${operator.name} est promu Admin.`);
+    }
+  }
+  for (const player of world3.getAllPlayers()) {
+    applyNameTag(player.name);
+  }
   if (!protectionRegistered) {
     protectionRegistered = true;
-    registerProtection(territories);
+    registerProtection(territories, modules);
   }
   const stats = db.stats();
   console.log(
-    `[OpenMontage] worldLoad OK : ${stats.documents} documents, ${stats.bytes} octets. Commandes /sn:create et /sn:info actives.`
+    `[OpenMontage] worldLoad OK : ${stats.documents} documents, ${stats.bytes} octets. Modules actifs : ${modules.enabledCount()}.`
   );
 });
 var worldReady = false;
-system4.runInterval(() => {
+system5.runInterval(() => {
   if (worldReady) return;
   if (world3.getAllPlayers().length === 0) return;
   if (!territories.loaded) {
     db.load();
+    permissions.markLoaded();
+    modules.markLoaded();
     territories.markLoaded();
+    if (!permissions.hasAdmin()) {
+      const operator = world3.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+      if (operator !== void 0) permissions.bootstrapAdmin(operator.name);
+    }
+    for (const player of world3.getAllPlayers()) applyNameTag(player.name);
   }
   if (!protectionRegistered) {
     protectionRegistered = true;
-    registerProtection(territories);
+    registerProtection(territories, modules);
     console.warn("[OpenMontage] Activation par fallback (worldLoad non reçu) : protection active.");
   }
   worldReady = true;
@@ -707,10 +1364,17 @@ world3.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
   const player = event.player;
   trackPlayerJoin(db, player.name);
-  player.sendMessage("§a[OpenMontage]§r Bienvenue ! Tape §f/sn:create§r pour revendiquer ce chunk.");
+  applyNameTag(player.name);
+  player.sendMessage("§a[OpenMontage]§r Bienvenue ! §f/sn:create§r pour un territoire, §f/sn:roles§r pour ton rôle.");
   player.onScreenDisplay.setTitle("§aOpenMontage §f✔");
 });
-system4.runInterval(() => {
+system5.runInterval(() => {
+  if (!permissions.loaded) return;
+  for (const player of world3.getAllPlayers()) {
+    applyNameTag(player.name);
+  }
+}, 100);
+system5.runInterval(() => {
   const stats = db.stats();
   console.log(
     `[OpenMontage] DB : ${stats.documents} documents, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"}`

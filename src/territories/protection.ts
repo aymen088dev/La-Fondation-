@@ -1,6 +1,7 @@
 import { world, system, GameMode, Player } from "@minecraft/server";
 import type { TerritoryManager } from "./manager";
 import { chunkKeyFromPosition } from "./manager";
+import type { ModuleManager } from "../modules/manager";
 
 const DENY_BREAK = "§c[Territoires] Chunk protégé : destruction impossible.";
 const DENY_PLACE = "§c[Territoires] Chunk protégé : construction impossible.";
@@ -31,10 +32,13 @@ function isProtectedFor(block: { dimension: { id: string }; location: { x: numbe
  * - dégâts aux entités non-joueurs du territoire : annulés
  * - explosions : les blocs en territoire ennemi sont retirés de l'impact
  */
-export function registerProtection(manager: TerritoryManager): void {
+export function registerProtection(manager: TerritoryManager, modules?: ModuleManager): void {
+  /** Le module territoires est-il actif ? (défaut : oui si pas de module manager) */
+  const enabled = (): boolean => modules === undefined || modules.isEnabled("territories");
+
   // 1. Casse de blocs
   world.beforeEvents.playerBreakBlock.subscribe((event) => {
-    if (!manager.loaded) return;
+    if (!manager.loaded || !enabled()) return;
 
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -47,7 +51,7 @@ export function registerProtection(manager: TerritoryManager): void {
 
   // 2. Pose de blocs : pas d'event annulable en API stable -> rollback au tick suivant
   world.afterEvents.playerPlaceBlock.subscribe((event) => {
-    if (!manager.loaded) return;
+    if (!manager.loaded || !enabled()) return;
 
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -76,7 +80,7 @@ export function registerProtection(manager: TerritoryManager): void {
 
   // 3. Interaction avec un bloc (coffres, portes, leviers...)
   world.beforeEvents.playerInteractWithBlock.subscribe((event) => {
-    if (!manager.loaded) return;
+    if (!manager.loaded || !enabled()) return;
 
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -89,7 +93,7 @@ export function registerProtection(manager: TerritoryManager): void {
 
   // 4. Usage d'objets (seaux d'eau/lave, œufs, perles d'Ender...)
   world.beforeEvents.itemUse.subscribe((event) => {
-    if (!manager.loaded) return;
+    if (!manager.loaded || !enabled()) return;
 
     const player = event.source;
     if (isCreative(player.name)) return;
@@ -103,7 +107,7 @@ export function registerProtection(manager: TerritoryManager): void {
 
   // 5. Interaction avec une entité (traire, nourrir, sellier...)
   world.beforeEvents.playerInteractWithEntity.subscribe((event) => {
-    if (!manager.loaded) return;
+    if (!manager.loaded || !enabled()) return;
 
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -117,7 +121,7 @@ export function registerProtection(manager: TerritoryManager): void {
 
   // 6. Combat : victime joueur dans un territoire ennemi OU entité protégée
   world.beforeEvents.entityHurt.subscribe((event) => {
-    if (!manager.loaded) return;
+    if (!manager.loaded || !enabled()) return;
 
     const attacker = event.damageSource.damagingEntity;
     if (!(attacker instanceof Player)) return;
@@ -145,7 +149,7 @@ export function registerProtection(manager: TerritoryManager): void {
 
   // 7. Explosions : retire les blocs protégés de l'impact
   world.beforeEvents.explosion.subscribe((event) => {
-    if (!manager.loaded) return;
+    if (!manager.loaded || !enabled()) return;
 
     const impacted = event.getImpactedBlocks();
     const allowed = impacted.filter((block) => {

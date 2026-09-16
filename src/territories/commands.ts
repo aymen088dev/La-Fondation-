@@ -2,6 +2,7 @@ import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, sy
 import type { CustomCommandOrigin, Player, StartupEvent } from "@minecraft/server";
 import type { JsonDatabase } from "../db/database";
 import type { TerritoryManager } from "./manager";
+import type { ModuleManager } from "../modules/manager";
 import { TERRITORY_COLORS } from "./types";
 import { openCreateMenu, openTerritoriesMenu } from "./ui";
 
@@ -9,7 +10,10 @@ import { openCreateMenu, openTerritoriesMenu } from "./ui";
  * Enregistre les commandes custom /sn:create et /sn:info.
  * À appeler dans system.beforeEvents.startup (early execution).
  */
-export function registerCommands(manager: TerritoryManager, db?: JsonDatabase): void {
+export function registerCommands(manager: TerritoryManager, db?: JsonDatabase, modules?: ModuleManager): void {
+  /** Le module territoires est-il actif ? */
+  const enabled = (): boolean => modules === undefined || modules.isEnabled("territories");
+
   system.beforeEvents.startup.subscribe((event: StartupEvent) => {
     event.customCommandRegistry.registerCommand(
       {
@@ -22,6 +26,10 @@ export function registerCommands(manager: TerritoryManager, db?: JsonDatabase): 
         const player = origin.sourceEntity as Player | undefined;
         if (player === undefined || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus.Failure, message: "Seuls les joueurs peuvent utiliser cette commande." };
+        }
+
+        if (!enabled()) {
+          return { status: CustomCommandStatus.Failure, message: "Le module Territoires est désactivé." };
         }
 
         // Pas de menu depuis l'event de commande : on planifie en tick suivant.
