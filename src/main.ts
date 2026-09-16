@@ -112,6 +112,7 @@ system.runInterval(() => {
     permissions.markLoaded();
     modules.markLoaded();
     territories.markLoaded();
+    sanctions.markLoaded();
 
     if (!permissions.hasAdmin()) {
       const operator = world.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));

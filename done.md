@@ -18,6 +18,8 @@
 - [x] **Autosave** toutes les 5 s (`src/db/autosave.ts`), sûr en early execution
 - [x] **Découpage** : les gros payloads sont fragmentés automatiquement (limite de taille des Dynamic Properties)
 - [x] Chargement **post-worldLoad uniquement** (le `getDynamicProperty` est interdit en early execution — bug corrigé, voir Historique)
+- [x] **Garde anti-écrasement** (régression) : `save()` refuse d'écrire tant que la base n'est pas chargée — un join avant le worldLoad ne peut plus vider la DB stockée
+- [x] **Base vide = valide** : un monde neuf (0 territoire) donne une base vide **prête à l'emploi** (`loaded = true` immédiat) — « DB non chargée » ne se produit plus que si la base est réellement illisible
 - [x] Commandes admin `/sn:db` (menu, stats, list, show, save)
 
 ### Scripts & toolchain
@@ -69,8 +71,9 @@
 ## 🎨 UI / Resource Pack — `RP/`
 - [x] Thème GUI partagé (`src/ui/theme.ts`) : titres unifiés `OpenMontage »`, icônes vanilla sur les boutons
 - [x] **Hub central `/sn:menu`** : porte d'entrée de tout, n'affiche que ce à quoi ton rôle donne droit
-- [x] **JSON UI réel** : `RP/ui/hud_screen.json` = le fichier HUD vanilla officiel de Mojang (`Mojang/bedrock-samples`) + 3 retouches (fond `om_actionbar_bg` derrière l'actionbar et les titles)
-  - Leçon apprise : surcharger le fichier HUD **entier** (les éléments ajoutés dans un fichier séparé ne sont jamais instanciés par le HUD)
+- [x] **JSON UI réel** : `RP/ui/hud_screen.json` **PARTIEL** qui redéfinit les 2 éléments ciblés (`hud_actionbar_text`, `hud_title_text`) copiés du vanilla + retouches (fond `om_actionbar_bg`)
+  - **Méthode des packs établis** (vérifiée sur Canopy et OriginsPE) : redéclarer un élément vanilla **par son nom exact** dans un `ui/*.json` référencé par `_ui_defs.json` — le moteur fusionne par nom. Pas de copie des 118 Ko, pas de patch par recherche-remplace (la texture ciblée apparaissait 5 fois → mauvaise occurrence patchée = « aucune UI visible »)
+  - Généré par `scripts/build_rp_hud.py` (extraction automatique du vanilla + retouches + validation)
 - [x] Script reproductible **`scripts/build_rp_hud.py`** : retélécharge le vanilla, applique les patchs, valide — à relancer après chaque mise à jour Minecraft
 - [x] Textures placeholder (temporaires) générées sans dépendance par **`scripts/make_placeholder_pngs.py`** : 10 bandeaux colorés + fond d'actionbar + pack_icon — à remplacer plus tard par de vrais visuels (mêmes noms de fichiers)
 - [x] Resource Pack séparé (manifest resources + pack_icon), à activer **en plus** du BP dans le monde
@@ -96,3 +99,5 @@
 3. **Chat** : `chatSend` absent de la stable 2.9.0 (uniquement doc) → migration vers la bêta 2.11.0 (Minecraft 1.26.50), où il existe bel et bien.
 4. **JSON UI** : les éléments custom dans un fichier séparé ne sont pas instanciés par le HUD → remplacement du `hud_screen.json` entier (méthode officielle des packs UI).
 5. **Identité joueurs** : pas de `xuid` dans l'API bêta 2.11 → identité stable par `Player.id` + migration des anciennes entrées (clés `name:<pseudo>` promues automatiquement au join).
+6. **DB « non chargée » / 0 territoire** : `load()` sur base inexistante ne posait pas `loaded` (monde neuf = tout mort) et `save()` pouvait écraser la DB stockée avec du vide avant le worldLoad. Corrigé + tests de régression.
+7. **JSON UI invisible** : le patch par remplacement de texte tapait la 1re occurrence d'une texture présente 5 fois (pas celle de l'actionbar). Remplacé par la méthode partielle des packs établis (Canopy/OriginsPE).

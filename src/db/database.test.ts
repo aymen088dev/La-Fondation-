@@ -103,13 +103,31 @@ describe("JsonDatabase", () => {
   it("tolère une base vide ou corrompue au chargement", () => {
     const storage = new MemoryStorageAdapter();
     const db = new JsonDatabase(storage, "test");
-    db.load(); // vide : aucune erreur
+    db.load(); // vide : base valide prête à l'emploi
     expect(db.stats().documents).toBe(0);
+    expect(db.loaded).toBe(true); // régression : une base vide DOIT être utilisable
 
     storage.write("{ json invalide");
     const db2 = new JsonDatabase(storage, "test");
-    db2.load(); // corrompue : warning, base vierge
-    expect(db2.stats().documents).toBe(0);
+    db2.load(); // corrompue : base non chargée, données stockées préservées
+    expect(db2.loaded).toBe(false);
+    expect(db2.save(true)).toBe(false); // jamais d'écriture sur base non chargée
+  });
+
+  it("n'écrase JAMAIS la base stockée avant un load réussi (régression)", () => {
+    const storage = new MemoryStorageAdapter();
+    // Simule le bug : save() appelé par un manager avant le worldLoad
+    const db = new JsonDatabase(storage, "test");
+    db.upsert("players", "Aymen", { name: "Aymen", sessions: 1 });
+    expect(db.save()).toBe(false); // refusé : base non chargée
+    expect(storage.read()).toBeNull(); // le stockage n'a PAS été écrasé
+
+    // Après load sur une base EXISTANTE, tout est conservé
+    db.load();
+    db.insert("territories", { name: "Fort", owner: "Aymen" }, "Fort");
+    db.save();
+    expect(storage.read()).not.toBeNull();
+    expect(db.count("territories")).toBe(1);
   });
 });
 

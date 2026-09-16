@@ -48,11 +48,21 @@ export class JsonDatabase {
    * Charge la base depuis le stockage. À appeler uniquement quand le monde
    * est chargé (worldLoad) : en early execution, la lecture des Dynamic
    * Properties est interdite par Bedrock.
+   *
+   * Une base inexistante (monde neuf) est valide : elle devient une base
+   * vide PRÊTE À L'EMPLOI (loaded = true). Une base corrompue ne l'est pas :
+   * loaded reste false et l'erreur est loguée (le menu /sn:db le signale).
    */
   load(): void {
     try {
       const raw = this.storage.read();
-      if (raw === null) return;
+      if (raw === null) {
+        // Base inexistante : base vide valide, immédiatement utilisable.
+        this.file = { schemaVersion: DB_SCHEMA_VERSION, name: this.name, savedAt: 0, collections: {} };
+        this.dirty = false;
+        this.loaded = true;
+        return;
+      }
 
       const parsed = JSON.parse(raw) as DatabaseFile;
       if (
@@ -63,23 +73,29 @@ export class JsonDatabase {
       ) {
         throw new Error("structure inattendue");
       }
-      migrateDatabase(parsed);
-      if (parsed.schemaVersion !== DB_SCHEMA_VERSION) {
-        console.warn(
-          `[DB] Version de schéma ${parsed.schemaVersion} != ${DB_SCHEMA_VERSION} après migration.`,
-        );
-      }
+
+      const needsMigration = parsed.schemaVersion !== DB_SCHEMA_VERSION;
+      if (needsMigration) migrateDatabase(parsed);
+
       this.file = {
         schemaVersion: DB_SCHEMA_VERSION,
         name: this.name,
         savedAt: parsed.savedAt ?? 0,
         collections: parsed.collections,
       };
-      this.dirty = true; // la version migrée sera persistée au prochain save
+      // Persiste la migration au prochain save (pas avant : sinon on
+      // écraserait des données non migrées en cas d'échec).
+      this.dirty = needsMigration;
       this.loaded = true;
+
+      const docs = Object.values(this.file.collections).reduce((sum, docs) => sum + docs.length, 0);
+      console.log(`[DB] "${this.name}" chargée : ${docs} document(s), schéma v${DB_SCHEMA_VERSION}.`);
     } catch (error) {
+      // Base corrompue/illisible : on ne charge PAS (loaded = false) pour
+      // ne jamais l'écraser avec une base vide. Message explicite.
       console.warn(
-        `[DB] Chargement impossible ("${this.name}") : ${error instanceof Error ? error.message : String(error)}`,
+        `[DB] ERREUR de chargement ("${this.name}") : ${error instanceof Error ? error.message : String(error)}. ` +
+          "La base est laissée intacte (aucune écriture ne sera faite). Commandes /sn:db indisponibles.",
       );
     }
   }
@@ -87,12 +103,26 @@ export class JsonDatabase {
   /**
    * Écrit la base dans le stockage si elle a été modifiée (ou si force).
    * Renvoie true si une écriture a eu lieu.
+   *
+   * ⚠️ Garde anti-écrasement : jamais d'écriture tant que la base n'a pas
+   * été chargée (loaded = false). Sinon, un save() déclenché avant le
+   * worldLoad écraserait la DB stockée avec une base vide.
    */
   save(force = false): boolean {
+    if (!this.loaded) return false;
     if (!this.dirty && !force) return false;
 
     this.file.savedAt = Date.now();
-    this.storage.write(JSON.stringify(this.file));
+    try {
+      this.storage.write(JSON.stringify(this.file));
+    } catch (error) {
+      // Échec d'écriture (quota Dynamic Properties...) : on garde dirty
+      // pour retenter au prochain autosave, et on logue.
+      console.warn(
+        `[DB] ERREUR d'écriture : ${error instanceof Error ? error.message : String(error)}. Nouvelle tentative à l'autosave.`,
+      );
+      return false;
+    }
     this.dirty = false;
     return true;
   }

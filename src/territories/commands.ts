@@ -120,7 +120,12 @@ export function registerCommands(manager: TerritoryManager, db?: JsonDatabase, m
               });
               return { status: CustomCommandStatus.Success };
             }
-            return { status: CustomCommandStatus.Failure, message: "§c[DB] Base pas encore chargée (worldLoad)." };
+            return {
+              status: CustomCommandStatus.Failure,
+              message:
+                "§c[DB] Base non chargée : lecture impossible (monde pas encore prêt ou base corrompue). " +
+                "§7Quitte et relance le monde ; si l'erreur persiste, regarde le content log pour le message d'erreur exact.",
+            };
           }
           case "stats": {
             const stats = db.stats();

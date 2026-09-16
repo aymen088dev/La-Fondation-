@@ -452,43 +452,62 @@ var JsonDatabase = class {
    * Charge la base depuis le stockage. À appeler uniquement quand le monde
    * est chargé (worldLoad) : en early execution, la lecture des Dynamic
    * Properties est interdite par Bedrock.
+   *
+   * Une base inexistante (monde neuf) est valide : elle devient une base
+   * vide PRÊTE À L'EMPLOI (loaded = true). Une base corrompue ne l'est pas :
+   * loaded reste false et l'erreur est loguée (le menu /sn:db le signale).
    */
   load() {
     try {
       const raw = this.storage.read();
-      if (raw === null) return;
+      if (raw === null) {
+        this.file = { schemaVersion: DB_SCHEMA_VERSION, name: this.name, savedAt: 0, collections: {} };
+        this.dirty = false;
+        this.loaded = true;
+        return;
+      }
       const parsed = JSON.parse(raw);
       if (typeof parsed !== "object" || parsed === null || typeof parsed.collections !== "object" || parsed.collections === null) {
         throw new Error("structure inattendue");
       }
-      migrateDatabase(parsed);
-      if (parsed.schemaVersion !== DB_SCHEMA_VERSION) {
-        console.warn(
-          `[DB] Version de schéma ${parsed.schemaVersion} != ${DB_SCHEMA_VERSION} après migration.`
-        );
-      }
+      const needsMigration = parsed.schemaVersion !== DB_SCHEMA_VERSION;
+      if (needsMigration) migrateDatabase(parsed);
       this.file = {
         schemaVersion: DB_SCHEMA_VERSION,
         name: this.name,
         savedAt: parsed.savedAt ?? 0,
         collections: parsed.collections
       };
-      this.dirty = true;
+      this.dirty = needsMigration;
       this.loaded = true;
+      const docs = Object.values(this.file.collections).reduce((sum, docs2) => sum + docs2.length, 0);
+      console.log(`[DB] "${this.name}" chargée : ${docs} document(s), schéma v${DB_SCHEMA_VERSION}.`);
     } catch (error) {
       console.warn(
-        `[DB] Chargement impossible ("${this.name}") : ${error instanceof Error ? error.message : String(error)}`
+        `[DB] ERREUR de chargement ("${this.name}") : ${error instanceof Error ? error.message : String(error)}. La base est laissée intacte (aucune écriture ne sera faite). Commandes /sn:db indisponibles.`
       );
     }
   }
   /**
    * Écrit la base dans le stockage si elle a été modifiée (ou si force).
    * Renvoie true si une écriture a eu lieu.
+   *
+   * ⚠️ Garde anti-écrasement : jamais d'écriture tant que la base n'a pas
+   * été chargée (loaded = false). Sinon, un save() déclenché avant le
+   * worldLoad écraserait la DB stockée avec une base vide.
    */
   save(force = false) {
+    if (!this.loaded) return false;
     if (!this.dirty && !force) return false;
     this.file.savedAt = Date.now();
-    this.storage.write(JSON.stringify(this.file));
+    try {
+      this.storage.write(JSON.stringify(this.file));
+    } catch (error) {
+      console.warn(
+        `[DB] ERREUR d'écriture : ${error instanceof Error ? error.message : String(error)}. Nouvelle tentative à l'autosave.`
+      );
+      return false;
+    }
     this.dirty = false;
     return true;
   }
@@ -4398,7 +4417,10 @@ function registerCommands(manager, db2, modules2) {
               });
               return { status: CustomCommandStatus.Success };
             }
-            return { status: CustomCommandStatus.Failure, message: "§c[DB] Base pas encore chargée (worldLoad)." };
+            return {
+              status: CustomCommandStatus.Failure,
+              message: "§c[DB] Base non chargée : lecture impossible (monde pas encore prêt ou base corrompue). §7Quitte et relance le monde ; si l'erreur persiste, regarde le content log pour le message d'erreur exact."
+            };
           }
           case "stats": {
             const stats = db2.stats();
@@ -5857,6 +5879,7 @@ system15.runInterval(() => {
     permissions.markLoaded();
     modules.markLoaded();
     territories.markLoaded();
+    sanctions.markLoaded();
     if (!permissions.hasAdmin()) {
       const operator = world12.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
       if (operator !== void 0) permissions.bootstrapAdmin(operator.name);
