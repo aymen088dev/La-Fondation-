@@ -3,6 +3,7 @@ import type { Player } from "@minecraft/server";
 import { ROLE_COLORS } from "./manager";
 import type { PermissionManager } from "./manager";
 import { openColorPicker, openPrefixMenu } from "./ui";
+import { windowTitle, ICONS } from "../ui/theme";
 
 /** Confirmation avant une action. */
 export function confirmDialog(player: Player, title: string, body: string): Promise<boolean> {
@@ -24,15 +25,15 @@ export function openPlayersMenu(player: Player, permissions: PermissionManager):
   const members = permissions.allMembers();
 
   const form = new ActionFormData()
-    .title("§lGestion des joueurs")
-    .body("§7Joueurs avec un rôle. Tu peux aussi ajouter un joueur manuellement.")
-    .button("§a+ Gérer un joueur (saisir le pseudo)");
+    .title(windowTitle("Joueurs"))
+    .body("§7Joueurs avec un rôle. Tu peux aussi gérer un joueur manuellement.")
+    .button("§a+ Gérer un joueur (saisir le pseudo)", ICONS.plus);
 
   for (const member of members) {
     const role = permissions.getRole(member.data.role);
-    form.button(`${role?.data.color ?? "§7"}${member.data.name}§r\n§7${member.data.role}`);
+    form.button(`${role?.data.color ?? "§7"}${member.data.name}§r\n§7${member.data.role}`, ICONS.paper);
   }
-  form.button("§4Fermer");
+  form.button("§4Fermer", ICONS.barrier);
 
   form
     .show(player)
@@ -74,16 +75,16 @@ export function openPlayerConfigMenu(player: Player, targetName: string, permiss
   const colorLabel = member?.data.customColor ?? "(défaut du rôle)";
 
   const form = new ActionFormData()
-    .title(`§l${targetName}`)
+    .title(windowTitle(targetName))
     .body(`§7Rôle : ${roleLabel}\n§7Prefix perso : §f${prefixLabel}\n§7Couleur perso : §f${colorLabel}`)
-    .button("§eAttribuer / changer de rôle")
-    .button("§ePrefix personnalisé")
-    .button("§eCouleur de nom personnalisée");
+    .button("§eAttribuer / changer de rôle", ICONS.crown)
+    .button("§ePrefix personnalisé", ICONS.sign)
+    .button("§eCouleur de nom personnalisée", ICONS.diamond);
 
   if (member !== undefined) {
-    form.button("§4Retirer tous les rôles");
+    form.button("§4Retirer tous les rôles", ICONS.barrier);
   }
-  form.button("§8← Retour");
+  form.button("§8← Retour", ICONS.arrow);
 
   form
     .show(player)

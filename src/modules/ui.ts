@@ -1,5 +1,6 @@
 import { ActionFormData, MessageFormData } from "@minecraft/server-ui";
 import type { Player } from "@minecraft/server";
+import { windowTitle, ICONS } from "../ui/theme";
 import { MODULE_CATALOG } from "./manager";
 import type { ModuleId, ModuleManager } from "./manager";
 import type { TerritoryManager } from "../territories/manager";
@@ -10,14 +11,15 @@ import type { TerritoryManager } from "../territories/manager";
  */
 export function openModulesMenu(player: Player, modules: ModuleManager, territories?: TerritoryManager): void {
   const form = new ActionFormData()
-    .title("§lGestionnaire de modules")
+    .title(windowTitle("Modules"))
     .body(`§7${modules.enabledCount()}/${MODULE_CATALOG.length} module(s) actif(s).`);
 
   for (const info of MODULE_CATALOG) {
     const enabled = modules.isEnabled(info.id);
-    form.button(`${enabled ? "§a✔" : "§c✘"} ${info.name}§r\n§7${info.description}`);
+    const icon = info.id === "territories" ? ICONS.flag : ICONS.shield;
+    form.button(`${enabled ? "§a✔" : "§c✘"} ${info.name}§r\n§7${info.description}`, icon);
   }
-  form.button("§4Fermer");
+  form.button("§4Fermer", ICONS.barrier);
 
   form
     .show(player)
@@ -47,9 +49,9 @@ export function openModuleConfigMenu(
   const enabled = modules.isEnabled(moduleId);
 
   const form = new ActionFormData()
-    .title(`${enabled ? "§a✔" : "§c✘"} ${info.name}`)
+    .title(windowTitle(info.name))
     .body(`§7${info.description}\n\n§7État : ${enabled ? "§aactivé" : "§cdésactivé"}`)
-    .button(enabled ? "§cDésactiver le module" : "§aActiver le module");
+    .button(enabled ? "§cDésactiver le module" : "§aActiver le module", enabled ? ICONS.barrier : ICONS.plus);
 
   // Actions spécifiques aux territoires
   if (moduleId === "territories" && territories !== undefined) {

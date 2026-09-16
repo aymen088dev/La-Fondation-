@@ -1,5 +1,6 @@
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 import type { Player } from "@minecraft/server";
+import { windowTitle, ICONS } from "../ui/theme";
 import { TERRITORY_COLORS, getColor } from "./types";
 import type { StoredDocument } from "../db";
 import type { TerritoryData } from "./types";
@@ -69,14 +70,14 @@ export function openTerritoriesMenu(player: Player, manager: TerritoryManager): 
   }
 
   const form = new ActionFormData()
-    .title("Territoires")
+    .title(windowTitle("Territoires"))
     .body(`§7${territories.length} territoire(s) revendiqué(s). Clique pour voir les infos.`);
 
   for (const territory of territories) {
     const color = getColor(territory.data.color);
-    form.button(`${color.code}■ ${territory.data.name}§r\n§7par ${territory.data.owner}`);
+    form.button(`${color.code}■ ${territory.data.name}§r\n§7par ${territory.data.owner}`, ICONS.flag);
   }
-  form.button("§4Fermer");
+  form.button("§4Fermer", ICONS.barrier);
 
   form
     .show(player)
@@ -104,6 +105,7 @@ export function showTerritoryInfo(
 
   const body = [
     `§ePropriétaire : §f${data.owner}`,
+    `§eDrapeau : §r${color.code}■ ${color.id}`,
     `§eCréé le : §f${formatDate(data.createdAt)}`,
     `§eChunks contrôlés : §f${data.chunkKeys.length}`,
     `§eZone : §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
@@ -113,10 +115,10 @@ export function showTerritoryInfo(
   ].join("\n");
 
   new ActionFormData()
-    .title(`${color.code}■ ${data.name}`)
+    .title(windowTitle(data.name))
     .body(body)
-    .button("§fRetour à la liste")
-    .button("§4Fermer")
+    .button("§fRetour à la liste", ICONS.arrow)
+    .button("§4Fermer", ICONS.barrier)
     .show(player)
     .then((response) => {
       if (response.canceled || response.selection === undefined) return;

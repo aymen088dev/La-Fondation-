@@ -42,7 +42,7 @@ const sanctions = new SanctionsManager(db);
 
 // Les commandes /sn:* doivent être enregistrées au plus tôt (early execution)
 registerCommands(territories, db, modules);
-registerAdminCommands({ permissions, modules, territories });
+registerAdminCommands({ permissions, modules, territories, sanctions });
 registerModerationCommands({ sanctions, permissions });
 
 let protectionRegistered = false;
@@ -133,7 +133,7 @@ world.afterEvents.playerSpawn.subscribe((event) => {
   trackPlayerJoin(db, player.name);
   applyNameTag(player.name);
 
-  player.sendMessage("§a[OpenMontage]§r Bienvenue ! §f/sn:create§r pour un territoire, §f/sn:roles§r pour ton rôle.");
+  player.sendMessage("§a[OpenMontage]§r Bienvenue ! Menu principal : §f/sn:menu§r — territoire : §f/sn:create");
 
   // Diagnostic : si tu vois ce titre en jeu, le script est chargé.
   player.onScreenDisplay.setTitle("§aOpenMontage §f✔");

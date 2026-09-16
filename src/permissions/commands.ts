@@ -1,5 +1,6 @@
 import { CustomCommandStatus, CommandPermissionLevel, system, PlayerPermissionLevel } from "@minecraft/server";
 import { ActionFormData } from "@minecraft/server-ui";
+import { windowTitle, ICONS } from "../ui/theme";
 import type { CustomCommandOrigin, Player, StartupEvent } from "@minecraft/server";
 import type { PermissionManager } from "./manager";
 import { openRolesMenu, openColorPicker } from "./ui";
@@ -7,11 +8,14 @@ import { openPlayersMenu as openPlayersManager } from "./players-ui";
 import type { ModuleManager } from "../modules/manager";
 import { openModulesMenu } from "../modules/ui";
 import type { TerritoryManager } from "../territories/manager";
+import type { SanctionsManager } from "../moderation/manager";
+import { openHubMenu } from "../ui/hub";
 
 interface AdminContext {
   permissions: PermissionManager;
   modules: ModuleManager;
   territories: TerritoryManager;
+  sanctions: SanctionsManager;
 }
 
 /** Le joueur est-il autorisé à ouvrir la GUI d'admin ? (rôle >= 100 OU opérateur vanilla) */
@@ -65,6 +69,25 @@ export function registerAdminCommands(ctx: AdminContext): void {
       },
     );
 
+    // /sn:menu : hub central (tous les outils, filtré par permission)
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:menu",
+        description: "Ouvre le menu principal OpenMontage",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false,
+      },
+      (origin: CustomCommandOrigin) => {
+        const player = origin.sourceEntity as Player | undefined;
+        if (player === undefined || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+
+        system.run(() => openHubMenu(player, ctx));
+        return { status: CustomCommandStatus.Success };
+      },
+    );
+
     // /sn:admin : menu d'administration (rôles, joueurs, modules)
     event.customCommandRegistry.registerCommand(
       {
@@ -86,12 +109,12 @@ export function registerAdminCommands(ctx: AdminContext): void {
           }
 
           new ActionFormData()
-            .title("§lAdministration")
+            .title(windowTitle("Administration"))
             .body("§7Que veux-tu gérer ?")
-            .button("§6Rôles\n§7créer, couleurs, niveaux")
-            .button("§bJoueurs\n§7attribuer rôles et prefixes")
-            .button("§aModules\n§7activer/désactiver les features")
-            .button("§4Fermer")
+            .button("§6Rôles\n§7créer, couleurs, niveaux", ICONS.crown)
+            .button("§bJoueurs\n§7attribuer rôles et prefixes", ICONS.paper)
+            .button("§aModules\n§7activer/désactiver les features", ICONS.wrench)
+            .button("§4Fermer", ICONS.barrier)
             .show(player)
             .then((response) => {
               if (response.canceled || response.selection === undefined) return;

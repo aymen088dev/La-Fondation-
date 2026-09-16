@@ -1,4 +1,5 @@
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
+import { windowTitle, ICONS } from "../ui/theme";
 import type { Player } from "@minecraft/server";
 import { ROLE_COLORS } from "./manager";
 import type { PermissionManager } from "./manager";
@@ -15,14 +16,17 @@ export function openRolesMenu(player: Player, permissions: PermissionManager): v
   const roles = permissions.allRoles();
 
   const form = new ActionFormData()
-    .title("§lGestion des rôles")
+    .title(windowTitle("Rôles"))
     .body(`§7${roles.length} rôle(s). Sélectionne pour configurer.`)
-    .button("§a+ Créer un rôle");
+    .button("§a+ Créer un rôle", ICONS.plus);
 
   for (const role of roles) {
-    form.button(`${role.data.color}[${role.data.name}]§r\n§7niveau ${role.data.level} · ${permissions.membersWithRole(role.data.name).length} membre(s)`);
+    form.button(
+      `${role.data.color}[${role.data.name}]§r\n§7niveau ${role.data.level} · ${permissions.membersWithRole(role.data.name).length} membre(s)`,
+      ICONS.crown,
+    );
   }
-  form.button("§4Fermer");
+  form.button("§4Fermer", ICONS.barrier);
 
   form
     .show(player)
@@ -78,18 +82,18 @@ export function openRoleConfigMenu(
   permissions: PermissionManager,
 ): void {
   new ActionFormData()
-    .title(`${role.data.color}[${role.data.name}]`)
+    .title(windowTitle(`Rôle ${role.data.color}${role.data.name}`))
     .body(
       `§7Niveau : §f${role.data.level}\n` +
         `§7Membres : §f${permissions.membersWithRole(role.data.name).length}\n` +
         `§7Prefix : §f${role.data.prefix}`,
     )
-    .button("§eChanger la couleur")
-    .button("§eChanger le prefix")
-    .button("§eChanger le niveau")
-    .button("§bVoir les membres")
-    .button("§4Supprimer ce rôle")
-    .button("§8← Retour")
+    .button("§eChanger la couleur", ICONS.diamond)
+    .button("§eChanger le prefix", ICONS.sign)
+    .button("§eChanger le niveau", ICONS.anvil)
+    .button("§bVoir les membres", ICONS.paper)
+    .button("§4Supprimer ce rôle", ICONS.barrier)
+    .button("§8← Retour", ICONS.arrow)
     .show(player)
     .then((response) => {
       if (response.canceled || response.selection === undefined) return;
@@ -174,11 +178,10 @@ function openRoleMembersMenu(
 }
 
 /** Sélecteur de couleur réutilisable. */
-export function openColorPicker(player: Player, title: string, onPick: (colorId: string) => void): void {
-  const form = new ActionFormData().title(title).body("§7Choisis une couleur :").button("§8← Annuler");
+export function openColorPicker(player: Player, title: string, onPick: (colorId: string) => void): void {  const form = new ActionFormData().title(windowTitle(title)).body("§7Choisis une couleur :").button("§8← Annuler", ICONS.arrow);
 
   for (const color of ROLE_COLORS) {
-    form.button(`${color.code}■■■ §7${color.id}`);
+    form.button(`${color.code}■■■ §7${color.id}`, ICONS.diamond);
   }
 
   form

@@ -1,5 +1,6 @@
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 import type { Player } from "@minecraft/server";
+import { windowTitle, ICONS } from "../ui/theme";
 import type { SanctionsManager } from "./manager";
 import { formatDuration } from "./manager";
 import type { PermissionManager } from "../permissions/manager";
@@ -14,17 +15,17 @@ export function openSanctionsMenu(player: Player, sanctions: SanctionsManager, p
   const stats = sanctions.stats();
 
   new ActionFormData()
-    .title("§lModération")
+    .title(windowTitle("Modération"))
     .body(
       `§7Bans actifs : §f${stats.bans}\n` +
         `§7Mutes actifs : §f${stats.mutes}\n` +
         `§7Warns au total : §f${stats.warns}`,
     )
-    .button("§4Bans actifs")
-    .button("§6Mutes actifs")
-    .button("§eSanctionner un joueur")
-    .button("§bHistorique d'un joueur")
-    .button("§4Fermer")
+    .button("§4Bans actifs", ICONS.lock)
+    .button("§6Mutes actifs", ICONS.bell)
+    .button("§eSanctionner un joueur", ICONS.sword)
+    .button("§bHistorique d'un joueur", ICONS.book)
+    .button("§4Fermer", ICONS.barrier)
     .show(player)
     .then((response) => {
       if (response.canceled || response.selection === undefined) return;
