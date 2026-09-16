@@ -16,8 +16,10 @@ import { trackPlayerJoin } from "./players";
 // ---------------------------------------------------------------------------
 // Base de données locale, persistée dans les Dynamic Properties du monde
 // ---------------------------------------------------------------------------
+// ⚠️ PAS de db.load() ici : world.getDynamicProperty est interdit en early
+// execution (ReferenceError au chargement du script). La lecture se fait
+// au worldLoad (et en fallback au premier spawn), voir plus bas.
 const db = new JsonDatabase(createBedrockStorage(), "openmontage");
-db.load(); // lecture au plus tôt ; re-lecture au worldLoad (dynamic properties y sont fiables)
 
 // Sauvegarde automatique toutes les 5 secondes, uniquement si la DB a changé
 registerAutosave(db, 100);
@@ -33,7 +35,7 @@ registerCommands(territories);
 let protectionRegistered = false;
 
 world.afterEvents.worldLoad.subscribe(() => {
-  // Re-lecture de la DB : certaines Dynamic Properties ne sont visibles qu'après worldLoad
+  // Lecture de la DB : getDynamicProperty n'est autorisé qu'après worldLoad
   db.load();
 
   territories.markLoaded();
@@ -56,8 +58,8 @@ system.runInterval(() => {
   if (world.getAllPlayers().length === 0) return;
 
   if (!territories.loaded) {
-    territories.markLoaded();
     db.load();
+    territories.markLoaded();
   }
   if (!protectionRegistered) {
     protectionRegistered = true;

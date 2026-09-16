@@ -33,6 +33,9 @@ export class JsonDatabase {
   private file: DatabaseFile;
   private dirty = false;
 
+  /** Passe à true après le premier load() réussi (monde chargé). */
+  loaded = false;
+
   constructor(
     private readonly storage: StorageAdapter,
     private readonly name: string = "openmontage",
@@ -40,12 +43,16 @@ export class JsonDatabase {
     this.file = { schemaVersion: DB_SCHEMA_VERSION, name, savedAt: 0, collections: {} };
   }
 
-  /** Charge la base depuis le stockage. À appeler une fois au démarrage. */
+  /**
+   * Charge la base depuis le stockage. À appeler uniquement quand le monde
+   * est chargé (worldLoad) : en early execution, la lecture des Dynamic
+   * Properties est interdite par Bedrock.
+   */
   load(): void {
-    const raw = this.storage.read();
-    if (raw === null) return;
-
     try {
+      const raw = this.storage.read();
+      if (raw === null) return;
+
       const parsed = JSON.parse(raw) as DatabaseFile;
       if (
         typeof parsed !== "object" ||
@@ -67,6 +74,7 @@ export class JsonDatabase {
         collections: parsed.collections,
       };
       this.dirty = false;
+      this.loaded = true;
     } catch (error) {
       console.warn(
         `[DB] Chargement impossible ("${this.name}") : ${error instanceof Error ? error.message : String(error)}`,

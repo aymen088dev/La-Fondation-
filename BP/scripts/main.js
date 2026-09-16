@@ -27,11 +27,17 @@ var JsonDatabase = class {
   }
   file;
   dirty = false;
-  /** Charge la base depuis le stockage. À appeler une fois au démarrage. */
+  /** Passe à true après le premier load() réussi (monde chargé). */
+  loaded = false;
+  /**
+   * Charge la base depuis le stockage. À appeler uniquement quand le monde
+   * est chargé (worldLoad) : en early execution, la lecture des Dynamic
+   * Properties est interdite par Bedrock.
+   */
   load() {
-    const raw = this.storage.read();
-    if (raw === null) return;
     try {
+      const raw = this.storage.read();
+      if (raw === null) return;
       const parsed = JSON.parse(raw);
       if (typeof parsed !== "object" || parsed === null || typeof parsed.collections !== "object" || parsed.collections === null) {
         throw new Error("structure inattendue");
@@ -48,6 +54,7 @@ var JsonDatabase = class {
         collections: parsed.collections
       };
       this.dirty = false;
+      this.loaded = true;
     } catch (error) {
       console.warn(
         `[DB] Chargement impossible ("${this.name}") : ${error instanceof Error ? error.message : String(error)}`
@@ -203,6 +210,7 @@ function createBedrockStorage(partition = DB_STORAGE_PARTITION) {
 import { system } from "@minecraft/server";
 function registerAutosave(db2, intervalTicks = 100) {
   const runId = system.runInterval(() => {
+    if (!db2.loaded) return;
     db2.save();
   }, intervalTicks);
   return () => system.clearRun(runId);
@@ -518,7 +526,6 @@ function trackPlayerJoin(db2, playerName) {
 
 // src/main.ts
 var db = new JsonDatabase(createBedrockStorage(), "openmontage");
-db.load();
 registerAutosave(db, 100);
 var territories = new TerritoryManager(db);
 registerCommands(territories);
@@ -540,8 +547,8 @@ system3.runInterval(() => {
   if (worldReady) return;
   if (world3.getAllPlayers().length === 0) return;
   if (!territories.loaded) {
-    territories.markLoaded();
     db.load();
+    territories.markLoaded();
   }
   if (!protectionRegistered) {
     protectionRegistered = true;
