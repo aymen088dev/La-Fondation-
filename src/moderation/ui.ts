@@ -1,4 +1,5 @@
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
+import { world } from "@minecraft/server";
 import type { Player } from "@minecraft/server";
 import { windowTitle, ICONS } from "../ui/theme";
 import type { SanctionsManager } from "./manager";
@@ -8,6 +9,14 @@ import type { PermissionManager } from "../permissions/manager";
 /** Garde-fou : niveau de modération requis (>= 60) ou op vanilla. */
 export function isModerator(playerName: string, permissions: PermissionManager): boolean {
   return permissions.levelOf(playerName) >= 60;
+}
+
+/** Résout le Player.id d'une cible (en ligne, sinon null — la DB arrive plus tard). */
+export function resolveTargetId(player: Player, targetName: string): string | null {
+  const online = world.getAllPlayers().find((candidate) => candidate.name === targetName);
+  if (online !== undefined) return online.id;
+  void player;
+  return null;
 }
 
 /** Menu principal de modération. */
@@ -147,13 +156,13 @@ function openSanctionForm(player: Player, sanctions: SanctionsManager): void {
           if (ok) sanctions.log("kick", target, player.name, reason);
         });
       } else if (typeIndex === 1) {
-        const result = sanctions.ban(target, player.name, reason, minutes);
+        const result = sanctions.ban(target, player.name, reason, minutes, resolveTargetId(player, target));
         player.sendMessage(result.ok ? `§a[Modération] ${target} banni (${formatDuration(minutes)}).` : `§c[Modération] ${result.error}`);
       } else if (typeIndex === 2) {
-        const result = sanctions.mute(target, player.name, reason, minutes);
+        const result = sanctions.mute(target, player.name, reason, minutes, resolveTargetId(player, target));
         player.sendMessage(result.ok ? `§a[Modération] ${target} muet (${formatDuration(minutes)}).` : `§c[Modération] ${result.error}`);
       } else {
-        const result = sanctions.warn(target, player.name, reason);
+        const result = sanctions.warn(target, player.name, reason, resolveTargetId(player, target));
         player.sendMessage(result.ok ? `§a[Modération] ${target} averti.` : `§c[Modération] ${result.error}`);
       }
     })

@@ -1,4 +1,5 @@
 import type { JsonDatabase } from "./db";
+import { PLAYERS_COLLECTION } from "./db/collections";
 
 /**
  * Index des joueurs (collection "players_index").
@@ -13,7 +14,7 @@ import type { JsonDatabase } from "./db";
  */
 
 /** Collection DB de l'index joueurs. */
-export const PLAYERS_COLLECTION = "players_index";
+export { PLAYERS_COLLECTION };
 
 export interface PlayerRecord {
   /** Player.id Bedrock (null pour les entrées migrées pas encore re-vues). */

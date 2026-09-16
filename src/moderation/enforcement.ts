@@ -1,5 +1,4 @@
 import { world, system } from "@minecraft/server";
-import type { ChatSendBeforeEvent } from "@minecraft/server";
 import type { SanctionsManager } from "./manager";
 
 /** Éjecte un joueur du monde (kick vanilla via runCommand). */
@@ -16,13 +15,13 @@ export function kickPlayer(playerName: string, reason: string): boolean {
 }
 
 /**
- * Application active des sanctions :
- * - ban : éjection au spawn avec motif affiché
- * - mute : interception des messages chat avant diffusion
- * À brancher après worldLoad.
+ * Application active des bans : éjection au join avec motif affiché.
+ *
+ * (Le mute est désormais géré directement dans le pipeline chat unique
+ * de src/permissions/chat.ts — l'ancien second subscriber chatSend
+ * ré-émettait les messages des muets annulés ici : bug corrigé.)
  */
-export function registerEnforcement(sanctions: SanctionsManager, onChatReady?: () => void): void {
-  // 1. Ban : vérifié à chaque spawn
+export function registerEnforcement(sanctions: SanctionsManager): void {
   world.afterEvents.playerSpawn.subscribe((event) => {
     if (!event.initialSpawn || !sanctions.loaded) return;
 
@@ -41,26 +40,4 @@ export function registerEnforcement(sanctions: SanctionsManager, onChatReady?: (
       kickPlayer(player.name, ban.reason);
     });
   });
-
-  // 2. Mute : blocage des messages avant diffusion (chat bêta)
-  world.beforeEvents.chatSend.subscribe((event: ChatSendBeforeEvent) => {
-    if (!sanctions.loaded) return;
-
-    const mute = sanctions.getMute(event.sender.name);
-    if (mute === undefined) return;
-
-    event.cancel = true;
-    const sender = event.sender;
-    const remaining =
-      mute.expiresAt === 0 ? "permanent" : `${Math.max(1, Math.ceil((mute.expiresAt - Date.now()) / 60_000))} min`;
-
-    system.run(() => {
-      sender.sendMessage(
-        `§c[Modération] Tu es muet (${remaining}). §7Motif : §f${mute.reason}§7 — par §f${mute.by}`,
-      );
-    });
-  });
-
-  onChatReady?.();
 }
-

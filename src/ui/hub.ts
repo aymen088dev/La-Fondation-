@@ -27,8 +27,10 @@ export interface HubDeps {
 export function openHubMenu(player: Player, deps: HubDeps): void {
   const { permissions, modules, territories, sanctions } = deps;
 
+  const isOp = player.playerPermissionLevel >= 2;
   const isAdmin = canUseAdminPanel(player, permissions);
-  const isMod = permissions.levelOf(player.name) >= 60 || player.playerPermissionLevel >= 2;
+  const isMod = permissions.can(player.name, "mod.panel", isOp);
+  const canCreate = permissions.can(player.name, "territories.create", isOp);
   const hasRole = permissions.getMember(player.name) !== undefined;
 
   const form = new ActionFormData()
@@ -39,9 +41,15 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
         divider(),
     );
 
-  // Entrées joueur (toujours visibles)
-  form.button(`🚩 §lTerritoires§r\n§7créer, lister, explorer`, ICONS.banner);
-  form.button(`🧭 §lMon rôle§r\n§7couleur, prefix perso`, ICONS.compass);
+  // Entrées joueur (visibles selon permissions)
+  if (canCreate) {
+    form.button(`🚩 §lTerritoires§r\n§7créer, lister, explorer`, ICONS.banner);
+  } else {
+    form.button(`🚩 §lTerritoires§r\n§7lister, explorer`, ICONS.banner);
+  }
+  if (permissions.can(player.name, "chat.color", isOp) || hasRole) {
+    form.button(`🧭 §lMon rôle§r\n§7couleur, prefix perso`, ICONS.compass);
+  }
 
   // Entrées modération
   if (isMod) {
@@ -66,7 +74,9 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
       const actions: (() => void)[] = [];
 
       actions.push(() => openTerritoriesMenu(player, territories));
-      actions.push(() => openSelfRoleMenu(player, permissions));
+      if (permissions.can(player.name, "chat.color", isOp) || hasRole) {
+        actions.push(() => openSelfRoleMenu(player, permissions));
+      }
 
       if (isMod) {
         actions.push(() => openSanctionsMenu(player, sanctions, permissions));

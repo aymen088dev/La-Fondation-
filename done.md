@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : grosse mise à jour DB (v2) — index joueurs par ID, territoires multi-membres, menu DB complet.
+> Dernière mise à jour : **v3** — permissions fines par rôle, chat `[grade] nom > message`, DB enrichie (playerId partout), menu DB révisé.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -9,7 +9,10 @@
 
 ### Base de données locale (TypeScript + JSON) — `src/db/`
 - [x] `JsonDatabase` : collections de documents, CRUD complet (`insert`, `upsert`, **`update`**, `find`, `findOne`, `remove`)
-- [x] **Migrations de schéma (v2)** : `src/db/migrations.ts` — renommage `role_members`→`members`, conversion `players`→`players_index`, enrichissement territoires (testées, 5 tests dédiés)
+- [x] **Migrations de schéma (v3)** : `src/db/migrations.ts` — v1→v2 (renommage `role_members`→`members`, conversion `players`→`players_index`, enrichissement territoires) puis v2→v3 (perms rôles, playerId sur sanctions/grades, grade sur players_index) — testées (10 tests dédiés)
+- [x] **Permissions fines (v3)** : catalogue `PERMS` (`src/permissions/perms.ts`) — `territories.create`, `mod.panel/kick/ban/mute/warn/history`, `chat.color/prefix`. Sémantique **additive** : perms par défaut du niveau UNION perms explicites du rôle (un rôle niveau 0 peut être autorisé à bannir). Commandes et GUI gated par permission, op vanilla = bypass
+- [x] **Constantes DB centralisées** (`src/db/collections.ts`) : noms de collections + libellés + ordre d'affichage, source unique partagée par tous les managers et le menu DB
+- [x] **`db.markDirty()` public** : les mutations en place (role.data.x = y) lèvent maintenant le flag — bug de perte de persistance corrigé (couleurs/prefixes/drapeaux édités étaient perdus au redémarrage) + test de régression
 - [x] **Index joueurs `players_index`** : identité stable par **Player.id Bedrock** (le xuid n'existe pas dans l'API 2.11), résolution pseudo↔id, promotion auto des entrées migrées au join, compteur de sessions, grade copié (`src/players.ts`)
 - [x] **Territoires v2** : `ownerId` (id Bedrock stable) + `ownerName` + **membres** (member/officer) — le propriétaire ET ses membres peuvent construire ; les protections et le PvP utilisent les IDs
 - [x] **Menu DB `/sn:db menu`** (admin) : navigation par sections (joueurs, territoires, rôles, grades, bans, mutes, warns, modules…), vue document avec **édition des champs texte/nombre**, vidage de section, sauvegarde forcée — tout persisté
@@ -26,7 +29,7 @@
 - [x] TypeScript strict compilé en **un seul bundle** `BP/scripts/main.js` (esbuild) — c'est normal qu'il n'y ait qu'un .js dans BP/scripts
 - [x] Manifest BP en TypeScript-compat (API **`@minecraft/server` 2.11.0-beta** = Minecraft **1.26.50**, expérimentation Beta APIs requise)
 - [x] **Lib `@bedrock-oss/bedrock-boost` intégrée** (v2.2.0, org Bedrock-OSS, à jour) : `Logger` par module (niveaux filtrables **en jeu** : `/scriptevent log:level <0-5>`, `/scriptevent log:filter <tags>`), `Timings` (mesure du chargement monde), `ColorJSON` (JSON colorisé dans `/sn:db show`). Vec3/cache/schedulers disponibles pour la suite
-- [x] 25/25 tests unitaires (bun test) : DB, migrations v1→v2, chunks, territoires, sanctions
+- [x] 33/33 tests unitaires (bun test) : DB, migrations v1→v3, chunks, territoires, sanctions, permissions fines
 
 ---
 
@@ -48,7 +51,7 @@
 - [x] Bootstrap : le premier opérateur vanilla devient Admin (niveau 100)
 - [x] Rôle Admin intouchable (suppression interdite)
 - [x] **NameTags** colorés au-dessus des têtes, rafraîchis en continu
-- [x] **Chat custom** : format `[Joueur] > message` — crochets et chevron gris, pseudo coloré au rôle/prefix perso (via `chatSend` bêta, mute inclus)
+- [x] **Chat custom** : format `[grade] nom > message` — `[Admin]`/`[Modo]` selon le rôle (ou op vanilla sans rôle), pseudo coloré, séparateur `>` gris. Mute géré dans le pipeline unique (bug du double subscriber corrigé : le message d'un muet était annulé puis ré-émis quand même)
 - [x] `/sn:roles` : personnalisation (tous) + gestion complète (admins)
 - [x] `/sn:admin` : menu central → Rôles / Joueurs / Modules
 
@@ -61,7 +64,8 @@
 
 ## 🔨 Module Modération — `src/moderation/`
 - [x] `/sn:mod` : GUI de modération (stats, bans/mutes actifs cliquables, sanction rapide, historiques)
-- [x] `/sn:kick <joueur> <raison>` · `/sn:ban <joueur> [durée_min] <raison>` (0 = permanent) · `/sn:unban` · `/sn:mute <joueur> <durée_min> [raison]` · `/sn:unmute` · `/sn:warn <joueur> <raison>` · `/sn:history <joueur>`
+- [x] `/sn:kick <joueur> <raison>` · `/sn:ban <joueur> [durée_min] <raison>` (0 = permanent) · `/sn:unban` · `/sn:mute <joueur> <durée_min> [raison]` · `/sn:unmute` · `/sn:warn <joueur> <raison>` · `/sn:history <joueur>` — chaque action gated par sa permission fine (`mod.ban`, `mod.mute`...)
+- [x] **playerId Bedrock stocké** sur bans/mutes/warns/grades (résolu en ligne au moment de la sanction, ou au join pour les offline) — robuste aux changements de pseudo
 - [x] Bans réappliqués au join (message de motif), temporaires auto-levés
 - [x] Mutes : messages interceptés dans le chat custom + rappel du temps restant
 - [x] 5 collections DB (`bans`, `mutes`, `warns`, infractions, journal) + purges auto

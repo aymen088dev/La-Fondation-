@@ -10,19 +10,22 @@ import type { SanctionsManager } from "./manager";
 import { formatDuration } from "./manager";
 import { kickPlayer } from "./enforcement";
 import type { PermissionManager } from "../permissions/manager";
+import type { PermId } from "../permissions/perms";
+import { resolvePlayer } from "../players";
 import { openSanctionsMenu } from "./ui";
-
-/** Le joueur a-t-il le niveau de modération requis ? (>= 60, ou op vanilla) */
-function canModerate(player: Player, permissions: PermissionManager): boolean {
-  return permissions.levelOf(player.name) >= 60 || player.playerPermissionLevel >= 2;
-}
-
-const DENIED = "§c[Modération] Niveau de rôle insuffisant (Modo requis).";
-const NOT_PLAYER = "§c[Modération] Réservé aux joueurs.";
+import type { JsonDatabase } from "../db/database";
 
 interface ModDeps {
   sanctions: SanctionsManager;
   permissions: PermissionManager;
+  db?: JsonDatabase;
+}
+
+const NOT_PLAYER = "§c[Modération] Réservé aux joueurs.";
+
+/** Le joueur a-t-il la permission fine requise ? (ou op vanilla) */
+function requires(player: Player, permissions: PermissionManager, perm: PermId): boolean {
+  return permissions.can(player.name, perm, player.playerPermissionLevel >= 2);
 }
 
 /** Informe la cible si elle est en ligne. */
@@ -32,11 +35,22 @@ function notifyTarget(targetName: string, message: string): void {
 }
 
 /**
+ * Résout le Player.id Bedrock d'une cible : en ligne d'abord, puis via
+ * l'index joueurs (offline connu). Renvoie null si inconnu.
+ */
+function resolveTargetId(targetName: string, db?: JsonDatabase): string | null {
+  const online = world.getAllPlayers().find((candidate) => candidate.name === targetName);
+  if (online !== undefined) return online.id;
+  if (db !== undefined) return resolvePlayer(db, targetName)?.data.playerId ?? null;
+  return null;
+}
+
+/**
  * Enregistre les commandes de modération.
  * À appeler dans system.beforeEvents.startup (early execution).
  */
 export function registerModerationCommands(deps: ModDeps): void {
-  const { sanctions, permissions } = deps;
+  const { sanctions, permissions, db } = deps;
 
   system.beforeEvents.startup.subscribe((event: StartupEvent) => {
     const guardAndRun = (
@@ -47,8 +61,25 @@ export function registerModerationCommands(deps: ModDeps): void {
       if (player === undefined || player.typeId !== "minecraft:player") {
         return { status: CustomCommandStatus.Failure, message: NOT_PLAYER };
       }
-      if (!canModerate(player, permissions)) {
-        return { status: CustomCommandStatus.Failure, message: DENIED };
+      if (!requires(player, permissions, "mod.panel")) {
+        return { status: CustomCommandStatus.Failure, message: "§c[Modération] Permission manquante (mod.panel)." };
+      }
+      system.run(() => action(player));
+      return { status: CustomCommandStatus.Success };
+    };
+
+    /** Garde par permission fine pour les commandes d'action. */
+    const guardPerm = (
+      origin: CustomCommandOrigin,
+      perm: PermId,
+      action: (player: Player) => void,
+    ): { status: CustomCommandStatus; message?: string } | undefined => {
+      const player = origin.sourceEntity as Player | undefined;
+      if (player === undefined || player.typeId !== "minecraft:player") {
+        return { status: CustomCommandStatus.Failure, message: NOT_PLAYER };
+      }
+      if (!requires(player, permissions, perm)) {
+        return { status: CustomCommandStatus.Failure, message: `§c[Modération] Permission manquante (${perm}).` };
       }
       system.run(() => action(player));
       return { status: CustomCommandStatus.Success };
@@ -84,7 +115,7 @@ export function registerModerationCommands(deps: ModDeps): void {
         mandatoryParameters: [stringParam("joueur"), stringParam("raison")],
       },
       (origin, target: string, reason: string) =>
-        guardAndRun(origin, (player) => {
+        guardPerm(origin, "mod.kick", (player) => {
           if (target === player.name) {
             player.sendMessage("§c[Modération] Tu ne peux pas te kick toi-même.");
             return;
@@ -111,9 +142,9 @@ export function registerModerationCommands(deps: ModDeps): void {
         optionalParameters: [{ name: "duree_min", type: CustomCommandParamType.Integer }],
       },
       (origin, target: string, reason: string, minutes?: number) =>
-        guardAndRun(origin, (player) => {
+        guardPerm(origin, "mod.ban", (player) => {
           const duration = minutes ?? 0;
-          const result = sanctions.ban(target, player.name, reason, duration);
+          const result = sanctions.ban(target, player.name, reason, duration, resolveTargetId(target, db));
           if (!result.ok) {
             player.sendMessage(`§c[Modération] ${result.error}`);
             return;
@@ -138,7 +169,7 @@ export function registerModerationCommands(deps: ModDeps): void {
         mandatoryParameters: [stringParam("joueur")],
       },
       (origin, target: string) =>
-        guardAndRun(origin, (player) => {
+        guardPerm(origin, "mod.ban", (player) => {
           const result = sanctions.unban(target);
           player.sendMessage(result.ok ? `§a[Modération] ${target} débanni.` : `§c[Modération] ${result.error}`);
         }),
@@ -157,9 +188,9 @@ export function registerModerationCommands(deps: ModDeps): void {
         optionalParameters: [stringParam("raison")],
       },
       (origin, target: string, minutes: number, reason?: string) =>
-        guardAndRun(origin, (player) => {
+        guardPerm(origin, "mod.mute", (player) => {
           const cleanReason = reason ?? "non spécifié";
-          const result = sanctions.mute(target, player.name, cleanReason, minutes);
+          const result = sanctions.mute(target, player.name, cleanReason, minutes, resolveTargetId(target, db));
           if (!result.ok) {
             player.sendMessage(`§c[Modération] ${result.error}`);
             return;
@@ -181,7 +212,7 @@ export function registerModerationCommands(deps: ModDeps): void {
         mandatoryParameters: [stringParam("joueur")],
       },
       (origin, target: string) =>
-        guardAndRun(origin, (player) => {
+        guardPerm(origin, "mod.mute", (player) => {
           const result = sanctions.unmute(target);
           player.sendMessage(result.ok ? `§a[Modération] ${target} peut parler.` : `§c[Modération] ${result.error}`);
         }),
@@ -199,8 +230,8 @@ export function registerModerationCommands(deps: ModDeps): void {
         mandatoryParameters: [stringParam("joueur"), stringParam("raison")],
       },
       (origin, target: string, reason: string) =>
-        guardAndRun(origin, (player) => {
-          const result = sanctions.warn(target, player.name, reason);
+        guardPerm(origin, "mod.warn", (player) => {
+          const result = sanctions.warn(target, player.name, reason, resolveTargetId(target, db));
           if (!result.ok) {
             player.sendMessage(`§c[Modération] ${result.error}`);
             return;
@@ -223,7 +254,7 @@ export function registerModerationCommands(deps: ModDeps): void {
         mandatoryParameters: [stringParam("joueur")],
       },
       (origin, target: string) =>
-        guardAndRun(origin, (player) => {
+        guardPerm(origin, "mod.history", (player) => {
           const entries = sanctions.historyOf(target, 10);
           if (entries.length === 0) {
             player.sendMessage(`§7[Modération] ${target} : casier vierge.`);

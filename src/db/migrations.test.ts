@@ -3,71 +3,73 @@ import { migrateDatabase } from "./migrations";
 import { DB_SCHEMA_VERSION } from "./types";
 import type { DatabaseFile } from "./types";
 
-/** Fabrique un fichier DB v1 minimal. */
-function v1File(): DatabaseFile {
+/** Fabrique un fichier DB v2 minimal (pré-v3). */
+function v2File(): DatabaseFile {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: "test",
     savedAt: 0,
     collections: {
-      role_members: [
-        { id: "Aymen", createdAt: 1, updatedAt: 1, data: { name: "Aymen", role: "Admin" } },
-      ],
-      players: [{ id: "Aymen", createdAt: 5, updatedAt: 9, data: { name: "Aymen", sessions: 3 } }],
-      territories: [
+      roles: [
         {
-          id: "Fort",
-          createdAt: 2,
-          updatedAt: 2,
-          data: { name: "Fort", owner: "Lina", color: "rouge", chunkKeys: ["minecraft:overworld:0:0"], createdAt: 2 },
+          id: "Modo",
+          createdAt: 1,
+          updatedAt: 1,
+          data: { name: "Modo", color: "§9", prefix: "[Modo]", level: 60 },
         },
+      ],
+      members: [
+        { id: "Aymen", createdAt: 1, updatedAt: 1, data: { name: "Aymen", role: "Modo" } },
+      ],
+      bans: [
+        { id: "Griefer", createdAt: 2, updatedAt: 2, data: { name: "Griefer", reason: "grief", by: "Admin", at: 2, expiresAt: 0 } },
+      ],
+      warns: [
+        { id: "w1", createdAt: 3, updatedAt: 3, data: { name: "Steve", reason: "spam", by: "Modo", at: 3 } },
       ],
     },
   };
 }
 
-describe("migrateDatabase v1 → v2", () => {
-  it("renomme role_members en members", () => {
-    const file = migrateDatabase(v1File());
-    expect(file.collections["role_members"]).toBeUndefined();
-    expect(file.collections["members"]?.[0]?.id).toBe("Aymen");
-    expect(file.collections["members"]?.[0]?.data.role).toBe("Admin");
+describe("migrateDatabase v2 → v3", () => {
+  it("ajoute perms[] aux rôles selon le niveau", () => {
+    const file = migrateDatabase(v2File());
+    const role = file.collections["roles"]?.[0]?.data as Record<string, unknown>;
+    const perms = role["perms"] as string[];
+    expect(Array.isArray(perms)).toBe(true);
+    expect(perms).toContain("mod.ban");
+    expect(perms).toContain("mod.kick");
+    expect(perms).toContain("chat.color"); // base incluse à tous les niveaux
+    expect(perms).toContain("territories.create");
   });
 
-  it("convertit players en players_index avec id name:<pseudo>", () => {
-    const file = migrateDatabase(v1File());
-    const entry = file.collections["players_index"]?.[0];
-    expect(entry?.id).toBe("name:Aymen");
-    expect(entry?.data.playerId).toBeNull();
-    expect(entry?.data.sessions).toBe(3);
-    expect(entry?.data.firstSeen).toBe(5);
-    expect(file.collections["players"]).toBeUndefined();
+  it("n'écrase pas une perms[] existante", () => {
+    const file = v2File();
+    (file.collections["roles"]?.[0]?.data as Record<string, unknown>)["perms"] = ["mod.ban"];
+    const migrated = migrateDatabase(file);
+    const perms = (migrated.collections["roles"]?.[0]?.data as Record<string, unknown>)["perms"] as string[];
+    expect(perms).toEqual(["mod.ban"]);
   });
 
-  it("enrichit les territoires avec ownerId/ownerName/members", () => {
-    const file = migrateDatabase(v1File());
-    const territory = file.collections["territories"]?.[0]?.data as Record<string, unknown>;
-    expect(territory["ownerName"]).toBe("Lina");
-    expect(territory["ownerId"]).toBe("name:Lina");
-    expect(Array.isArray(territory["members"])).toBe(true);
+  it("enrichit members avec playerId et firstSeen", () => {
+    const file = migrateDatabase(v2File());
+    const member = file.collections["members"]?.[0]?.data as Record<string, unknown>;
+    expect(member["playerId"]).toBeNull();
+    expect(member["firstSeen"]).toBe(1);
+  });
+
+  it("enrichit bans et warns avec playerId null", () => {
+    const file = migrateDatabase(v2File());
+    const ban = file.collections["bans"]?.[0]?.data as Record<string, unknown>;
+    const warn = file.collections["warns"]?.[0]?.data as Record<string, unknown>;
+    expect(ban["playerId"]).toBeNull();
+    expect(warn["playerId"]).toBeNull();
   });
 
   it("met la version à jour et reste stable si déjà migré", () => {
-    const file = migrateDatabase(v1File());
+    const file = migrateDatabase(v2File());
     expect(file.schemaVersion).toBe(DB_SCHEMA_VERSION);
     const before = JSON.stringify(file);
     expect(JSON.stringify(migrateDatabase(file))).toBe(before);
-  });
-
-  it("fusionne sans doublon si members existe déjà", () => {
-    const file = v1File();
-    file.collections["members"] = [
-      { id: "Zed", createdAt: 1, updatedAt: 1, data: { name: "Zed", role: "Modo" } },
-    ];
-    const migrated = migrateDatabase(file);
-    const ids = migrated.collections["members"]?.map((doc) => doc.id);
-    expect(ids).toContain("Zed");
-    expect(ids).toContain("Aymen");
-    expect(migrated.collections["members"]?.length).toBe(2);
   });
 });

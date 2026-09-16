@@ -6,9 +6,10 @@
  */
 
 import type { JsonDatabase } from "../db/database";
+import { MODULES_COLLECTION } from "../db/collections";
 
 /** Collection DB des modules (id = id du module). */
-export const MODULES_COLLECTION = "modules";
+export { MODULES_COLLECTION };
 
 /** Identifiants des modules connus. */
 export const MODULE_IDS = ["territories", "moderation"] as const;

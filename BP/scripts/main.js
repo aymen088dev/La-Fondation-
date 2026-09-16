@@ -8,6 +8,51 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
+// src/db/collections.ts
+function collectionLabel(collection) {
+  const meta = COLLECTION_META[collection];
+  const icons = {
+    players_index: "👥",
+    territories: "🚩",
+    roles: "👑",
+    members: "🎭",
+    bans: "🔨",
+    mutes: "🔇",
+    warns: "⚠️",
+    infractions: "📜",
+    modules: "🧩"
+  };
+  const icon = icons[collection] ?? "📁";
+  return meta === void 0 ? `${icon} ${collection}` : `${icon} ${meta.label}`;
+}
+var PLAYERS_COLLECTION, TERRITORY_COLLECTION, ROLES_COLLECTION, MEMBERS_COLLECTION, BANS_COLLECTION, MUTES_COLLECTION, WARNS_COLLECTION, INFRACTIONS_COLLECTION, MODULES_COLLECTION, COLLECTION_META, SECTION_ORDER;
+var init_collections = __esm({
+  "src/db/collections.ts"() {
+    "use strict";
+    PLAYERS_COLLECTION = "players_index";
+    TERRITORY_COLLECTION = "territories";
+    ROLES_COLLECTION = "roles";
+    MEMBERS_COLLECTION = "members";
+    BANS_COLLECTION = "bans";
+    MUTES_COLLECTION = "mutes";
+    WARNS_COLLECTION = "warns";
+    INFRACTIONS_COLLECTION = "infractions";
+    MODULES_COLLECTION = "modules";
+    COLLECTION_META = {
+      players_index: { label: "Joueurs", hint: "sessions, grade, première/dernière connexion" },
+      territories: { label: "Territoires", hint: "chunks, drapeau, membres" },
+      roles: { label: "Rôles", hint: "couleur, prefix, niveau, permissions" },
+      members: { label: "Grades attribués", hint: "rôle, prefix et couleur personnalisés" },
+      bans: { label: "Bans", hint: "sanctions d'exclusion actives" },
+      mutes: { label: "Mutes", hint: "sanctions de chat actives" },
+      warns: { label: "Avertissements", hint: "compteur d'avertissements" },
+      infractions: { label: "Journal", hint: "historique de toutes les actions de modération" },
+      modules: { label: "Modules", hint: "activation des fonctionnalités" }
+    };
+    SECTION_ORDER = Object.keys(COLLECTION_META);
+  }
+});
+
 // src/territories/types.ts
 function getColor(id) {
   return TERRITORY_COLORS.find((color) => color.id === id) ?? TERRITORY_COLORS[0];
@@ -54,11 +99,11 @@ function formatDate(timestamp) {
   const pad = (n) => String(n).padStart(2, "0");
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
-var TERRITORY_COLLECTION, MAX_CHUNKS_PER_TERRITORY, NAME_MIN, NAME_MAX, NAME_PATTERN, TerritoryManager;
+var MAX_CHUNKS_PER_TERRITORY, NAME_MIN, NAME_MAX, NAME_PATTERN, TerritoryManager;
 var init_manager = __esm({
   "src/territories/manager.ts"() {
     "use strict";
-    TERRITORY_COLLECTION = "territories";
+    init_collections();
     MAX_CHUNKS_PER_TERRITORY = 64;
     NAME_MIN = 3;
     NAME_MAX = 24;
@@ -91,6 +136,13 @@ var init_manager = __esm({
       findByOwnerId(ownerId) {
         return this.db.find(TERRITORY_COLLECTION, (doc) => doc.data.ownerId === ownerId)[0];
       }
+      /** Le territoire où ce playerId est propriétaire OU membre (rang quelconque). */
+      findByMemberId(playerId) {
+        return this.db.find(
+          TERRITORY_COLLECTION,
+          (doc) => doc.data.ownerId === playerId || doc.data.members.some((member) => member.playerId === playerId)
+        )[0];
+      }
       /** Ce joueur (pseudo) peut-il interagir/bâtir dans ce chunk ? */
       isAllowed(playerName, key) {
         const territory = this.findByChunk(key);
@@ -114,6 +166,52 @@ var init_manager = __esm({
       /** Sauvegarde immédiate de la DB sous-jacente. */
       save() {
         this.db.save();
+      }
+      /** Marque la DB dirty (mutations en place, cf. markDirty()). */
+      touch() {
+        this.db.markDirty();
+      }
+      // -------------------------------------------------------------------------
+      // Membres (v3)
+      // -------------------------------------------------------------------------
+      /** Ajoute un membre à un territoire. Renvoie une erreur si déjà membre. */
+      addMember(territoryId, playerId, playerName) {
+        const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+        if (territory === void 0) return { ok: false, error: "Territoire introuvable." };
+        if (territory.data.ownerId === playerId) return { ok: false, error: "C'est le propriétaire." };
+        if (territory.data.members.some((m) => m.playerId === playerId)) {
+          return { ok: false, error: `${playerName} fait déjà partie du territoire.` };
+        }
+        territory.data.members.push({ playerId, name: playerName, rank: "member" });
+        territory.updatedAt = Date.now();
+        this.touch();
+        this.db.save();
+        return { ok: true };
+      }
+      /** Retire un membre (par playerId) d'un territoire. */
+      removeMember(territoryId, playerId) {
+        const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+        if (territory === void 0) return { ok: false, error: "Territoire introuvable." };
+        const before = territory.data.members.length;
+        territory.data.members = territory.data.members.filter((m) => m.playerId !== playerId);
+        if (territory.data.members.length === before) return { ok: false, error: "Ce joueur n'est pas membre." };
+        territory.updatedAt = Date.now();
+        this.touch();
+        this.db.save();
+        return { ok: true };
+      }
+      /** Change le rang d'un membre ("member" ou "officer"). */
+      setMemberRank(territoryId, playerId, rank) {
+        const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+        if (territory === void 0) return { ok: false, error: "Territoire introuvable." };
+        const member = territory.data.members.find((m) => m.playerId === playerId);
+        if (member === void 0) return { ok: false, error: "Ce joueur n'est pas membre." };
+        if (member.rank === rank) return { ok: true };
+        member.rank = rank;
+        territory.updatedAt = Date.now();
+        this.touch();
+        this.db.save();
+        return { ok: true };
       }
       /**
        * Crée un territoire sur le chunk à la position donnée.
@@ -360,7 +458,7 @@ function kickPlayer(playerName, reason) {
     return false;
   }
 }
-function registerEnforcement(sanctions2, onChatReady) {
+function registerEnforcement(sanctions2) {
   world9.afterEvents.playerSpawn.subscribe((event) => {
     if (!event.initialSpawn || !sanctions2.loaded) return;
     const player = event.player;
@@ -373,20 +471,6 @@ function registerEnforcement(sanctions2, onChatReady) {
       kickPlayer(player.name, ban.reason);
     });
   });
-  world9.beforeEvents.chatSend.subscribe((event) => {
-    if (!sanctions2.loaded) return;
-    const mute = sanctions2.getMute(event.sender.name);
-    if (mute === void 0) return;
-    event.cancel = true;
-    const sender = event.sender;
-    const remaining = mute.expiresAt === 0 ? "permanent" : `${Math.max(1, Math.ceil((mute.expiresAt - Date.now()) / 6e4))} min`;
-    system10.run(() => {
-      sender.sendMessage(
-        `§c[Modération] Tu es muet (${remaining}). §7Motif : §f${mute.reason}§7 — par §f${mute.by}`
-      );
-    });
-  });
-  onChatReady?.();
 }
 var init_enforcement = __esm({
   "src/moderation/enforcement.ts"() {
@@ -395,10 +479,10 @@ var init_enforcement = __esm({
 });
 
 // src/main.ts
-import { world as world12, system as system15 } from "@minecraft/server";
+import { world as world13, system as system15 } from "@minecraft/server";
 
 // src/db/types.ts
-var DB_SCHEMA_VERSION = 2;
+var DB_SCHEMA_VERSION = 3;
 var DB_STORAGE_PARTITION = "openmontage_db";
 
 // src/db/storage.ts
@@ -411,11 +495,45 @@ function splitIntoChunks(payload) {
   return chunks;
 }
 
+// src/permissions/perms.ts
+var PERMS = {
+  // --- Territoires ---
+  "territories.create": "Créer / revendiquer un territoire",
+  // --- Modération ---
+  "mod.panel": "Ouvrir le panneau de modération",
+  "mod.kick": "Éjecter des joueurs",
+  "mod.ban": "Bannir et débannir",
+  "mod.mute": "Rendre muet / redonner la parole",
+  "mod.warn": "Avertir les joueurs",
+  "mod.history": "Consulter l'historique des sanctions",
+  // --- Chat / personnalisation ---
+  "chat.color": "Personnaliser la couleur de son nom",
+  "chat.prefix": "Personnaliser son prefix"
+};
+var ALL_PERM_IDS = Object.keys(PERMS);
+function isPermId(value) {
+  return Object.prototype.hasOwnProperty.call(PERMS, value);
+}
+function defaultPermsForLevel(level) {
+  const perms = ["territories.create", "chat.color", "chat.prefix"];
+  if (level >= 60) {
+    perms.push("mod.panel", "mod.kick", "mod.ban", "mod.mute", "mod.warn", "mod.history");
+  }
+  if (level >= 100) {
+    perms.push(...ALL_PERM_IDS.filter((id) => !perms.includes(id)));
+  }
+  return perms;
+}
+function vanillaOpColor() {
+  return "§c";
+}
+
 // src/db/migrations.ts
 function migrateDatabase(file) {
   const from = typeof file.schemaVersion === "number" ? file.schemaVersion : 0;
   if (from >= DB_SCHEMA_VERSION) return file;
   if (from < 2) migrateV1ToV2(file);
+  if (from < 3) migrateV2ToV3(file);
   file.schemaVersion = DB_SCHEMA_VERSION;
   return file;
 }
@@ -465,6 +583,31 @@ function migrateV1ToV2(file) {
       }
       if (!Array.isArray(data.members)) data.members = [];
     }
+  }
+}
+function migrateV2ToV3(file) {
+  const collections = file.collections ?? {};
+  for (const doc of collections["roles"] ?? []) {
+    const data = doc.data;
+    if (!Array.isArray(data["perms"])) {
+      const level = typeof data["level"] === "number" ? data["level"] : 0;
+      data["perms"] = defaultPermsForLevel(level);
+    }
+  }
+  for (const doc of collections["members"] ?? []) {
+    const data = doc.data;
+    if (typeof data["playerId"] !== "string") data["playerId"] = null;
+    if (typeof data["firstSeen"] !== "number") data["firstSeen"] = doc.createdAt;
+  }
+  for (const key of ["bans", "mutes", "warns"]) {
+    for (const doc of collections[key] ?? []) {
+      const data = doc.data;
+      if (typeof data["playerId"] !== "string") data["playerId"] = null;
+    }
+  }
+  for (const doc of collections["players_index"] ?? []) {
+    const data = doc.data;
+    if (typeof data["grade"] !== "string") data["grade"] = "";
   }
 }
 
@@ -544,6 +687,14 @@ var JsonDatabase = class {
     }
     this.dirty = false;
     return true;
+  }
+  /**
+   * Lève manuellement le flag "modifiée". À utiliser après une mutation
+   * EN PLACE d'un document (doc.data.x = y) récupéré via findOne()/find() :
+   * sans ça, save() croirait la base à jour et la persistance serait perdue.
+   */
+  markDirty() {
+    if (this.loaded) this.dirty = true;
   }
   /** Insère un document (id auto ou fourni) et le renvoie. Échoue si l'id existe. */
   insert(collection, data, id) {
@@ -689,6 +840,9 @@ function registerAutosave(db2, intervalTicks = 100) {
   return () => system.clearRun(runId);
 }
 
+// src/db/index.ts
+init_collections();
+
 // src/territories/index.ts
 init_types();
 init_manager();
@@ -698,39 +852,26 @@ import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, sy
 
 // src/db/menu.ts
 init_theme();
+init_collections();
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
-var COLLECTION_LABELS = {
-  players_index: "👥 Joueurs",
-  territories: "🚩 Territoires",
-  roles: "👑 Rôles",
-  members: "🎭 Grades attribués",
-  bans: "🔨 Bans",
-  mutes: "🔇 Mutes",
-  warns: "⚠️ Avertissements",
-  infractions: "📜 Infractions",
-  modules: "🧩 Modules"
-};
-var SECTION_ORDER = Object.keys(COLLECTION_LABELS);
-function labelOf(collection) {
-  return COLLECTION_LABELS[collection] ?? `📁 ${collection}`;
-}
-function listSections(db2) {
-  const stats = db2.stats();
-  const names = Object.keys(stats.collections).filter((name) => stats.collections[name] > 0);
-  return names.sort((a, b) => {
-    const ia = SECTION_ORDER.indexOf(a);
-    const ib = SECTION_ORDER.indexOf(b);
-    if (ia === -1 && ib === -1) return a.localeCompare(b);
-    if (ia === -1) return 1;
-    if (ib === -1) return -1;
-    return ia - ib;
-  });
-}
 function summarize(doc) {
   const data = doc.data ?? {};
-  const name = typeof data.name === "string" && data.name || typeof data.playerId === "string" && `id:${String(data.playerId).slice(0, 8)}` || doc.id;
-  const extra = typeof data.role === "string" ? ` (${data.role})` : typeof data.sessions === "number" ? ` · ${data.sessions} sessions` : typeof data.enabled === "boolean" ? data.enabled ? " · ON" : " · OFF" : "";
-  return `§f${name}§r§7${extra}`;
+  if (typeof data.name === "string" && data.name !== "") {
+    const extras = [];
+    if (typeof data.level === "number") extras.push(`niv. ${data.level}`);
+    if (typeof data.role === "string") extras.push(String(data.role));
+    if (typeof data.reason === "string") extras.push(String(data.reason).slice(0, 30));
+    if (typeof data.enabled === "boolean") extras.push(data.enabled ? "ON" : "OFF");
+    if (typeof data.grade === "string" && data.grade !== "") extras.push(`grade ${data.grade}`);
+    if (typeof data.sessions === "number") extras.push(`${data.sessions} sessions`);
+    if (Array.isArray(data.perms)) extras.push(`${data.perms.length} perms`);
+    if (Array.isArray(data.members)) extras.push(`${data.members.length} membres`);
+    return `§f${data.name}§r§7${extras.length > 0 ? ` — ${extras.join(" · ")}` : ""}`;
+  }
+  if (typeof data.playerId === "string" && data.playerId !== "") {
+    return `§fid:${String(data.playerId).slice(0, 12)}…§r§7${typeof data.name === "string" ? ` ${data.name}` : ""}`;
+  }
+  return `§f${doc.id}`;
 }
 async function openDbMenu(db2, player) {
   const stats = db2.stats();
@@ -741,11 +882,11 @@ async function openDbMenu(db2, player) {
 §7Choisis une section à explorer :`
   );
   for (const section2 of sections) {
-    form.button(`${labelOf(section2)}
+    form.button(`${collectionLabel(section2)}
 §8${stats.collections[section2]} doc(s)`, ICONS.iconSetting);
   }
   form.button("💾 Forcer la sauvegarde", ICONS.save);
-  form.button("§c« Retour", ICONS.iconImport);
+  form.button("§c« Fermer", ICONS.iconImport);
   const response = await form.show(player);
   if (response.canceled) return;
   if (response.selection === sections.length) {
@@ -755,11 +896,11 @@ async function openDbMenu(db2, player) {
   }
   if (response.selection === sections.length + 1) return;
   const section = sections[response.selection ?? 0];
-  await openSectionMenu(db2, player, section);
+  if (section !== void 0) await openSectionMenu(db2, player, section);
 }
 async function openSectionMenu(db2, player, section) {
   const docs = db2.find(section);
-  const form = new ActionFormData().title(`OpenMontage » ${labelOf(section)}`).body(`§7${docs.length} document(s) — clique pour inspecter/modifier :`);
+  const form = new ActionFormData().title(`OpenMontage » ${collectionLabel(section)}`).body(`§7${docs.length} document(s) — clique pour inspecter/modifier :`);
   for (const doc2 of docs) form.button(summarize(doc2));
   form.button("§c🗑 Vider la section", ICONS.trash);
   form.button("§7« Retour", ICONS.iconImport);
@@ -776,15 +917,16 @@ async function openSectionMenu(db2, player, section) {
     return;
   }
   const doc = docs[response.selection ?? 0];
-  await openDocumentMenu(db2, player, section, doc.id);
+  if (doc !== void 0) await openDocumentMenu(db2, player, section, doc.id);
 }
+var READONLY_KEYS = /* @__PURE__ */ new Set(["chunkKeys"]);
 async function openDocumentMenu(db2, player, section, docId) {
   const doc = db2.findOne(section, docId);
   if (doc === void 0) {
     player.sendMessage("§c[DB] Document introuvable (déjà supprimé ?).");
     return;
   }
-  const entries = Object.entries(doc.data).filter(([key]) => key !== "chunkKeys");
+  const entries = Object.entries(doc.data).filter(([key]) => !READONLY_KEYS.has(key));
   const form = new ModalFormData().title(`OpenMontage » ${docId}`);
   const editableKeys = [];
   const kinds = [];
@@ -798,8 +940,12 @@ async function openDocumentMenu(db2, player, section, docId) {
       form.textField(`§e${key} §7(nombre)`, String(value), { defaultValue: String(value) });
       editableKeys.push(key);
       kinds.push("number");
+    } else if (typeof value === "boolean") {
+      form.toggle(`§e${key}`, { defaultValue: value });
+      editableKeys.push(key);
+      kinds.push("boolean");
     } else {
-      readonlyLines.push(`§7${key}: §f${JSON.stringify(value)}`);
+      readonlyLines.push(`§7${key}: §f${summarizeValue(value)}`);
     }
   }
   form.label(`§7id: §f${docId}
@@ -812,14 +958,20 @@ ${readonlyLines.join("\n")}`);
   let changed = false;
   for (let i = 0; i < editableKeys.length; i++) {
     const key = editableKeys[i];
-    const raw = String(values[i] ?? "");
-    if (kinds[i] === "number") {
+    const raw = values[i];
+    const kind = kinds[i];
+    if (kind === "number") {
       const num = Number(raw);
       if (!Number.isNaN(num) && num !== doc.data[key]) {
         patch[key] = num;
         changed = true;
       }
-    } else if (raw !== doc.data[key]) {
+    } else if (kind === "boolean") {
+      if (Boolean(raw) !== doc.data[key]) {
+        patch[key] = Boolean(raw);
+        changed = true;
+      }
+    } else if (typeof raw === "string" && raw !== doc.data[key]) {
       patch[key] = raw;
       changed = true;
     }
@@ -832,6 +984,27 @@ ${readonlyLines.join("\n")}`);
     player.sendMessage("§7[DB] Aucun changement.");
   }
   await openSectionMenu(db2, player, section);
+}
+function summarizeValue(value) {
+  if (Array.isArray(value)) {
+    return `${value.length} élément(s) [${value.slice(0, 3).map((item) => typeof item === "object" ? JSON.stringify(item).slice(0, 40) : String(item)).join(", ")}${value.length > 3 ? ", …" : ""}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `${Object.keys(value).length} champ(s)`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+function listSections(db2) {
+  const stats = db2.stats();
+  const names = Object.keys(stats.collections).filter((name) => stats.collections[name] > 0);
+  return names.sort((a, b) => {
+    const ia = SECTION_ORDER.indexOf(a);
+    const ib = SECTION_ORDER.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
 }
 
 // node_modules/@bedrock-oss/bedrock-boost/dist/index.mjs
@@ -4359,8 +4532,12 @@ var log2 = Logger.getLogger("itemUtils", "bedrock-boost", "itemUtils");
 // src/territories/commands.ts
 init_types();
 init_ui();
-function registerCommands(manager, db2, modules2) {
+function registerCommands(manager, db2, modules2, permissions2) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
+  const allowed = (player, perm) => {
+    if (permissions2 === void 0) return true;
+    return permissions2.can(player.name, perm, player.playerPermissionLevel >= 2);
+  };
   system7.beforeEvents.startup.subscribe((event) => {
     event.customCommandRegistry.registerCommand(
       {
@@ -4376,6 +4553,9 @@ function registerCommands(manager, db2, modules2) {
         }
         if (!enabled()) {
           return { status: CustomCommandStatus.Failure, message: "Le module Territoires est désactivé." };
+        }
+        if (!allowed(player, "territories.create")) {
+          return { status: CustomCommandStatus.Failure, message: "§c[Territoires] Tu n'as pas la permission de créer un territoire." };
         }
         system7.run(() => openCreateMenu(player, manager));
         return { status: CustomCommandStatus.Success };
@@ -4422,6 +4602,8 @@ function registerCommands(manager, db2, modules2) {
           };
         }
         territory.data.color = color.id;
+        territory.updatedAt = Date.now();
+        db2?.markDirty();
         manager.save();
         return { status: CustomCommandStatus.Success, message: `Drapeau changé : ${color.code}■ ${color.id}` };
       }
@@ -4657,8 +4839,7 @@ function registerAnnouncer(manager, modules2, intervalTicks = 10) {
 init_ui();
 
 // src/permissions/manager.ts
-var ROLES_COLLECTION = "roles";
-var MEMBERS_COLLECTION = "members";
+init_collections();
 var ROLE_COLORS = [
   { id: "rouge", code: "§c" },
   { id: "vert", code: "§a" },
@@ -4702,7 +4883,7 @@ var PermissionManager = class {
     }
     this.db.insert(
       ROLES_COLLECTION,
-      { name: clean, color, prefix: `[${clean}]`, level },
+      { name: clean, color, prefix: `[${clean}]`, level, perms: defaultPermsForLevel(level) },
       clean
     );
     this.db.save();
@@ -4716,6 +4897,7 @@ var PermissionManager = class {
       this.db.delete(MEMBERS_COLLECTION, member.id);
     }
     this.db.delete(ROLES_COLLECTION, name);
+    this.touch();
     this.db.save();
     return { ok: true };
   }
@@ -4727,6 +4909,7 @@ var PermissionManager = class {
     if (color === void 0) return { ok: false, error: "Couleur inconnue." };
     role.data.color = color.code;
     role.updatedAt = Date.now();
+    this.touch();
     this.db.save();
     return { ok: true };
   }
@@ -4736,6 +4919,7 @@ var PermissionManager = class {
     if (role === void 0) return { ok: false, error: "Rôle introuvable." };
     role.data.prefix = prefix.trim();
     role.updatedAt = Date.now();
+    this.touch();
     this.db.save();
     return { ok: true };
   }
@@ -4745,6 +4929,44 @@ var PermissionManager = class {
     if (role === void 0) return { ok: false, error: "Rôle introuvable." };
     role.data.level = Math.max(0, Math.min(1e3, Math.floor(level)));
     role.updatedAt = Date.now();
+    this.touch();
+    this.db.save();
+    return { ok: true };
+  }
+  /**
+   * Remplace la liste des permissions explicites d'un rôle.
+   * Seuls les ids connus du catalogue sont retenus (garde-fou).
+   */
+  setRolePermissions(roleName, permIds) {
+    const role = this.getRole(roleName);
+    if (role === void 0) return { ok: false, error: "Rôle introuvable." };
+    const clean = permIds.filter((id) => isPermId(id));
+    role.data.perms = [...new Set(clean)];
+    role.updatedAt = Date.now();
+    this.touch();
+    this.db.save();
+    return { ok: true };
+  }
+  /** Ajoute une permission à un rôle (idempotent). */
+  grantPermission(roleName, permId) {
+    const role = this.getRole(roleName);
+    if (role === void 0) return { ok: false, error: "Rôle introuvable." };
+    if (role.data.perms.includes(permId)) return { ok: true };
+    role.data.perms.push(permId);
+    role.updatedAt = Date.now();
+    this.touch();
+    this.db.save();
+    return { ok: true };
+  }
+  /** Retire une permission explicite d'un rôle. */
+  revokePermission(roleName, permId) {
+    const role = this.getRole(roleName);
+    if (role === void 0) return { ok: false, error: "Rôle introuvable." };
+    const before = role.data.perms.length;
+    role.data.perms = role.data.perms.filter((id) => id !== permId);
+    if (role.data.perms.length === before) return { ok: true };
+    role.updatedAt = Date.now();
+    this.touch();
     this.db.save();
     return { ok: true };
   }
@@ -4754,30 +4976,54 @@ var PermissionManager = class {
   getMember(playerName) {
     return this.db.findOne(MEMBERS_COLLECTION, playerName);
   }
+  /** Le membre par id Bedrock (résolu au join). */
+  getMemberById(playerId) {
+    return this.db.find(MEMBERS_COLLECTION, (doc) => doc.data.playerId === playerId)[0];
+  }
+  /** Le membre par pseudo OU playerId (les deux sont cherchés). */
+  getMemberAny(playerName, playerId) {
+    if (playerId !== void 0) {
+      const byId = this.getMemberById(playerId);
+      if (byId !== void 0) return byId;
+    }
+    return this.getMember(playerName);
+  }
   allMembers() {
     return this.db.find(MEMBERS_COLLECTION);
   }
   membersWithRole(roleName) {
     return this.db.find(MEMBERS_COLLECTION, (doc) => doc.data.role === roleName);
   }
-  /** Attribue un rôle à un joueur (upsert). */
-  assignRole(playerName, roleName) {
+  /**
+   * Attribue un rôle à un joueur (upsert). `playerId` (id Bedrock) est
+   * stocké quand connu : identité stable même si le pseudo change.
+   */
+  assignRole(playerName, roleName, playerId) {
     if (this.getRole(roleName) === void 0) {
       return { ok: false, error: `Le rôle "${roleName}" n'existe pas.` };
     }
     const existing = this.getMember(playerName);
     if (existing === void 0) {
-      this.db.insert(MEMBERS_COLLECTION, { name: playerName, role: roleName }, playerName);
+      this.db.insert(
+        MEMBERS_COLLECTION,
+        { name: playerName, role: roleName, playerId: playerId ?? null, firstSeen: Date.now() },
+        playerName
+      );
     } else {
       existing.data.role = roleName;
+      existing.data.name = playerName;
+      if (playerId !== void 0) existing.data.playerId = playerId;
       existing.updatedAt = Date.now();
+      this.touch();
     }
     this.db.save();
     return { ok: true };
   }
   /** Retire le rôle d'un joueur. */
   removeRole(playerName) {
-    return this.db.delete(MEMBERS_COLLECTION, playerName);
+    const removed = this.db.delete(MEMBERS_COLLECTION, playerName);
+    if (removed) this.touch();
+    return removed;
   }
   /** Prefix personnalisé d'un joueur ("" pour réinitialiser). */
   setCustomPrefix(playerName, prefix) {
@@ -4785,6 +5031,7 @@ var PermissionManager = class {
     if (member === void 0) return { ok: false, error: "Ce joueur n'a pas de rôle." };
     member.data.customPrefix = prefix.trim() || void 0;
     member.updatedAt = Date.now();
+    this.touch();
     this.db.save();
     return { ok: true };
   }
@@ -4800,8 +5047,26 @@ var PermissionManager = class {
       member.data.customColor = color.code;
     }
     member.updatedAt = Date.now();
+    this.touch();
     this.db.save();
     return { ok: true };
+  }
+  // -------------------------------------------------------------------------
+  // Permissions
+  // -------------------------------------------------------------------------
+  /**
+   * Le porteur de ce rôle a-t-il la permission `permId` ?
+   * Sémantique additive : perms par défaut du niveau UNION perms explicites.
+   */
+  roleCan(role, permId) {
+    if (role.level >= 100) return true;
+    return defaultPermsForLevel(role.level).includes(permId) || role.perms.includes(permId);
+  }
+  /** Le joueur a-t-il la permission `permId` ? (opérateur vanilla = toujours oui) */
+  can(playerName, permId, isVanillaOp = false) {
+    if (isVanillaOp) return true;
+    const role = this.roleOf(playerName);
+    return role !== void 0 && this.roleCan(role.data, permId);
   }
   // -------------------------------------------------------------------------
   // Rendu visuel
@@ -4811,19 +5076,32 @@ var PermissionManager = class {
     const member = this.getMember(playerName);
     return member === void 0 ? void 0 : this.getRole(member.data.role);
   }
+  /** Rôle effectif par id Bedrock (résolu au join, plus fiable que le pseudo). */
+  roleOfId(playerId) {
+    const member = this.getMemberById(playerId);
+    return member === void 0 ? void 0 : this.getRole(member.data.role);
+  }
   /** Level effectif d'un joueur (0 si aucun rôle). */
   levelOf(playerName) {
     return this.roleOf(playerName)?.data.level ?? 0;
   }
   /** Le tag complet au-dessus du joueur : "§6[Admin] §fAymen". */
   nameTagFor(playerName) {
-    const member = this.getMember(playerName);
-    const role = this.roleOf(playerName);
+    const member = this.getMemberAny(playerName);
+    const role = this.roleOf(playerName) ?? (member !== void 0 ? this.getRole(member.data.role) : void 0);
     if (role === void 0) return `§f${playerName}`;
     const color = member?.data.customColor ?? role.data.color;
     const prefix = member?.data.customPrefix ?? role.data.prefix;
     const prefixPart = prefix === "" ? "" : `${color}${prefix} §r`;
     return `${prefixPart}${color}${playerName}`;
+  }
+  /**
+   * Marque la DB dirty après une MUTATION EN PLACE d'un document (role.data.x
+   * = y) : db.update() n'est pas passé par là, donc le flag ne serait pas
+   * levé et la sauvegarde écrirait l'ancien état. (Bug de perte de données.)
+   */
+  touch() {
+    this.db.markDirty();
   }
   // -------------------------------------------------------------------------
   // Bootstrap : premier admin automatique
@@ -4837,7 +5115,7 @@ var PermissionManager = class {
     if (this.getRole("Admin") === void 0) {
       this.db.insert(
         ROLES_COLLECTION,
-        { name: "Admin", color: "§c", prefix: "[Admin]", level: 100 },
+        { name: "Admin", color: "§c", prefix: "[Admin]", level: 100, perms: defaultPermsForLevel(100) },
         "Admin"
       );
     }
@@ -5067,7 +5345,7 @@ init_theme();
 import { ActionFormData as ActionFormData5, MessageFormData as MessageFormData2 } from "@minecraft/server-ui";
 
 // src/modules/manager.ts
-var MODULES_COLLECTION = "modules";
+init_collections();
 var MODULE_IDS = ["territories", "moderation"];
 var MODULE_CATALOG = [
   {
@@ -5184,12 +5462,10 @@ import { system as system11 } from "@minecraft/server";
 // src/moderation/ui.ts
 init_theme();
 import { ActionFormData as ActionFormData6, ModalFormData as ModalFormData5 } from "@minecraft/server-ui";
+import { world as world10 } from "@minecraft/server";
 
 // src/moderation/manager.ts
-var BANS_COLLECTION = "bans";
-var MUTES_COLLECTION = "mutes";
-var WARNS_COLLECTION = "warns";
-var INFRACTIONS_COLLECTION = "infractions";
+init_collections();
 function formatDuration(minutes) {
   if (minutes === 0) return "permanent";
   if (minutes < 60) return `${minutes} min`;
@@ -5220,15 +5496,16 @@ var SanctionsManager = class {
   // -------------------------------------------------------------------------
   // Bans
   // -------------------------------------------------------------------------
-  /** Banni un joueur. durationMinutes = 0 -> permanent. */
-  ban(name, by, reason, durationMinutes = 0) {
+  /** Banni un joueur. durationMinutes = 0 -> permanent. playerId = Player.id si connu. */
+  ban(name, by, reason, durationMinutes = 0, playerId) {
     if (name.trim() === "") return { ok: false, error: "Pseudo vide." };
     this.db.upsert(BANS_COLLECTION, name, {
       name,
       reason,
       by,
       at: Date.now(),
-      expiresAt: durationMinutes === 0 ? 0 : Date.now() + durationMinutes * 6e4
+      expiresAt: durationMinutes === 0 ? 0 : Date.now() + durationMinutes * 6e4,
+      playerId: playerId ?? null
     });
     this.db.save();
     this.log("ban", name, by, reason, durationMinutes);
@@ -5261,14 +5538,15 @@ var SanctionsManager = class {
   // -------------------------------------------------------------------------
   // Mutes
   // -------------------------------------------------------------------------
-  mute(name, by, reason, durationMinutes) {
+  mute(name, by, reason, durationMinutes, playerId) {
     if (name.trim() === "") return { ok: false, error: "Pseudo vide." };
     this.db.upsert(MUTES_COLLECTION, name, {
       name,
       reason,
       by,
       at: Date.now(),
-      expiresAt: durationMinutes === 0 ? 0 : Date.now() + durationMinutes * 6e4
+      expiresAt: durationMinutes === 0 ? 0 : Date.now() + durationMinutes * 6e4,
+      playerId: playerId ?? null
     });
     this.db.save();
     this.log("mute", name, by, reason, durationMinutes);
@@ -5301,9 +5579,9 @@ var SanctionsManager = class {
   // -------------------------------------------------------------------------
   // Warns
   // -------------------------------------------------------------------------
-  warn(name, by, reason) {
+  warn(name, by, reason, playerId) {
     if (name.trim() === "") return { ok: false, error: "Pseudo vide." };
-    this.db.insert(WARNS_COLLECTION, { name, reason, by, at: Date.now() });
+    this.db.insert(WARNS_COLLECTION, { name, reason, by, at: Date.now(), playerId: playerId ?? null });
     this.db.save();
     this.log("warn", name, by, reason);
     return { ok: true };
@@ -5337,6 +5615,12 @@ var SanctionsManager = class {
 };
 
 // src/moderation/ui.ts
+function resolveTargetId(player, targetName) {
+  const online = world10.getAllPlayers().find((candidate) => candidate.name === targetName);
+  if (online !== void 0) return online.id;
+  void player;
+  return null;
+}
 function openSanctionsMenu(player, sanctions2, permissions2) {
   const stats = sanctions2.stats();
   new ActionFormData6().title(windowTitle("Modération")).body(
@@ -5428,13 +5712,13 @@ function openSanctionForm(player, sanctions2) {
         if (ok) sanctions2.log("kick", target, player.name, reason);
       });
     } else if (typeIndex === 1) {
-      const result = sanctions2.ban(target, player.name, reason, minutes);
+      const result = sanctions2.ban(target, player.name, reason, minutes, resolveTargetId(player, target));
       player.sendMessage(result.ok ? `§a[Modération] ${target} banni (${formatDuration(minutes)}).` : `§c[Modération] ${result.error}`);
     } else if (typeIndex === 2) {
-      const result = sanctions2.mute(target, player.name, reason, minutes);
+      const result = sanctions2.mute(target, player.name, reason, minutes, resolveTargetId(player, target));
       player.sendMessage(result.ok ? `§a[Modération] ${target} muet (${formatDuration(minutes)}).` : `§c[Modération] ${result.error}`);
     } else {
-      const result = sanctions2.warn(target, player.name, reason);
+      const result = sanctions2.warn(target, player.name, reason, resolveTargetId(player, target));
       player.sendMessage(result.ok ? `§a[Modération] ${target} averti.` : `§c[Modération] ${result.error}`);
     }
   }).catch((error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`));
@@ -5462,8 +5746,10 @@ function openHistoryLookup(player, sanctions2) {
 // src/ui/hub.ts
 function openHubMenu(player, deps) {
   const { permissions: permissions2, modules: modules2, territories: territories2, sanctions: sanctions2 } = deps;
+  const isOp = player.playerPermissionLevel >= 2;
   const isAdmin = canUseAdminPanel(player, permissions2);
-  const isMod = permissions2.levelOf(player.name) >= 60 || player.playerPermissionLevel >= 2;
+  const isMod = permissions2.can(player.name, "mod.panel", isOp);
+  const canCreate = permissions2.can(player.name, "territories.create", isOp);
   const hasRole = permissions2.getMember(player.name) !== void 0;
   const form = new ActionFormData7().title(windowTitle("Menu")).body(
     `${divider()}
@@ -5471,10 +5757,17 @@ function openHubMenu(player, deps) {
 ` + (hasRole ? `§7Ton rôle : ${permissions2.nameTagFor(player.name)}§r
 ` : "") + divider()
   );
-  form.button(`🚩 §lTerritoires§r
+  if (canCreate) {
+    form.button(`🚩 §lTerritoires§r
 §7créer, lister, explorer`, ICONS.banner);
-  form.button(`🧭 §lMon rôle§r
+  } else {
+    form.button(`🚩 §lTerritoires§r
+§7lister, explorer`, ICONS.banner);
+  }
+  if (permissions2.can(player.name, "chat.color", isOp) || hasRole) {
+    form.button(`🧭 §lMon rôle§r
 §7couleur, prefix perso`, ICONS.compass);
+  }
   if (isMod) {
     form.button(`🛡 §lModération§r
 §7bans, mutes, warns`, ICONS.shield);
@@ -5492,7 +5785,9 @@ function openHubMenu(player, deps) {
     if (response.canceled || response.selection === void 0) return;
     const actions = [];
     actions.push(() => openTerritoriesMenu(player, territories2));
-    actions.push(() => openSelfRoleMenu(player, permissions2));
+    if (permissions2.can(player.name, "chat.color", isOp) || hasRole) {
+      actions.push(() => openSelfRoleMenu(player, permissions2));
+    }
     if (isMod) {
       actions.push(() => openSanctionsMenu(player, sanctions2, permissions2));
     }
@@ -5604,22 +5899,62 @@ function registerAdminCommands(ctx) {
 }
 
 // src/permissions/chat.ts
-import { world as world10, system as system13 } from "@minecraft/server";
+import { world as world11, system as system13 } from "@minecraft/server";
 function sanitizeMessage(raw) {
   return raw.replace(/\s+/g, " ").trim().slice(0, 256);
 }
-function formatChatMessage(nameTag, message) {
-  return `${nameTag}§r §7> §f${message}`;
+function gradeTagFor(permissions2, playerName, isVanillaOp) {
+  const member = permissions2.getMember(playerName);
+  const role = permissions2.roleOf(playerName);
+  if (role === void 0) {
+    return isVanillaOp ? `§8[ §r${vanillaOpColor()}Admin§r §8]§r` : "";
+  }
+  const color = member?.data.customColor ?? role.data.color;
+  const prefix = member?.data.customPrefix ?? role.data.prefix;
+  if (prefix === "") return "";
+  return `§8[ §r${color}${prefix}§r §8]§r`;
 }
-function registerChat(permissions2) {
-  world10.beforeEvents.chatSend.subscribe((event) => {
+function nameColorFor(permissions2, playerName, isVanillaOp) {
+  if (roleExists(permissions2, playerName)) {
+    const member = permissions2.getMember(playerName);
+    const role = permissions2.roleOf(playerName);
+    return member?.data.customColor ?? role?.data.color ?? "§f";
+  }
+  return isVanillaOp ? vanillaOpColor() : "§f";
+}
+function roleExists(permissions2, playerName) {
+  return permissions2.getMember(playerName) !== void 0;
+}
+function formatChatMessage(permissions2, playerName, message, isVanillaOp = false) {
+  const grade = gradeTagFor(permissions2, playerName, isVanillaOp);
+  const nameColor = nameColorFor(permissions2, playerName, isVanillaOp);
+  const space = grade === "" ? "" : " ";
+  return `${grade}${space}${nameColor}${playerName}§r §7> §f${message}`;
+}
+function registerChat(deps) {
+  const { permissions: permissions2, getMute } = deps;
+  world11.beforeEvents.chatSend.subscribe((event) => {
     if (!permissions2.loaded) return;
     const sender = event.sender;
-    const tag = permissions2.nameTagFor(sender.name);
+    const isVanillaOp = sender.playerPermissionLevel >= 2;
+    const mute = getMute?.(sender.name);
+    if (mute !== void 0) {
+      event.cancel = true;
+      const remaining = mute.expiresAt === 0 ? "permanent" : `${Math.max(1, Math.ceil((mute.expiresAt - Date.now()) / 6e4))} min`;
+      system13.run(() => {
+        sender.sendMessage(
+          `§c[Modération] Tu es muet (${remaining}). §7Motif : §f${mute.reason}§7 — par §f${mute.by}`
+        );
+      });
+      return;
+    }
     event.cancel = true;
     const message = sanitizeMessage(event.message);
+    const formatted = formatChatMessage(permissions2, sender.name, message, isVanillaOp);
     system13.run(() => {
-      world10.sendMessage(formatChatMessage(tag, message));
+      for (const line of formatted.split("\n")) {
+        world11.sendMessage(line);
+      }
     });
   });
 }
@@ -5634,181 +5969,11 @@ import {
   CommandPermissionLevel as CommandPermissionLevel3,
   system as system14
 } from "@minecraft/server";
-import { world as world11 } from "@minecraft/server";
+import { world as world12 } from "@minecraft/server";
 init_enforcement();
-function canModerate(player, permissions2) {
-  return permissions2.levelOf(player.name) >= 60 || player.playerPermissionLevel >= 2;
-}
-var DENIED = "§c[Modération] Niveau de rôle insuffisant (Modo requis).";
-var NOT_PLAYER = "§c[Modération] Réservé aux joueurs.";
-function notifyTarget(targetName, message) {
-  const target = world11.getAllPlayers().find((candidate) => candidate.name === targetName);
-  if (target !== void 0) system14.run(() => target.sendMessage(message));
-}
-function registerModerationCommands(deps) {
-  const { sanctions: sanctions2, permissions: permissions2 } = deps;
-  system14.beforeEvents.startup.subscribe((event) => {
-    const guardAndRun = (origin, action) => {
-      const player = origin.sourceEntity;
-      if (player === void 0 || player.typeId !== "minecraft:player") {
-        return { status: CustomCommandStatus3.Failure, message: NOT_PLAYER };
-      }
-      if (!canModerate(player, permissions2)) {
-        return { status: CustomCommandStatus3.Failure, message: DENIED };
-      }
-      system14.run(() => action(player));
-      return { status: CustomCommandStatus3.Success };
-    };
-    const stringParam = (name) => ({ name, type: CustomCommandParamType2.String });
-    event.customCommandRegistry.registerCommand(
-      {
-        name: "sn:mod",
-        description: "Panneau de modération (bans, mutes, warns)",
-        permissionLevel: CommandPermissionLevel3.Any,
-        cheatsRequired: false
-      },
-      (origin) => guardAndRun(origin, (player) => {
-        openSanctionsMenu(player, sanctions2, permissions2);
-      })
-    );
-    event.customCommandRegistry.registerCommand(
-      {
-        name: "sn:kick",
-        description: "Éjecte un joueur du monde",
-        permissionLevel: CommandPermissionLevel3.Any,
-        cheatsRequired: false,
-        mandatoryParameters: [stringParam("joueur"), stringParam("raison")]
-      },
-      (origin, target, reason) => guardAndRun(origin, (player) => {
-        if (target === player.name) {
-          player.sendMessage("§c[Modération] Tu ne peux pas te kick toi-même.");
-          return;
-        }
-        if (kickPlayer(target, reason)) {
-          player.sendMessage(`§a[Modération] ${target} éjecté. Raison : ${reason}`);
-          sanctions2.log("kick", target, player.name, reason);
-        } else {
-          player.sendMessage(`§c[Modération] ${target} n'est pas en ligne.`);
-        }
-      })
-    );
-    event.customCommandRegistry.registerCommand(
-      {
-        name: "sn:ban",
-        description: "Banni un joueur (durée en minutes, 0 = permanent)",
-        permissionLevel: CommandPermissionLevel3.Any,
-        cheatsRequired: false,
-        mandatoryParameters: [stringParam("joueur"), stringParam("raison")],
-        optionalParameters: [{ name: "duree_min", type: CustomCommandParamType2.Integer }]
-      },
-      (origin, target, reason, minutes) => guardAndRun(origin, (player) => {
-        const duration = minutes ?? 0;
-        const result = sanctions2.ban(target, player.name, reason, duration);
-        if (!result.ok) {
-          player.sendMessage(`§c[Modération] ${result.error}`);
-          return;
-        }
-        player.sendMessage(
-          `§a[Modération] ${target} banni (${formatDuration(duration)}). Raison : ${reason}`
-        );
-        notifyTarget(target, `§4[Modération] Tu es banni (${formatDuration(duration)}) : ${reason}`);
-        system14.run(() => kickPlayer(target, reason));
-      })
-    );
-    event.customCommandRegistry.registerCommand(
-      {
-        name: "sn:unban",
-        description: "Débanni un joueur",
-        permissionLevel: CommandPermissionLevel3.Any,
-        cheatsRequired: false,
-        mandatoryParameters: [stringParam("joueur")]
-      },
-      (origin, target) => guardAndRun(origin, (player) => {
-        const result = sanctions2.unban(target);
-        player.sendMessage(result.ok ? `§a[Modération] ${target} débanni.` : `§c[Modération] ${result.error}`);
-      })
-    );
-    event.customCommandRegistry.registerCommand(
-      {
-        name: "sn:mute",
-        description: "Rend muet un joueur (durée en minutes, 0 = permanent)",
-        permissionLevel: CommandPermissionLevel3.Any,
-        cheatsRequired: false,
-        mandatoryParameters: [stringParam("joueur"), { name: "duree_min", type: CustomCommandParamType2.Integer }],
-        optionalParameters: [stringParam("raison")]
-      },
-      (origin, target, minutes, reason) => guardAndRun(origin, (player) => {
-        const cleanReason = reason ?? "non spécifié";
-        const result = sanctions2.mute(target, player.name, cleanReason, minutes);
-        if (!result.ok) {
-          player.sendMessage(`§c[Modération] ${result.error}`);
-          return;
-        }
-        player.sendMessage(`§a[Modération] ${target} muet (${formatDuration(minutes)}).`);
-        notifyTarget(target, `§c[Modération] Tu es muet (${formatDuration(minutes)}) : ${cleanReason}`);
-      })
-    );
-    event.customCommandRegistry.registerCommand(
-      {
-        name: "sn:unmute",
-        description: "Rend la parole à un joueur muet",
-        permissionLevel: CommandPermissionLevel3.Any,
-        cheatsRequired: false,
-        mandatoryParameters: [stringParam("joueur")]
-      },
-      (origin, target) => guardAndRun(origin, (player) => {
-        const result = sanctions2.unmute(target);
-        player.sendMessage(result.ok ? `§a[Modération] ${target} peut parler.` : `§c[Modération] ${result.error}`);
-      })
-    );
-    event.customCommandRegistry.registerCommand(
-      {
-        name: "sn:warn",
-        description: "Avertit un joueur (historisé)",
-        permissionLevel: CommandPermissionLevel3.Any,
-        cheatsRequired: false,
-        mandatoryParameters: [stringParam("joueur"), stringParam("raison")]
-      },
-      (origin, target, reason) => guardAndRun(origin, (player) => {
-        const result = sanctions2.warn(target, player.name, reason);
-        if (!result.ok) {
-          player.sendMessage(`§c[Modération] ${result.error}`);
-          return;
-        }
-        const count = sanctions2.warnsOf(target).length;
-        player.sendMessage(`§a[Modération] ${target} averti (${count} warn(s) au total).`);
-        notifyTarget(target, `§6[Modération] ⚠ Avertissement (${count}) : ${reason}`);
-      })
-    );
-    event.customCommandRegistry.registerCommand(
-      {
-        name: "sn:history",
-        description: "Historique des sanctions d'un joueur",
-        permissionLevel: CommandPermissionLevel3.Any,
-        cheatsRequired: false,
-        mandatoryParameters: [stringParam("joueur")]
-      },
-      (origin, target) => guardAndRun(origin, (player) => {
-        const entries = sanctions2.historyOf(target, 10);
-        if (entries.length === 0) {
-          player.sendMessage(`§7[Modération] ${target} : casier vierge.`);
-          return;
-        }
-        player.sendMessage(`§6[Modération] Historique de ${target} :`);
-        for (const entry of entries) {
-          const date = new Date(entry.data.at);
-          const hh = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-          player.sendMessage(
-            `§7- §f${entry.data.kind} §7par §f${entry.data.by} §7— §f${entry.data.reason} §8(${hh})`
-          );
-        }
-      })
-    );
-  });
-}
 
 // src/players.ts
-var PLAYERS_COLLECTION = "players_index";
+init_collections();
 function findPlayerById(db2, playerId) {
   return db2.findOne(PLAYERS_COLLECTION, playerId);
 }
@@ -5856,6 +6021,197 @@ function trackPlayerJoin(db2, playerId, playerName, grade = "") {
   db2.save();
   return playerId;
 }
+function resolvePlayer(db2, playerName) {
+  return findPlayerByName(db2, playerName);
+}
+
+// src/moderation/commands.ts
+var NOT_PLAYER = "§c[Modération] Réservé aux joueurs.";
+function requires(player, permissions2, perm) {
+  return permissions2.can(player.name, perm, player.playerPermissionLevel >= 2);
+}
+function notifyTarget(targetName, message) {
+  const target = world12.getAllPlayers().find((candidate) => candidate.name === targetName);
+  if (target !== void 0) system14.run(() => target.sendMessage(message));
+}
+function resolveTargetId2(targetName, db2) {
+  const online = world12.getAllPlayers().find((candidate) => candidate.name === targetName);
+  if (online !== void 0) return online.id;
+  if (db2 !== void 0) return resolvePlayer(db2, targetName)?.data.playerId ?? null;
+  return null;
+}
+function registerModerationCommands(deps) {
+  const { sanctions: sanctions2, permissions: permissions2, db: db2 } = deps;
+  system14.beforeEvents.startup.subscribe((event) => {
+    const guardAndRun = (origin, action) => {
+      const player = origin.sourceEntity;
+      if (player === void 0 || player.typeId !== "minecraft:player") {
+        return { status: CustomCommandStatus3.Failure, message: NOT_PLAYER };
+      }
+      if (!requires(player, permissions2, "mod.panel")) {
+        return { status: CustomCommandStatus3.Failure, message: "§c[Modération] Permission manquante (mod.panel)." };
+      }
+      system14.run(() => action(player));
+      return { status: CustomCommandStatus3.Success };
+    };
+    const guardPerm = (origin, perm, action) => {
+      const player = origin.sourceEntity;
+      if (player === void 0 || player.typeId !== "minecraft:player") {
+        return { status: CustomCommandStatus3.Failure, message: NOT_PLAYER };
+      }
+      if (!requires(player, permissions2, perm)) {
+        return { status: CustomCommandStatus3.Failure, message: `§c[Modération] Permission manquante (${perm}).` };
+      }
+      system14.run(() => action(player));
+      return { status: CustomCommandStatus3.Success };
+    };
+    const stringParam = (name) => ({ name, type: CustomCommandParamType2.String });
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:mod",
+        description: "Panneau de modération (bans, mutes, warns)",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false
+      },
+      (origin) => guardAndRun(origin, (player) => {
+        openSanctionsMenu(player, sanctions2, permissions2);
+      })
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:kick",
+        description: "Éjecte un joueur du monde",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [stringParam("joueur"), stringParam("raison")]
+      },
+      (origin, target, reason) => guardPerm(origin, "mod.kick", (player) => {
+        if (target === player.name) {
+          player.sendMessage("§c[Modération] Tu ne peux pas te kick toi-même.");
+          return;
+        }
+        if (kickPlayer(target, reason)) {
+          player.sendMessage(`§a[Modération] ${target} éjecté. Raison : ${reason}`);
+          sanctions2.log("kick", target, player.name, reason);
+        } else {
+          player.sendMessage(`§c[Modération] ${target} n'est pas en ligne.`);
+        }
+      })
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:ban",
+        description: "Banni un joueur (durée en minutes, 0 = permanent)",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [stringParam("joueur"), stringParam("raison")],
+        optionalParameters: [{ name: "duree_min", type: CustomCommandParamType2.Integer }]
+      },
+      (origin, target, reason, minutes) => guardPerm(origin, "mod.ban", (player) => {
+        const duration = minutes ?? 0;
+        const result = sanctions2.ban(target, player.name, reason, duration, resolveTargetId2(target, db2));
+        if (!result.ok) {
+          player.sendMessage(`§c[Modération] ${result.error}`);
+          return;
+        }
+        player.sendMessage(
+          `§a[Modération] ${target} banni (${formatDuration(duration)}). Raison : ${reason}`
+        );
+        notifyTarget(target, `§4[Modération] Tu es banni (${formatDuration(duration)}) : ${reason}`);
+        system14.run(() => kickPlayer(target, reason));
+      })
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:unban",
+        description: "Débanni un joueur",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [stringParam("joueur")]
+      },
+      (origin, target) => guardPerm(origin, "mod.ban", (player) => {
+        const result = sanctions2.unban(target);
+        player.sendMessage(result.ok ? `§a[Modération] ${target} débanni.` : `§c[Modération] ${result.error}`);
+      })
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:mute",
+        description: "Rend muet un joueur (durée en minutes, 0 = permanent)",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [stringParam("joueur"), { name: "duree_min", type: CustomCommandParamType2.Integer }],
+        optionalParameters: [stringParam("raison")]
+      },
+      (origin, target, minutes, reason) => guardPerm(origin, "mod.mute", (player) => {
+        const cleanReason = reason ?? "non spécifié";
+        const result = sanctions2.mute(target, player.name, cleanReason, minutes, resolveTargetId2(target, db2));
+        if (!result.ok) {
+          player.sendMessage(`§c[Modération] ${result.error}`);
+          return;
+        }
+        player.sendMessage(`§a[Modération] ${target} muet (${formatDuration(minutes)}).`);
+        notifyTarget(target, `§c[Modération] Tu es muet (${formatDuration(minutes)}) : ${cleanReason}`);
+      })
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:unmute",
+        description: "Rend la parole à un joueur muet",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [stringParam("joueur")]
+      },
+      (origin, target) => guardPerm(origin, "mod.mute", (player) => {
+        const result = sanctions2.unmute(target);
+        player.sendMessage(result.ok ? `§a[Modération] ${target} peut parler.` : `§c[Modération] ${result.error}`);
+      })
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:warn",
+        description: "Avertit un joueur (historisé)",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [stringParam("joueur"), stringParam("raison")]
+      },
+      (origin, target, reason) => guardPerm(origin, "mod.warn", (player) => {
+        const result = sanctions2.warn(target, player.name, reason, resolveTargetId2(target, db2));
+        if (!result.ok) {
+          player.sendMessage(`§c[Modération] ${result.error}`);
+          return;
+        }
+        const count = sanctions2.warnsOf(target).length;
+        player.sendMessage(`§a[Modération] ${target} averti (${count} warn(s) au total).`);
+        notifyTarget(target, `§6[Modération] ⚠ Avertissement (${count}) : ${reason}`);
+      })
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:history",
+        description: "Historique des sanctions d'un joueur",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [stringParam("joueur")]
+      },
+      (origin, target) => guardPerm(origin, "mod.history", (player) => {
+        const entries = sanctions2.historyOf(target, 10);
+        if (entries.length === 0) {
+          player.sendMessage(`§7[Modération] ${target} : casier vierge.`);
+          return;
+        }
+        player.sendMessage(`§6[Modération] Historique de ${target} :`);
+        for (const entry of entries) {
+          const date = new Date(entry.data.at);
+          const hh = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+          player.sendMessage(
+            `§7- §f${entry.data.kind} §7par §f${entry.data.by} §7— §f${entry.data.reason} §8(${hh})`
+          );
+        }
+      })
+    );
+  });
+}
 
 // src/lib/log.ts
 var log3 = Logger.getLogger("OpenMontage");
@@ -5871,35 +6227,38 @@ var permissions = new PermissionManager(db);
 var modules = new ModuleManager(db);
 var territories = new TerritoryManager(db);
 var sanctions = new SanctionsManager(db);
-registerCommands(territories, db, modules);
+registerCommands(territories, db, modules, permissions);
 registerAdminCommands({ permissions, modules, territories, sanctions });
-registerModerationCommands({ sanctions, permissions });
+registerModerationCommands({ sanctions, permissions, db });
 var protectionRegistered = false;
 function applyNameTag(playerName) {
-  const player = world12.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world13.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return;
   try {
     player.nameTag = permissions.nameTagFor(playerName);
   } catch {
   }
 }
-world12.afterEvents.worldLoad.subscribe(() => {
+world13.afterEvents.worldLoad.subscribe(() => {
   Timings.begin("worldLoad");
   db.load();
   permissions.markLoaded();
   modules.markLoaded();
   territories.markLoaded();
   if (!permissions.hasAdmin()) {
-    const operator = world12.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+    const operator = world13.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
     if (operator !== void 0) {
       permissions.bootstrapAdmin(operator.name);
       log3.info(`Bootstrap : ${operator.name} est promu Admin.`);
     }
   }
-  for (const player of world12.getAllPlayers()) {
+  for (const player of world13.getAllPlayers()) {
     applyNameTag(player.name);
   }
-  registerChat(permissions);
+  registerChat({
+    permissions,
+    getMute: (playerName) => sanctions.getMute(playerName)
+  });
   registerEnforcement(sanctions);
   if (!protectionRegistered) {
     protectionRegistered = true;
@@ -5915,7 +6274,7 @@ world12.afterEvents.worldLoad.subscribe(() => {
 var worldReady = false;
 system15.runInterval(() => {
   if (worldReady) return;
-  if (world12.getAllPlayers().length === 0) return;
+  if (world13.getAllPlayers().length === 0) return;
   if (!territories.loaded) {
     db.load();
     permissions.markLoaded();
@@ -5923,10 +6282,10 @@ system15.runInterval(() => {
     territories.markLoaded();
     sanctions.markLoaded();
     if (!permissions.hasAdmin()) {
-      const operator = world12.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+      const operator = world13.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
       if (operator !== void 0) permissions.bootstrapAdmin(operator.name);
     }
-    for (const player of world12.getAllPlayers()) applyNameTag(player.name);
+    for (const player of world13.getAllPlayers()) applyNameTag(player.name);
   }
   if (!protectionRegistered) {
     protectionRegistered = true;
@@ -5936,17 +6295,31 @@ system15.runInterval(() => {
   }
   worldReady = true;
 }, 40);
-world12.afterEvents.playerSpawn.subscribe((event) => {
+world13.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
   const player = event.player;
   trackPlayerJoin(db, player.id, player.name, permissions.roleOf(player.name)?.data.name ?? "");
+  const member = permissions.getMember(player.name);
+  if (member !== void 0 && member.data.playerId !== player.id) {
+    member.data.playerId = player.id;
+    member.updatedAt = Date.now();
+    db.markDirty();
+  }
+  for (const collection of ["bans", "mutes"]) {
+    const doc = db.findOne(collection, player.name);
+    if (doc !== void 0 && doc.data.playerId !== player.id) {
+      doc.data.playerId = player.id;
+      doc.updatedAt = Date.now();
+      db.markDirty();
+    }
+  }
   applyNameTag(player.name);
   player.sendMessage("§a[OpenMontage]§r Bienvenue ! Menu principal : §f/sn:menu§r — territoire : §f/sn:create");
   player.onScreenDisplay.setTitle("§aOpenMontage §f✔");
 });
 system15.runInterval(() => {
   if (!permissions.loaded) return;
-  for (const player of world12.getAllPlayers()) {
+  for (const player of world13.getAllPlayers()) {
     applyNameTag(player.name);
   }
 }, 100);

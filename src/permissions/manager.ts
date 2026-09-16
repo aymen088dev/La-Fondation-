@@ -9,12 +9,13 @@
  */
 
 import type { JsonDatabase } from "../db/database";
+import { defaultPermsForLevel, isPermId } from "./perms";
+import type { PermId } from "./perms";
+
+import { ROLES_COLLECTION, MEMBERS_COLLECTION } from "../db/collections";
 
 /** Collection DB des rôles (id = nom du rôle, ex : "Admin"). */
-export const ROLES_COLLECTION = "roles";
-
-/** Collection DB des attributions (id = pseudo du joueur) — v2 : "members". */
-export const MEMBERS_COLLECTION = "members";
+export { ROLES_COLLECTION, MEMBERS_COLLECTION };
 
 /** Palette de couleurs disponibles pour les rôles. */
 export const ROLE_COLORS: { id: string; code: string }[] = [
@@ -40,6 +41,11 @@ export interface RoleData {
   prefix: string;
   /** Hiérarchie : 0 = joueur, 100 = admin max. */
   level: number;
+  /**
+   * Permissions explicites du rôle (v3). S'ajoutent aux permissions par
+   * défaut du niveau : un rôle joueur avec ["mod.ban"] peut bannir.
+   */
+  perms: PermId[];
 }
 
 export interface MemberData {
@@ -50,6 +56,10 @@ export interface MemberData {
   customPrefix?: string;
   /** Couleur personnalisée du nom, écrase celle du rôle si définie. */
   customColor?: string;
+  /** Player.id Bedrock (v3) : null tant que le joueur n'a pas rejoint. */
+  playerId: string | null;
+  /** Date d'attribution (v3). */
+  firstSeen: number;
 }
 
 export class PermissionManager {
@@ -86,7 +96,7 @@ export class PermissionManager {
 
     this.db.insert<RoleData>(
       ROLES_COLLECTION,
-      { name: clean, color, prefix: `[${clean}]`, level },
+      { name: clean, color, prefix: `[${clean}]`, level, perms: defaultPermsForLevel(level) },
       clean,
     );
     this.db.save();
@@ -105,6 +115,7 @@ export class PermissionManager {
       this.db.delete(MEMBERS_COLLECTION, member.id);
     }
     this.db.delete(ROLES_COLLECTION, name);
+    this.touch();
     this.db.save();
     return { ok: true };
   }
@@ -119,6 +130,7 @@ export class PermissionManager {
 
     role.data.color = color.code;
     role.updatedAt = Date.now();
+    this.touch();
     this.db.save();
     return { ok: true };
   }
@@ -130,6 +142,7 @@ export class PermissionManager {
 
     role.data.prefix = prefix.trim();
     role.updatedAt = Date.now();
+    this.touch();
     this.db.save();
     return { ok: true };
   }
@@ -141,6 +154,51 @@ export class PermissionManager {
 
     role.data.level = Math.max(0, Math.min(1000, Math.floor(level)));
     role.updatedAt = Date.now();
+    this.touch();
+    this.db.save();
+    return { ok: true };
+  }
+
+  /**
+   * Remplace la liste des permissions explicites d'un rôle.
+   * Seuls les ids connus du catalogue sont retenus (garde-fou).
+   */
+  setRolePermissions(roleName: string, permIds: string[]): { ok: boolean; error?: string } {
+    const role = this.getRole(roleName);
+    if (role === undefined) return { ok: false, error: "Rôle introuvable." };
+
+    const clean = permIds.filter((id): id is PermId => isPermId(id));
+    role.data.perms = [...new Set(clean)];
+    role.updatedAt = Date.now();
+    this.touch();
+    this.db.save();
+    return { ok: true };
+  }
+
+  /** Ajoute une permission à un rôle (idempotent). */
+  grantPermission(roleName: string, permId: PermId): { ok: boolean; error?: string } {
+    const role = this.getRole(roleName);
+    if (role === undefined) return { ok: false, error: "Rôle introuvable." };
+    if (role.data.perms.includes(permId)) return { ok: true };
+
+    role.data.perms.push(permId);
+    role.updatedAt = Date.now();
+    this.touch();
+    this.db.save();
+    return { ok: true };
+  }
+
+  /** Retire une permission explicite d'un rôle. */
+  revokePermission(roleName: string, permId: PermId): { ok: boolean; error?: string } {
+    const role = this.getRole(roleName);
+    if (role === undefined) return { ok: false, error: "Rôle introuvable." };
+
+    const before = role.data.perms.length;
+    role.data.perms = role.data.perms.filter((id) => id !== permId);
+    if (role.data.perms.length === before) return { ok: true };
+
+    role.updatedAt = Date.now();
+    this.touch();
     this.db.save();
     return { ok: true };
   }
@@ -153,6 +211,20 @@ export class PermissionManager {
     return this.db.findOne<MemberData>(MEMBERS_COLLECTION, playerName);
   }
 
+  /** Le membre par id Bedrock (résolu au join). */
+  getMemberById(playerId: string) {
+    return this.db.find<MemberData>(MEMBERS_COLLECTION, (doc) => doc.data.playerId === playerId)[0];
+  }
+
+  /** Le membre par pseudo OU playerId (les deux sont cherchés). */
+  getMemberAny(playerName: string, playerId?: string) {
+    if (playerId !== undefined) {
+      const byId = this.getMemberById(playerId);
+      if (byId !== undefined) return byId;
+    }
+    return this.getMember(playerName);
+  }
+
   allMembers() {
     return this.db.find<MemberData>(MEMBERS_COLLECTION);
   }
@@ -161,18 +233,28 @@ export class PermissionManager {
     return this.db.find<MemberData>(MEMBERS_COLLECTION, (doc) => doc.data.role === roleName);
   }
 
-  /** Attribue un rôle à un joueur (upsert). */
-  assignRole(playerName: string, roleName: string): { ok: boolean; error?: string } {
+  /**
+   * Attribue un rôle à un joueur (upsert). `playerId` (id Bedrock) est
+   * stocké quand connu : identité stable même si le pseudo change.
+   */
+  assignRole(playerName: string, roleName: string, playerId?: string): { ok: boolean; error?: string } {
     if (this.getRole(roleName) === undefined) {
       return { ok: false, error: `Le rôle "${roleName}" n'existe pas.` };
     }
 
     const existing = this.getMember(playerName);
     if (existing === undefined) {
-      this.db.insert<MemberData>(MEMBERS_COLLECTION, { name: playerName, role: roleName }, playerName);
+      this.db.insert<MemberData>(
+        MEMBERS_COLLECTION,
+        { name: playerName, role: roleName, playerId: playerId ?? null, firstSeen: Date.now() },
+        playerName,
+      );
     } else {
       existing.data.role = roleName;
+      existing.data.name = playerName;
+      if (playerId !== undefined) existing.data.playerId = playerId;
       existing.updatedAt = Date.now();
+      this.touch();
     }
     this.db.save();
     return { ok: true };
@@ -180,7 +262,9 @@ export class PermissionManager {
 
   /** Retire le rôle d'un joueur. */
   removeRole(playerName: string): boolean {
-    return this.db.delete(MEMBERS_COLLECTION, playerName);
+    const removed = this.db.delete(MEMBERS_COLLECTION, playerName);
+    if (removed) this.touch();
+    return removed;
   }
 
   /** Prefix personnalisé d'un joueur ("" pour réinitialiser). */
@@ -190,6 +274,7 @@ export class PermissionManager {
 
     member.data.customPrefix = prefix.trim() || undefined;
     member.updatedAt = Date.now();
+    this.touch();
     this.db.save();
     return { ok: true };
   }
@@ -207,8 +292,29 @@ export class PermissionManager {
       member.data.customColor = color.code;
     }
     member.updatedAt = Date.now();
+    this.touch();
     this.db.save();
     return { ok: true };
+  }
+
+  // -------------------------------------------------------------------------
+  // Permissions
+  // -------------------------------------------------------------------------
+
+  /**
+   * Le porteur de ce rôle a-t-il la permission `permId` ?
+   * Sémantique additive : perms par défaut du niveau UNION perms explicites.
+   */
+  roleCan(role: RoleData, permId: PermId): boolean {
+    if (role.level >= 100) return true; // Admin : tout
+    return defaultPermsForLevel(role.level).includes(permId) || role.perms.includes(permId);
+  }
+
+  /** Le joueur a-t-il la permission `permId` ? (opérateur vanilla = toujours oui) */
+  can(playerName: string, permId: PermId, isVanillaOp = false): boolean {
+    if (isVanillaOp) return true;
+    const role = this.roleOf(playerName);
+    return role !== undefined && this.roleCan(role.data, permId);
   }
 
   // -------------------------------------------------------------------------
@@ -221,6 +327,12 @@ export class PermissionManager {
     return member === undefined ? undefined : this.getRole(member.data.role);
   }
 
+  /** Rôle effectif par id Bedrock (résolu au join, plus fiable que le pseudo). */
+  roleOfId(playerId: string) {
+    const member = this.getMemberById(playerId);
+    return member === undefined ? undefined : this.getRole(member.data.role);
+  }
+
   /** Level effectif d'un joueur (0 si aucun rôle). */
   levelOf(playerName: string): number {
     return this.roleOf(playerName)?.data.level ?? 0;
@@ -228,8 +340,8 @@ export class PermissionManager {
 
   /** Le tag complet au-dessus du joueur : "§6[Admin] §fAymen". */
   nameTagFor(playerName: string): string {
-    const member = this.getMember(playerName);
-    const role = this.roleOf(playerName);
+    const member = this.getMemberAny(playerName);
+    const role = this.roleOf(playerName) ?? (member !== undefined ? this.getRole(member.data.role) : undefined);
 
     if (role === undefined) return `§f${playerName}`;
 
@@ -237,6 +349,18 @@ export class PermissionManager {
     const prefix = member?.data.customPrefix ?? role.data.prefix;
     const prefixPart = prefix === "" ? "" : `${color}${prefix} §r`;
     return `${prefixPart}${color}${playerName}`;
+  }
+
+  /**
+   * Marque la DB dirty après une MUTATION EN PLACE d'un document (role.data.x
+   * = y) : db.update() n'est pas passé par là, donc le flag ne serait pas
+   * levé et la sauvegarde écrirait l'ancien état. (Bug de perte de données.)
+   */
+  private touch(): void {
+    // Accès à l'API interne dirty via un save forcé différé serait coûteux :
+    // on passe par upsert sur le document concerné n'est pas faisable ici
+    // (pas d'id) — la DB expose donc markDirty() public.
+    this.db.markDirty();
   }
 
   // -------------------------------------------------------------------------
@@ -253,7 +377,7 @@ export class PermissionManager {
     if (this.getRole("Admin") === undefined) {
       this.db.insert<RoleData>(
         ROLES_COLLECTION,
-        { name: "Admin", color: "§c", prefix: "[Admin]", level: 100 },
+        { name: "Admin", color: "§c", prefix: "[Admin]", level: 100, perms: defaultPermsForLevel(100) },
         "Admin",
       );
     }

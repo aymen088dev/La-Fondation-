@@ -10,11 +10,9 @@
  */
 
 import type { JsonDatabase } from "../db/database";
+import { BANS_COLLECTION, MUTES_COLLECTION, WARNS_COLLECTION, INFRACTIONS_COLLECTION } from "../db/collections";
 
-export const BANS_COLLECTION = "bans";
-export const MUTES_COLLECTION = "mutes";
-export const WARNS_COLLECTION = "warns";
-export const INFRACTIONS_COLLECTION = "infractions";
+export { BANS_COLLECTION, MUTES_COLLECTION, WARNS_COLLECTION, INFRACTIONS_COLLECTION };
 
 export interface BanData {
   name: string;
@@ -23,6 +21,8 @@ export interface BanData {
   at: number;
   /** Timestamp d'expiration, ou 0 = permanent. */
   expiresAt: number;
+  /** Player.id Bedrock (v3) : null tant que non résolu (ban par pseudo). */
+  playerId: string | null;
 }
 
 export interface MuteData {
@@ -31,6 +31,8 @@ export interface MuteData {
   by: string;
   at: number;
   expiresAt: number;
+  /** Player.id Bedrock (v3) : null tant que non résolu. */
+  playerId: string | null;
 }
 
 export interface WarnData {
@@ -38,9 +40,18 @@ export interface WarnData {
   reason: string;
   by: string;
   at: number;
+  /** Player.id Bedrock (v3) : null tant que non résolu. */
+  playerId: string | null;
 }
 
 export type InfractionKind = "ban" | "unban" | "mute" | "unmute" | "warn" | "kick";
+
+/**
+ * Le playerId (Player.id Bedrock) est passé OPTIONNELLEMENT par les couches
+ * supérieures (commandes/GUI) qui ont accès à `world` — le manager reste
+ * pur et testable hors du jeu. La couche commandes résout via le joueur
+ * en ligne, ou via l'index joueurs (src/players.ts) pour un offline connu.
+ */
 
 export interface InfractionEntry {
   kind: InfractionKind;
@@ -90,8 +101,14 @@ export class SanctionsManager {
   // Bans
   // -------------------------------------------------------------------------
 
-  /** Banni un joueur. durationMinutes = 0 -> permanent. */
-  ban(name: string, by: string, reason: string, durationMinutes = 0): { ok: boolean; error?: string } {
+  /** Banni un joueur. durationMinutes = 0 -> permanent. playerId = Player.id si connu. */
+  ban(
+    name: string,
+    by: string,
+    reason: string,
+    durationMinutes = 0,
+    playerId?: string | null,
+  ): { ok: boolean; error?: string } {
     if (name.trim() === "") return { ok: false, error: "Pseudo vide." };
 
     this.db.upsert<BanData>(BANS_COLLECTION, name, {
@@ -100,6 +117,7 @@ export class SanctionsManager {
       by,
       at: Date.now(),
       expiresAt: durationMinutes === 0 ? 0 : Date.now() + durationMinutes * 60_000,
+      playerId: playerId ?? null,
     });
     this.db.save();
     this.log("ban", name, by, reason, durationMinutes);
@@ -140,7 +158,13 @@ export class SanctionsManager {
   // Mutes
   // -------------------------------------------------------------------------
 
-  mute(name: string, by: string, reason: string, durationMinutes: number): { ok: boolean; error?: string } {
+  mute(
+    name: string,
+    by: string,
+    reason: string,
+    durationMinutes: number,
+    playerId?: string | null,
+  ): { ok: boolean; error?: string } {
     if (name.trim() === "") return { ok: false, error: "Pseudo vide." };
 
     this.db.upsert<MuteData>(MUTES_COLLECTION, name, {
@@ -149,6 +173,7 @@ export class SanctionsManager {
       by,
       at: Date.now(),
       expiresAt: durationMinutes === 0 ? 0 : Date.now() + durationMinutes * 60_000,
+      playerId: playerId ?? null,
     });
     this.db.save();
     this.log("mute", name, by, reason, durationMinutes);
@@ -189,10 +214,10 @@ export class SanctionsManager {
   // Warns
   // -------------------------------------------------------------------------
 
-  warn(name: string, by: string, reason: string): { ok: boolean; error?: string } {
+  warn(name: string, by: string, reason: string, playerId?: string | null): { ok: boolean; error?: string } {
     if (name.trim() === "") return { ok: false, error: "Pseudo vide." };
 
-    this.db.insert<WarnData>(WARNS_COLLECTION, { name, reason, by, at: Date.now() });
+    this.db.insert<WarnData>(WARNS_COLLECTION, { name, reason, by, at: Date.now(), playerId: playerId ?? null });
     this.db.save();
     this.log("warn", name, by, reason);
     return { ok: true };

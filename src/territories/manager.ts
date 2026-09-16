@@ -1,8 +1,9 @@
 import type { JsonDatabase, StoredDocument } from "../db";
+import { TERRITORY_COLLECTION } from "../db/collections";
 import type { TerritoryData } from "./types";
 
 /** Collection DB des territoires. */
-export const TERRITORY_COLLECTION = "territories";
+export { TERRITORY_COLLECTION };
 
 /** Limite de chunks par territoire (extensible via /sn:claim à l'avenir). */
 export const MAX_CHUNKS_PER_TERRITORY = 64;
@@ -84,6 +85,16 @@ export class TerritoryManager {
     return this.db.find<TerritoryData>(TERRITORY_COLLECTION, (doc) => doc.data.ownerId === ownerId)[0];
   }
 
+  /** Le territoire où ce playerId est propriétaire OU membre (rang quelconque). */
+  findByMemberId(playerId: string): StoredDocument<TerritoryData> | undefined {
+    return this.db.find<TerritoryData>(
+      TERRITORY_COLLECTION,
+      (doc) =>
+        doc.data.ownerId === playerId ||
+        doc.data.members.some((member) => member.playerId === playerId),
+    )[0];
+  }
+
   /** Ce joueur (pseudo) peut-il interagir/bâtir dans ce chunk ? */
   isAllowed(playerName: string, key: string): boolean {
     const territory = this.findByChunk(key);
@@ -110,6 +121,62 @@ export class TerritoryManager {
   /** Sauvegarde immédiate de la DB sous-jacente. */
   save(): void {
     this.db.save();
+  }
+
+  /** Marque la DB dirty (mutations en place, cf. markDirty()). */
+  private touch(): void {
+    this.db.markDirty();
+  }
+
+  // -------------------------------------------------------------------------
+  // Membres (v3)
+  // -------------------------------------------------------------------------
+
+  /** Ajoute un membre à un territoire. Renvoie une erreur si déjà membre. */
+  addMember(territoryId: string, playerId: string, playerName: string): { ok: boolean; error?: string } {
+    const territory = this.db.findOne<TerritoryData>(TERRITORY_COLLECTION, territoryId);
+    if (territory === undefined) return { ok: false, error: "Territoire introuvable." };
+    if (territory.data.ownerId === playerId) return { ok: false, error: "C'est le propriétaire." };
+    if (territory.data.members.some((m) => m.playerId === playerId)) {
+      return { ok: false, error: `${playerName} fait déjà partie du territoire.` };
+    }
+
+    territory.data.members.push({ playerId, name: playerName, rank: "member" });
+    territory.updatedAt = Date.now();
+    this.touch();
+    this.db.save();
+    return { ok: true };
+  }
+
+  /** Retire un membre (par playerId) d'un territoire. */
+  removeMember(territoryId: string, playerId: string): { ok: boolean; error?: string } {
+    const territory = this.db.findOne<TerritoryData>(TERRITORY_COLLECTION, territoryId);
+    if (territory === undefined) return { ok: false, error: "Territoire introuvable." };
+
+    const before = territory.data.members.length;
+    territory.data.members = territory.data.members.filter((m) => m.playerId !== playerId);
+    if (territory.data.members.length === before) return { ok: false, error: "Ce joueur n'est pas membre." };
+
+    territory.updatedAt = Date.now();
+    this.touch();
+    this.db.save();
+    return { ok: true };
+  }
+
+  /** Change le rang d'un membre ("member" ou "officer"). */
+  setMemberRank(territoryId: string, playerId: string, rank: "member" | "officer"): { ok: boolean; error?: string } {
+    const territory = this.db.findOne<TerritoryData>(TERRITORY_COLLECTION, territoryId);
+    if (territory === undefined) return { ok: false, error: "Territoire introuvable." };
+
+    const member = territory.data.members.find((m) => m.playerId === playerId);
+    if (member === undefined) return { ok: false, error: "Ce joueur n'est pas membre." };
+    if (member.rank === rank) return { ok: true };
+
+    member.rank = rank;
+    territory.updatedAt = Date.now();
+    this.touch();
+    this.db.save();
+    return { ok: true };
   }
 
   /**

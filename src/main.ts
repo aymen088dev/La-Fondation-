@@ -42,9 +42,9 @@ const territories = new TerritoryManager(db);
 const sanctions = new SanctionsManager(db);
 
 // Les commandes /sn:* doivent être enregistrées au plus tôt (early execution)
-registerCommands(territories, db, modules);
+registerCommands(territories, db, modules, permissions);
 registerAdminCommands({ permissions, modules, territories, sanctions });
-registerModerationCommands({ sanctions, permissions });
+registerModerationCommands({ sanctions, permissions, db });
 
 let protectionRegistered = false;
 
@@ -82,10 +82,13 @@ world.afterEvents.worldLoad.subscribe(() => {
     applyNameTag(player.name);
   }
 
-  // Chat custom : prefix coloré du rôle sur chaque message
-  registerChat(permissions);
+  // Chat custom : [grade] nom > message + mute intégré (pipeline unique)
+  registerChat({
+    permissions,
+    getMute: (playerName) => sanctions.getMute(playerName),
+  });
 
-  // Sanctions : éjection des bannis au spawn + blocage des muets dans le chat
+  // Sanctions : éjection des bannis au spawn (mute = géré dans le chat)
   registerEnforcement(sanctions);
 
   if (!protectionRegistered) {
@@ -137,6 +140,23 @@ world.afterEvents.playerSpawn.subscribe((event) => {
 
   const player = event.player;
   trackPlayerJoin(db, player.id, player.name, permissions.roleOf(player.name)?.data.name ?? "");
+
+  // Résout les identités v3 : member (grade) + sanction par pseudo → Player.id
+  const member = permissions.getMember(player.name);
+  if (member !== undefined && member.data.playerId !== player.id) {
+    member.data.playerId = player.id;
+    member.updatedAt = Date.now();
+    db.markDirty();
+  }
+  for (const collection of ["bans", "mutes"] as const) {
+    const doc = db.findOne<{ playerId: string | null }>(collection, player.name);
+    if (doc !== undefined && doc.data.playerId !== player.id) {
+      doc.data.playerId = player.id;
+      doc.updatedAt = Date.now();
+      db.markDirty();
+    }
+  }
+
   applyNameTag(player.name);
 
   player.sendMessage("§a[OpenMontage]§r Bienvenue ! Menu principal : §f/sn:menu§r — territoire : §f/sn:create");

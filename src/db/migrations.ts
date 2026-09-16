@@ -8,9 +8,15 @@
  *      (identité stable par playerId, firstSeen/lastSeen)
  *    • territoires : ajout de ownerId / ownerName / members[]
  *      (owner conserve son rôle de compatibilité)
+ *  - v2 → v3 :
+ *    • rôles : ajout du champ perms[] (permissions explicites)
+ *    • members (grades) : ajout de playerId + firstSeen
+ *    • bans/mutes/warns : ajout de playerId (null tant que non résolu)
+ *    • players_index : ajout de grade (copie dénormalisée du rôle)
  */
 
 import { DB_SCHEMA_VERSION } from "./types";
+import { defaultPermsForLevel } from "../permissions/perms";
 import type { DatabaseFile, StoredDocument } from "./types";
 
 /** Un document brut, sans typage (contexte de migration). */
@@ -33,6 +39,7 @@ export function migrateDatabase(file: DatabaseFile): DatabaseFile {
 
   if (from >= DB_SCHEMA_VERSION) return file;
   if (from < 2) migrateV1ToV2(file);
+  if (from < 3) migrateV2ToV3(file);
 
   file.schemaVersion = DB_SCHEMA_VERSION;
   return file;
@@ -90,5 +97,40 @@ function migrateV1ToV2(file: DatabaseFile): void {
       }
       if (!Array.isArray(data.members)) data.members = [];
     }
+  }
+}
+
+/** Migration v2 → v3. */
+function migrateV2ToV3(file: DatabaseFile): void {
+  const collections = file.collections ?? {};
+
+  // 1. Rôles : perms[] par défaut selon le niveau.
+  for (const doc of collections["roles"] ?? []) {
+    const data = doc.data as Record<string, unknown>;
+    if (!Array.isArray(data["perms"])) {
+      const level = typeof data["level"] === "number" ? data["level"] : 0;
+      data["perms"] = defaultPermsForLevel(level);
+    }
+  }
+
+  // 2. members (grades) : playerId + firstSeen.
+  for (const doc of collections["members"] ?? []) {
+    const data = doc.data as Record<string, unknown>;
+    if (typeof data["playerId"] !== "string") data["playerId"] = null;
+    if (typeof data["firstSeen"] !== "number") data["firstSeen"] = doc.createdAt;
+  }
+
+  // 3. bans/mutes/warns : playerId (null tant que non résolu au join).
+  for (const key of ["bans", "mutes", "warns"]) {
+    for (const doc of collections[key] ?? []) {
+      const data = doc.data as Record<string, unknown>;
+      if (typeof data["playerId"] !== "string") data["playerId"] = null;
+    }
+  }
+
+  // 4. players_index : grade (copie dénormalisée).
+  for (const doc of collections["players_index"] ?? []) {
+    const data = doc.data as Record<string, unknown>;
+    if (typeof data["grade"] !== "string") data["grade"] = "";
   }
 }

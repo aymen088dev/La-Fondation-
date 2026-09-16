@@ -5,16 +5,28 @@ import { openDbMenu } from "../db/menu";
 import { ColorJSON } from "@bedrock-oss/bedrock-boost";
 import type { TerritoryManager } from "./manager";
 import type { ModuleManager } from "../modules/manager";
+import type { PermissionManager } from "../permissions/manager";
 import { TERRITORY_COLORS } from "./types";
 import { openCreateMenu, openTerritoriesMenu } from "./ui";
 
 /**
- * Enregistre les commandes custom /sn:create et /sn:info.
+ * Enregistre les commandes custom /sn:create, /sn:info, /sn:db etc.
  * À appeler dans system.beforeEvents.startup (early execution).
  */
-export function registerCommands(manager: TerritoryManager, db?: JsonDatabase, modules?: ModuleManager): void {
+export function registerCommands(
+  manager: TerritoryManager,
+  db?: JsonDatabase,
+  modules?: ModuleManager,
+  permissions?: PermissionManager,
+): void {
   /** Le module territoires est-il actif ? */
   const enabled = (): boolean => modules === undefined || modules.isEnabled("territories");
+
+  /** Permission fine (fallback permissif si pas de manager — compat tests). */
+  const allowed = (player: Player, perm: Parameters<PermissionManager["can"]>[1]): boolean => {
+    if (permissions === undefined) return true;
+    return permissions.can(player.name, perm, player.playerPermissionLevel >= 2);
+  };
 
   system.beforeEvents.startup.subscribe((event: StartupEvent) => {
     event.customCommandRegistry.registerCommand(
@@ -32,6 +44,9 @@ export function registerCommands(manager: TerritoryManager, db?: JsonDatabase, m
 
         if (!enabled()) {
           return { status: CustomCommandStatus.Failure, message: "Le module Territoires est désactivé." };
+        }
+        if (!allowed(player, "territories.create")) {
+          return { status: CustomCommandStatus.Failure, message: "§c[Territoires] Tu n'as pas la permission de créer un territoire." };
         }
 
         // Pas de menu depuis l'event de commande : on planifie en tick suivant.
@@ -87,6 +102,8 @@ export function registerCommands(manager: TerritoryManager, db?: JsonDatabase, m
         }
 
         territory.data.color = color.id;
+        territory.updatedAt = Date.now();
+        db?.markDirty();
         manager.save();
         return { status: CustomCommandStatus.Success, message: `Drapeau changé : ${color.code}■ ${color.id}` };
       },

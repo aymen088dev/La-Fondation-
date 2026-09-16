@@ -127,6 +127,15 @@ export class JsonDatabase {
     return true;
   }
 
+  /**
+   * Lève manuellement le flag "modifiée". À utiliser après une mutation
+   * EN PLACE d'un document (doc.data.x = y) récupéré via findOne()/find() :
+   * sans ça, save() croirait la base à jour et la persistance serait perdue.
+   */
+  markDirty(): void {
+    if (this.loaded) this.dirty = true;
+  }
+
   /** Insère un document (id auto ou fourni) et le renvoie. Échoue si l'id existe. */
   insert<T>(collection: string, data: T, id?: string): StoredDocument<T> {
     const now = Date.now();
