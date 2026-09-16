@@ -3,21 +3,21 @@
   "header": {
     "name": "Mon Behavior Pack",
     "description": "Behavior Pack avec Script API et UI - Minecraft 1.26.50",
-    "uuid": "7e3d8c91-2a64-4b7f-9c15-5e82f1a64073",
+    "uuid": "2915bab9-50f2-442e-a17a-4c8e9cd688fb",
     "version": [1, 0, 0],
     "min_engine_version": [1, 26, 50]
   },
   "modules": [
     {
       "type": "data",
-      "uuid": "c4a91f72-6d38-4e25-b801-9f5732d68416",
+      "uuid": "26515206-a5bb-473b-bd88-77820b6ef5a0",
       "version": [1, 0, 0]
     },
     {
       "type": "script",
       "language": "javascript",
       "entry": "scripts/main.js",
-      "uuid": "a8e27514-3c69-46f1-b902-57d41e683ca9",
+      "uuid": "b30a468a-b645-4f8d-a76c-ccdd5b0e7a30",
       "version": [1, 0, 0]
     }
   ],
