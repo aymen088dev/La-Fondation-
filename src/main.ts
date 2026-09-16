@@ -1,6 +1,6 @@
 import { world, system } from "@minecraft/server";
 import { createBedrockStorage, JsonDatabase, registerAutosave } from "./db";
-import { TerritoryManager, registerCommands, registerProtection } from "./territories";
+import { TerritoryManager, registerCommands, registerProtection, registerAnnouncer } from "./territories";
 import { PermissionManager, canUseAdminPanel, registerChat } from "./permissions";
 import { registerAdminCommands } from "./permissions/commands";
 import { ModuleManager } from "./modules";
@@ -89,6 +89,7 @@ world.afterEvents.worldLoad.subscribe(() => {
   if (!protectionRegistered) {
     protectionRegistered = true;
     registerProtection(territories, modules);
+    registerAnnouncer(territories, modules);
   }
 
   const stats = db.stats();
@@ -118,6 +119,7 @@ system.runInterval(() => {
   if (!protectionRegistered) {
     protectionRegistered = true;
     registerProtection(territories, modules);
+    registerAnnouncer(territories, modules);
     console.warn("[OpenMontage] Activation par fallback (worldLoad non reçu) : protection active.");
   }
   worldReady = true;

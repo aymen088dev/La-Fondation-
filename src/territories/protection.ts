@@ -119,7 +119,7 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
     }
   });
 
-  // 6. Combat : victime joueur dans un territoire ennemi OU entité protégée
+  // 6. Combat : la victime est-elle défendue par un territoire ?
   world.beforeEvents.entityHurt.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
 
@@ -128,14 +128,22 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
 
     const victim = event.hurtEntity;
 
-    // 6a. PvP : la victime est-elle dans un territoire dont l'attaquant n'est pas le proprio ?
+    // 6a. PvP : la victime est-elle dans un territoire ?
     if (victim.typeId === "minecraft:player") {
-      const key = chunkKeyFromPosition(victim.dimension.id, victim.location.x, victim.location.z);
-      const territory = manager.findByChunk(key);
-      if (territory !== undefined && territory.data.owner !== attacker.name) {
-        event.cancel = true;
-        attacker.sendMessage(DENY_COMBAT);
-      }
+      const victimKey = chunkKeyFromPosition(victim.dimension.id, victim.location.x, victim.location.z);
+      const territory = manager.findByChunk(victimKey);
+      if (territory === undefined) return; // chunk libre : PvP autorisé
+
+      // Autorisé si l'attaquant est le propriétaire du territoire
+      // (il peut frapper quiconque se trouve chez lui), ou s'il combat
+      // depuis son propre territoire (légitime défense depuis chez soi).
+      const attackerKey = chunkKeyFromPosition(attacker.dimension.id, attacker.location.x, attacker.location.z);
+      const attackerTerritory = manager.findByChunk(attackerKey);
+      if (territory.data.owner === attacker.name) return;
+      if (attackerTerritory !== undefined && attackerTerritory.data.owner === attacker.name) return;
+
+      event.cancel = true;
+      attacker.sendMessage(DENY_COMBAT);
       return;
     }
 
