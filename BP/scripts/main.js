@@ -242,7 +242,7 @@ var init_ui = __esm({
 });
 
 // src/main.ts
-import { world as world3, system as system5 } from "@minecraft/server";
+import { world as world4, system as system6 } from "@minecraft/server";
 
 // src/db/types.ts
 var DB_SCHEMA_VERSION = 1;
@@ -1288,6 +1288,21 @@ function registerAdminCommands(ctx) {
   });
 }
 
+// src/permissions/chat.ts
+import { world as world3, system as system5 } from "@minecraft/server";
+function registerChat(permissions2) {
+  world3.beforeEvents.chatSend.subscribe((event) => {
+    if (!permissions2.loaded) return;
+    const sender = event.sender;
+    const tag = permissions2.nameTagFor(sender.name);
+    event.cancel = true;
+    const message = event.message.replace(/\s+/g, " ").slice(0, 256);
+    system5.run(() => {
+      world3.sendMessage(`${tag}§r§7: §f${message}`);
+    });
+  });
+}
+
 // src/players.ts
 function trackPlayerJoin(db2, playerName) {
   const record = db2.findOne("players", playerName);
@@ -1307,28 +1322,29 @@ registerCommands(territories, db, modules);
 registerAdminCommands({ permissions, modules, territories });
 var protectionRegistered = false;
 function applyNameTag(playerName) {
-  const player = world3.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world4.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return;
   try {
     player.nameTag = permissions.nameTagFor(playerName);
   } catch {
   }
 }
-world3.afterEvents.worldLoad.subscribe(() => {
+world4.afterEvents.worldLoad.subscribe(() => {
   db.load();
   permissions.markLoaded();
   modules.markLoaded();
   territories.markLoaded();
   if (!permissions.hasAdmin()) {
-    const operator = world3.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+    const operator = world4.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
     if (operator !== void 0) {
       permissions.bootstrapAdmin(operator.name);
       console.log(`[OpenMontage] Bootstrap : ${operator.name} est promu Admin.`);
     }
   }
-  for (const player of world3.getAllPlayers()) {
+  for (const player of world4.getAllPlayers()) {
     applyNameTag(player.name);
   }
+  registerChat(permissions);
   if (!protectionRegistered) {
     protectionRegistered = true;
     registerProtection(territories, modules);
@@ -1339,19 +1355,19 @@ world3.afterEvents.worldLoad.subscribe(() => {
   );
 });
 var worldReady = false;
-system5.runInterval(() => {
+system6.runInterval(() => {
   if (worldReady) return;
-  if (world3.getAllPlayers().length === 0) return;
+  if (world4.getAllPlayers().length === 0) return;
   if (!territories.loaded) {
     db.load();
     permissions.markLoaded();
     modules.markLoaded();
     territories.markLoaded();
     if (!permissions.hasAdmin()) {
-      const operator = world3.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+      const operator = world4.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
       if (operator !== void 0) permissions.bootstrapAdmin(operator.name);
     }
-    for (const player of world3.getAllPlayers()) applyNameTag(player.name);
+    for (const player of world4.getAllPlayers()) applyNameTag(player.name);
   }
   if (!protectionRegistered) {
     protectionRegistered = true;
@@ -1360,7 +1376,7 @@ system5.runInterval(() => {
   }
   worldReady = true;
 }, 40);
-world3.afterEvents.playerSpawn.subscribe((event) => {
+world4.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
   const player = event.player;
   trackPlayerJoin(db, player.name);
@@ -1368,13 +1384,13 @@ world3.afterEvents.playerSpawn.subscribe((event) => {
   player.sendMessage("§a[OpenMontage]§r Bienvenue ! §f/sn:create§r pour un territoire, §f/sn:roles§r pour ton rôle.");
   player.onScreenDisplay.setTitle("§aOpenMontage §f✔");
 });
-system5.runInterval(() => {
+system6.runInterval(() => {
   if (!permissions.loaded) return;
-  for (const player of world3.getAllPlayers()) {
+  for (const player of world4.getAllPlayers()) {
     applyNameTag(player.name);
   }
 }, 100);
-system5.runInterval(() => {
+system6.runInterval(() => {
   const stats = db.stats();
   console.log(
     `[OpenMontage] DB : ${stats.documents} documents, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"}`

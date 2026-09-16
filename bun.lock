@@ -5,8 +5,8 @@
     "": {
       "name": "openmontage-bp-scripts",
       "devDependencies": {
-        "@minecraft/server": "2.9.0",
-        "@minecraft/server-ui": "2.1.0",
+        "@minecraft/server": "2.11.0-beta.1.26.50-preview.27",
+        "@minecraft/server-ui": "2.3.0-beta.1.26.50-preview.27",
         "@types/bun": "^1.4.2",
         "@types/node": "^22.10.0",
         "esbuild": "^0.25.0",
@@ -69,9 +69,9 @@
 
     "@minecraft/common": ["@minecraft/common@1.3.0", "", {}, "sha512-GLT8USFhvEyeTTFHZAgszbrnoT007hmXmK+aO4l+2A1up9/zwZ+4e8R8F0KcKrCWDjLEqkOJtPow0hQCcNJ++Q=="],
 
-    "@minecraft/server": ["@minecraft/server@2.9.0", "", { "peerDependencies": { "@minecraft/common": "^1.2.0", "@minecraft/vanilla-data": ">=1.20.70" } }, "sha512-tzPwJbcXs4H3daAy5v0KldOMUwgSr4cc5x6TpEvsr3Jto9XtvsBcNUVLVdni5NEZCizQ0mzBwnLCXgxyYpR91A=="],
+    "@minecraft/server": ["@minecraft/server@2.11.0-beta.1.26.50-preview.27", "", { "peerDependencies": { "@minecraft/common": "^1.2.0", "@minecraft/vanilla-data": ">=1.20.70 || 1.26.50-preview.27" } }, "sha512-3XodsSUOV+Xc9+b4hoE2zFoBGzUljQ28mOdPh9gSrih7kWOCR4yToCry3hvjz6u6yqVGxmVNz6G3jmz7kadgtQ=="],
 
-    "@minecraft/server-ui": ["@minecraft/server-ui@2.1.0", "", { "peerDependencies": { "@minecraft/common": "^1.0.0", "@minecraft/server": "^2.0.0" } }, "sha512-7zXyqK6HI62aH0RlfObLitBc7EldpoAH3AeC8JWOaI6CCNoCi2DG2U78ELdq+NrUIjvCE87Bix/I+hgXsQ5AdA=="],
+    "@minecraft/server-ui": ["@minecraft/server-ui@2.3.0-beta.1.26.50-preview.27", "", { "peerDependencies": { "@minecraft/common": "^1.0.0", "@minecraft/server": "^2.0.0 || ^2.11.0-beta.1.26.50-preview.27" } }, "sha512-6F6hyqPG3gLtvroKujdawOELONrfSNcN/Z0oxY2p0TmTog7BVsg/HYOdFsKI6CgegnxTv/yrKSG6DKbdM0lQGQ=="],
 
     "@minecraft/vanilla-data": ["@minecraft/vanilla-data@1.26.50", "", {}, "sha512-hh6W6JM7pUuNhfnrAI6d7KR7mTz4bgy5GVhc37Jj9oBI1zWqkFdVzhogGxplWUPTBl5b6ua7Q58gkQ6o1MtRtw=="],
 

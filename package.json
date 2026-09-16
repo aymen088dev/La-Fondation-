@@ -10,8 +10,8 @@
     "test": "bun test"
   },
   "devDependencies": {
-    "@minecraft/server": "2.9.0",
-    "@minecraft/server-ui": "2.1.0",
+    "@minecraft/server": "2.11.0-beta.1.26.50-preview.27",
+    "@minecraft/server-ui": "2.3.0-beta.1.26.50-preview.27",
     "@types/bun": "^1.4.2",
     "@types/node": "^22.10.0",
     "esbuild": "^0.25.0",

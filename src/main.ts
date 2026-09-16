@@ -1,7 +1,7 @@
 import { world, system } from "@minecraft/server";
 import { createBedrockStorage, JsonDatabase, registerAutosave } from "./db";
 import { TerritoryManager, registerCommands, registerProtection } from "./territories";
-import { PermissionManager, canUseAdminPanel } from "./permissions";
+import { PermissionManager, canUseAdminPanel, registerChat } from "./permissions";
 import { registerAdminCommands } from "./permissions/commands";
 import { ModuleManager } from "./modules";
 import { trackPlayerJoin } from "./players";
@@ -72,6 +72,9 @@ world.afterEvents.worldLoad.subscribe(() => {
   for (const player of world.getAllPlayers()) {
     applyNameTag(player.name);
   }
+
+  // Chat custom : prefix coloré du rôle sur chaque message
+  registerChat(permissions);
 
   if (!protectionRegistered) {
     protectionRegistered = true;
