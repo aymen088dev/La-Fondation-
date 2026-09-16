@@ -1,5 +1,5 @@
 // src/main.ts
-import { world as world3, system as system3 } from "@minecraft/server";
+import { world as world3, system as system4 } from "@minecraft/server";
 
 // src/db/types.ts
 var DB_SCHEMA_VERSION = 1;
@@ -294,6 +294,10 @@ var TerritoryManager = class {
   isProtected(key) {
     return this.findByChunk(key) !== void 0;
   }
+  /** Sauvegarde immédiate de la DB sous-jacente. */
+  save() {
+    this.db.save();
+  }
   /**
    * Crée un territoire sur le chunk à la position donnée.
    * Valide : nom, 1 territoire par joueur, chunk libre.
@@ -343,17 +347,19 @@ var TerritoryManager = class {
 };
 
 // src/territories/commands.ts
-import { CustomCommandStatus, CommandPermissionLevel, system as system2 } from "@minecraft/server";
+import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system2 } from "@minecraft/server";
 
 // src/territories/ui.ts
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 function openCreateMenu(player, manager) {
   const colorItems = TERRITORY_COLORS.map((color) => `${color.code}■ ${color.id}`);
-  new ModalFormData().title("Créer un territoire").header("Revendiquer ce chunk").textField("Nom du territoire (3-24 caractères)", "Ex : Forteresse du Nord").divider().label("Couleur du drapeau").dropdown("Couleur", colorItems, { defaultValueIndex: 0 }).submitButton("Revendiquer !").show(player).then((response) => {
+  new ModalFormData().title("Créer un territoire").textField("Nom du territoire (3-24 caractères)", "Ex : Forteresse du Nord").dropdown("Couleur du drapeau", colorItems, { defaultValueIndex: 0 }).submitButton("Revendiquer ce chunk !").show(player).then((response) => {
     if (response.canceled) return;
     const values = response.formValues ?? [];
-    const name = String(values[0] ?? "").trim();
-    const colorIndex = Number(values[1] ?? 0);
+    const strings = values.filter((value) => typeof value === "string");
+    const numbers = values.filter((value) => typeof value === "number");
+    const name = (strings[0] ?? "").trim();
+    const colorIndex = numbers[0] ?? 0;
     const color = TERRITORY_COLORS[colorIndex] ?? TERRITORY_COLORS[0];
     const result = manager.create(
       player.name,
@@ -418,7 +424,7 @@ function showTerritoryInfo(player, territory, manager) {
 }
 
 // src/territories/commands.ts
-function registerCommands(manager) {
+function registerCommands(manager, db2) {
   system2.beforeEvents.startup.subscribe((event) => {
     event.customCommandRegistry.registerCommand(
       {
@@ -452,34 +458,167 @@ function registerCommands(manager) {
         return { status: CustomCommandStatus.Success };
       }
     );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:setflag",
+        description: "Change la couleur du drapeau de ton territoire",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [{ name: "couleur", type: CustomCommandParamType.String }]
+      },
+      (origin, couleur) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        const territory = manager.findByOwner(player.name);
+        if (territory === void 0) {
+          return { status: CustomCommandStatus.Failure, message: "Tu ne possèdes pas de territoire (/sn:create)." };
+        }
+        const color = TERRITORY_COLORS.find((candidate) => candidate.id === couleur.toLowerCase());
+        if (color === void 0) {
+          return {
+            status: CustomCommandStatus.Failure,
+            message: `Couleur inconnue. Disponibles : ${TERRITORY_COLORS.map((candidate) => candidate.id).join(", ")}`
+          };
+        }
+        territory.data.color = color.id;
+        manager.save();
+        return { status: CustomCommandStatus.Success, message: `Drapeau changé : ${color.code}■ ${color.id}` };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:db",
+        description: "Consulte la base de données (admins)",
+        permissionLevel: CommandPermissionLevel.GameDirectors,
+        cheatsRequired: true,
+        mandatoryParameters: [{ name: "action", type: CustomCommandParamType.String }],
+        optionalParameters: [
+          { name: "arg1", type: CustomCommandParamType.String },
+          { name: "arg2", type: CustomCommandParamType.String }
+        ]
+      },
+      (_origin, action, arg1, arg2) => {
+        if (db2 === void 0) {
+          return { status: CustomCommandStatus.Failure, message: "DB indisponible." };
+        }
+        switch (action) {
+          case "stats": {
+            const stats = db2.stats();
+            const collections = Object.entries(stats.collections).map(([name, count]) => `${name}=${count}`).join(", ");
+            return {
+              status: CustomCommandStatus.Success,
+              message: `§a[DB] ${stats.documents} docs, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"} §7{${collections}}`
+            };
+          }
+          case "list": {
+            if (arg1 === void 0) {
+              return { status: CustomCommandStatus.Failure, message: "Usage : /sn:db list <collection>" };
+            }
+            const docs = db2.find(arg1);
+            if (docs.length === 0) {
+              return { status: CustomCommandStatus.Success, message: `§7[DB] Collection "${arg1}" vide ou inexistante.` };
+            }
+            const preview = docs.slice(0, 10).map((doc) => `§f${doc.id}§7(${Math.round(JSON.stringify(doc).length / 10 * 100) / 1e3}ko)`).join(", ");
+            return {
+              status: CustomCommandStatus.Success,
+              message: `§a[DB] ${docs.length} doc(s) dans "${arg1}" : ${preview}${docs.length > 10 ? " …" : ""}`
+            };
+          }
+          case "show": {
+            if (arg1 === void 0 || arg2 === void 0) {
+              return { status: CustomCommandStatus.Failure, message: "Usage : /sn:db show <collection> <id>" };
+            }
+            const doc = db2.findOne(arg1, arg2);
+            if (doc === void 0) {
+              return { status: CustomCommandStatus.Failure, message: `§c[DB] "${arg2}" introuvable dans "${arg1}".` };
+            }
+            return { status: CustomCommandStatus.Success, message: `§a[DB] ${JSON.stringify(doc)}` };
+          }
+          case "save": {
+            const wrote = db2.save(true);
+            return { status: CustomCommandStatus.Success, message: wrote ? "§a[DB] Sauvegardée." : "§7[DB] Rien à sauvegarder." };
+          }
+          default:
+            return {
+              status: CustomCommandStatus.Failure,
+              message: "Actions : stats, list <collection>, show <collection> <id>, save"
+            };
+        }
+      }
+    );
   });
 }
 
 // src/territories/protection.ts
-import { world as world2, GameMode, Player } from "@minecraft/server";
-var DENY_BREAK = "§c[Territoires] Ce chunk appartient à un autre joueur : destruction impossible.";
-var DENY_INTERACT = "§c[Territoires] Ce chunk est protégé : interaction impossible.";
+import { world as world2, system as system3, GameMode, Player } from "@minecraft/server";
+var DENY_BREAK = "§c[Territoires] Chunk protégé : destruction impossible.";
+var DENY_PLACE = "§c[Territoires] Chunk protégé : construction impossible.";
+var DENY_INTERACT = "§c[Territoires] Chunk protégé : interaction impossible.";
 var DENY_COMBAT = "§c[Territoires] Zone protégée : ce joueur ne peut pas être attaqué ici.";
+var DENY_ITEM = "§c[Territoires] Chunk protégé : objet inutilisable ici.";
 function isCreative(playerName) {
   const player = world2.getAllPlayers().find((candidate) => candidate.name === playerName);
   return player !== void 0 && player.getGameMode() === GameMode.Creative;
+}
+function isProtectedFor(block, playerName, manager) {
+  const key = chunkKeyFromPosition(block.dimension.id, block.location.x, block.location.z);
+  return !manager.isAllowed(playerName, key);
 }
 function registerProtection(manager) {
   world2.beforeEvents.playerBreakBlock.subscribe((event) => {
     if (!manager.loaded) return;
     const player = event.player;
     if (isCreative(player.name)) return;
-    const key = chunkKeyFromPosition(event.block.dimension.id, event.block.location.x, event.block.location.z);
-    if (!manager.isAllowed(player.name, key)) {
+    if (isProtectedFor(event.block, player.name, manager)) {
       event.cancel = true;
       player.sendMessage(DENY_BREAK);
     }
+  });
+  world2.afterEvents.playerPlaceBlock.subscribe((event) => {
+    if (!manager.loaded) return;
+    const player = event.player;
+    if (isCreative(player.name)) return;
+    const { block, dimension } = event;
+    const key = chunkKeyFromPosition(dimension.id, block.location.x, block.location.z);
+    if (manager.isAllowed(player.name, key)) return;
+    const location = block.location;
+    const x = Math.floor(location.x);
+    const y = Math.floor(location.y);
+    const z = Math.floor(location.z);
+    system3.run(() => {
+      try {
+        dimension.runCommand(`setblock ${x} ${y} ${z} air`);
+      } catch {
+      }
+    });
+    player.sendMessage(DENY_PLACE);
   });
   world2.beforeEvents.playerInteractWithBlock.subscribe((event) => {
     if (!manager.loaded) return;
     const player = event.player;
     if (isCreative(player.name)) return;
-    const key = chunkKeyFromPosition(event.block.dimension.id, event.block.location.x, event.block.location.z);
+    if (isProtectedFor(event.block, player.name, manager)) {
+      event.cancel = true;
+      player.sendMessage(DENY_INTERACT);
+    }
+  });
+  world2.beforeEvents.itemUse.subscribe((event) => {
+    if (!manager.loaded) return;
+    const player = event.source;
+    if (isCreative(player.name)) return;
+    const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
+    if (!manager.isAllowed(player.name, key)) {
+      event.cancel = true;
+      player.sendMessage(DENY_ITEM);
+    }
+  });
+  world2.beforeEvents.playerInteractWithEntity.subscribe((event) => {
+    if (!manager.loaded) return;
+    const player = event.player;
+    if (isCreative(player.name)) return;
+    const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
     if (!manager.isAllowed(player.name, key)) {
       event.cancel = true;
       player.sendMessage(DENY_INTERACT);
@@ -489,13 +628,20 @@ function registerProtection(manager) {
     if (!manager.loaded) return;
     const attacker = event.damageSource.damagingEntity;
     if (!(attacker instanceof Player)) return;
-    if (event.hurtEntity.typeId !== "minecraft:player") return;
     const victim = event.hurtEntity;
+    if (victim.typeId === "minecraft:player") {
+      const key2 = chunkKeyFromPosition(victim.dimension.id, victim.location.x, victim.location.z);
+      const territory = manager.findByChunk(key2);
+      if (territory !== void 0 && territory.data.owner !== attacker.name) {
+        event.cancel = true;
+        attacker.sendMessage(DENY_COMBAT);
+      }
+      return;
+    }
     const key = chunkKeyFromPosition(victim.dimension.id, victim.location.x, victim.location.z);
-    const territory = manager.findByChunk(key);
-    if (territory !== void 0 && territory.data.owner !== attacker.name) {
+    if (manager.isProtected(key)) {
       event.cancel = true;
-      attacker.sendMessage(DENY_COMBAT);
+      attacker.sendMessage("§c[Territoires] Chunk protégé : les créatures ici sont sous la protection du propriétaire.");
     }
   });
   world2.beforeEvents.explosion.subscribe((event) => {
@@ -528,7 +674,7 @@ function trackPlayerJoin(db2, playerName) {
 var db = new JsonDatabase(createBedrockStorage(), "openmontage");
 registerAutosave(db, 100);
 var territories = new TerritoryManager(db);
-registerCommands(territories);
+registerCommands(territories, db);
 var protectionRegistered = false;
 world3.afterEvents.worldLoad.subscribe(() => {
   db.load();
@@ -543,7 +689,7 @@ world3.afterEvents.worldLoad.subscribe(() => {
   );
 });
 var worldReady = false;
-system3.runInterval(() => {
+system4.runInterval(() => {
   if (worldReady) return;
   if (world3.getAllPlayers().length === 0) return;
   if (!territories.loaded) {
@@ -564,7 +710,7 @@ world3.afterEvents.playerSpawn.subscribe((event) => {
   player.sendMessage("§a[OpenMontage]§r Bienvenue ! Tape §f/sn:create§r pour revendiquer ce chunk.");
   player.onScreenDisplay.setTitle("§aOpenMontage §f✔");
 });
-system3.runInterval(() => {
+system4.runInterval(() => {
   const stats = db.stats();
   console.log(
     `[OpenMontage] DB : ${stats.documents} documents, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"}`

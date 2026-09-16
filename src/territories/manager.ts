@@ -90,6 +90,11 @@ export class TerritoryManager {
     return this.findByChunk(key) !== undefined;
   }
 
+  /** Sauvegarde immédiate de la DB sous-jacente. */
+  save(): void {
+    this.db.save();
+  }
+
   /**
    * Crée un territoire sur le chunk à la position donnée.
    * Valide : nom, 1 territoire par joueur, chunk libre.

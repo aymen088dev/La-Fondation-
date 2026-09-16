@@ -9,25 +9,32 @@ import type { TerritoryManager } from "./manager";
 /**
  * Menu de création (/sn:create) : nom + couleur de drapeau.
  * Le chunk du joueur est revendiqué à la validation.
+ *
+ * ⚠️ On n'utilise QUE des champs saisissables (textField, dropdown) :
+ * selon les versions, formValues indexe TOUS les contrôles (header,
+ * label, divider inclus) ce qui décalait les indices et causait
+ * l'erreur "nom entre 3 et 24 caractères" malgré un nom valide.
  */
 export function openCreateMenu(player: Player, manager: TerritoryManager): void {
   const colorItems = TERRITORY_COLORS.map((color) => `${color.code}■ ${color.id}`);
 
   new ModalFormData()
     .title("Créer un territoire")
-    .header("Revendiquer ce chunk")
     .textField("Nom du territoire (3-24 caractères)", "Ex : Forteresse du Nord")
-    .divider()
-    .label("Couleur du drapeau")
-    .dropdown("Couleur", colorItems, { defaultValueIndex: 0 })
-    .submitButton("Revendiquer !")
+    .dropdown("Couleur du drapeau", colorItems, { defaultValueIndex: 0 })
+    .submitButton("Revendiquer ce chunk !")
     .show(player)
     .then((response) => {
       if (response.canceled) return;
 
+      // Robuste : on retrouve les valeurs par leur TYPE, peu importe
+      // la façon dont le jeu indexe formValues.
       const values = response.formValues ?? [];
-      const name = String(values[0] ?? "").trim();
-      const colorIndex = Number(values[1] ?? 0);
+      const strings = values.filter((value): value is string => typeof value === "string");
+      const numbers = values.filter((value): value is number => typeof value === "number");
+
+      const name = (strings[0] ?? "").trim();
+      const colorIndex = numbers[0] ?? 0;
       const color = TERRITORY_COLORS[colorIndex] ?? TERRITORY_COLORS[0];
 
       const result = manager.create(

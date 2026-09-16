@@ -29,8 +29,9 @@ registerAutosave(db, 100);
 // ---------------------------------------------------------------------------
 const territories = new TerritoryManager(db);
 
-// Les commandes /sn:* doivent être enregistrées au plus tôt (early execution)
-registerCommands(territories);
+// Les commandes /sn:* doivent être enregistrées au plus tôt (early execution).
+// La DB est passée en référence : /sn:db la lira en direct (elle sera peuplée après worldLoad).
+registerCommands(territories, db);
 
 let protectionRegistered = false;
 
