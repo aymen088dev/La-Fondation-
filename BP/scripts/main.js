@@ -288,9 +288,9 @@ __export(enforcement_exports, {
   kickPlayer: () => kickPlayer,
   registerEnforcement: () => registerEnforcement
 });
-import { world as world3, system as system4 } from "@minecraft/server";
+import { world as world4, system as system5 } from "@minecraft/server";
 function kickPlayer(playerName, reason) {
-  const player = world3.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world4.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return false;
   try {
     player.runCommand(`kick "${playerName}" ${reason}`);
@@ -300,7 +300,7 @@ function kickPlayer(playerName, reason) {
   }
 }
 function registerEnforcement(sanctions2, onChatReady) {
-  world3.afterEvents.playerSpawn.subscribe((event) => {
+  world4.afterEvents.playerSpawn.subscribe((event) => {
     if (!event.initialSpawn || !sanctions2.loaded) return;
     const player = event.player;
     const ban = sanctions2.getBan(player.name);
@@ -308,18 +308,18 @@ function registerEnforcement(sanctions2, onChatReady) {
     const expiry = ban.expiresAt === 0 ? "§4BANNI PERMANENTLEMENT" : `§4BANNI§7 (encore ${Math.max(1, Math.ceil((ban.expiresAt - Date.now()) / 6e4))} min)`;
     player.sendMessage(`§c[Territoires/OpenMontage] ${expiry}
 §7Motif : §f${ban.reason}§7 — par §f${ban.by}`);
-    system4.run(() => {
+    system5.run(() => {
       kickPlayer(player.name, ban.reason);
     });
   });
-  world3.beforeEvents.chatSend.subscribe((event) => {
+  world4.beforeEvents.chatSend.subscribe((event) => {
     if (!sanctions2.loaded) return;
     const mute = sanctions2.getMute(event.sender.name);
     if (mute === void 0) return;
     event.cancel = true;
     const sender = event.sender;
     const remaining = mute.expiresAt === 0 ? "permanent" : `${Math.max(1, Math.ceil((mute.expiresAt - Date.now()) / 6e4))} min`;
-    system4.run(() => {
+    system5.run(() => {
       sender.sendMessage(
         `§c[Modération] Tu es muet (${remaining}). §7Motif : §f${mute.reason}§7 — par §f${mute.by}`
       );
@@ -334,7 +334,7 @@ var init_enforcement = __esm({
 });
 
 // src/main.ts
-import { world as world6, system as system9 } from "@minecraft/server";
+import { world as world7, system as system10 } from "@minecraft/server";
 
 // src/db/types.ts
 var DB_SCHEMA_VERSION = 1;
@@ -771,12 +771,15 @@ function registerProtection(manager, modules2) {
     if (!(attacker instanceof Player)) return;
     const victim = event.hurtEntity;
     if (victim.typeId === "minecraft:player") {
-      const key2 = chunkKeyFromPosition(victim.dimension.id, victim.location.x, victim.location.z);
-      const territory = manager.findByChunk(key2);
-      if (territory !== void 0 && territory.data.owner !== attacker.name) {
-        event.cancel = true;
-        attacker.sendMessage(DENY_COMBAT);
-      }
+      const victimKey = chunkKeyFromPosition(victim.dimension.id, victim.location.x, victim.location.z);
+      const territory = manager.findByChunk(victimKey);
+      if (territory === void 0) return;
+      const attackerKey = chunkKeyFromPosition(attacker.dimension.id, attacker.location.x, attacker.location.z);
+      const attackerTerritory = manager.findByChunk(attackerKey);
+      if (territory.data.owner === attacker.name) return;
+      if (attackerTerritory !== void 0 && attackerTerritory.data.owner === attacker.name) return;
+      event.cancel = true;
+      attacker.sendMessage(DENY_COMBAT);
       return;
     }
     const key = chunkKeyFromPosition(victim.dimension.id, victim.location.x, victim.location.z);
@@ -800,6 +803,39 @@ function registerProtection(manager, modules2) {
       }
     }
   });
+}
+
+// src/territories/announce.ts
+init_manager();
+init_types();
+import { system as system4, world as world3 } from "@minecraft/server";
+var NO_TERRITORY_MESSAGE = "§7Zone libre";
+function registerAnnouncer(manager, modules2, intervalTicks = 10) {
+  const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
+  const lastKeyByPlayer = /* @__PURE__ */ new Map();
+  world3.afterEvents.playerLeave.subscribe((event) => {
+    lastKeyByPlayer.delete(event.playerName);
+  });
+  system4.runInterval(() => {
+    if (!manager.loaded || !enabled()) return;
+    for (const player of world3.getAllPlayers()) {
+      const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
+      const previous = lastKeyByPlayer.get(player.name);
+      if (previous === key) continue;
+      lastKeyByPlayer.set(player.name, key);
+      const territory = manager.findByChunk(key);
+      if (territory === void 0) {
+        if (previous !== void 0 && manager.isProtected(previous)) {
+          player.onScreenDisplay.setActionBar(NO_TERRITORY_MESSAGE);
+        }
+        continue;
+      }
+      const color = getColor(territory.data.color).code;
+      player.onScreenDisplay.setActionBar(
+        `${color}⚑ ${territory.data.name}§r §7— territoire de §f${territory.data.owner}`
+      );
+    }
+  }, intervalTicks);
 }
 
 // src/territories/index.ts
@@ -1208,7 +1244,7 @@ function openAssignRoleMenu(player, targetName, permissions2) {
 
 // src/permissions/commands.ts
 init_theme();
-import { CustomCommandStatus as CustomCommandStatus2, CommandPermissionLevel as CommandPermissionLevel2, system as system6, PlayerPermissionLevel } from "@minecraft/server";
+import { CustomCommandStatus as CustomCommandStatus2, CommandPermissionLevel as CommandPermissionLevel2, system as system7, PlayerPermissionLevel } from "@minecraft/server";
 import { ActionFormData as ActionFormData7 } from "@minecraft/server-ui";
 
 // src/modules/ui.ts
@@ -1328,7 +1364,7 @@ Action irréversible !`).button2("§4SUPPRIMER TOUT").button1("§aAnnuler").show
 init_theme();
 init_ui();
 import { ActionFormData as ActionFormData6 } from "@minecraft/server-ui";
-import { system as system5 } from "@minecraft/server";
+import { system as system6 } from "@minecraft/server";
 
 // src/moderation/ui.ts
 init_theme();
@@ -1644,7 +1680,7 @@ function openHubMenu(player, deps) {
       actions.push(() => openModulesMenu(player, modules2, territories2));
     }
     const action = actions[response.selection];
-    if (action !== void 0) system5.run(() => action());
+    if (action !== void 0) system6.run(() => action());
   }).catch((error) => console.warn(`[Hub] ${error instanceof Error ? error.message : String(error)}`));
 }
 function openSelfRoleMenu(player, permissions2) {
@@ -1665,7 +1701,7 @@ function canUseAdminPanel(player, permissions2) {
   return permissions2.levelOf(player.name) >= 100 || player.playerPermissionLevel >= PlayerPermissionLevel.Operator;
 }
 function registerAdminCommands(ctx) {
-  system6.beforeEvents.startup.subscribe((event) => {
+  system7.beforeEvents.startup.subscribe((event) => {
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:roles",
@@ -1678,7 +1714,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system6.run(() => {
+        system7.run(() => {
           if (canUseAdminPanel(player, ctx.permissions)) {
             openRolesMenu(player, ctx.permissions);
             return;
@@ -1711,7 +1747,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system6.run(() => openHubMenu(player, ctx));
+        system7.run(() => openHubMenu(player, ctx));
         return { status: CustomCommandStatus2.Success };
       }
     );
@@ -1727,7 +1763,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system6.run(() => {
+        system7.run(() => {
           if (!canUseAdminPanel(player, ctx.permissions)) {
             player.sendMessage("§c[Admin] Il te faut le rôle Admin (ou être op).");
             return;
@@ -1746,16 +1782,16 @@ function registerAdminCommands(ctx) {
 }
 
 // src/permissions/chat.ts
-import { world as world4, system as system7 } from "@minecraft/server";
+import { world as world5, system as system8 } from "@minecraft/server";
 function registerChat(permissions2) {
-  world4.beforeEvents.chatSend.subscribe((event) => {
+  world5.beforeEvents.chatSend.subscribe((event) => {
     if (!permissions2.loaded) return;
     const sender = event.sender;
     const tag = permissions2.nameTagFor(sender.name);
     event.cancel = true;
     const message = event.message.replace(/\s+/g, " ").slice(0, 256);
-    system7.run(() => {
-      world4.sendMessage(`${tag}§r§7: §f${message}`);
+    system8.run(() => {
+      world5.sendMessage(`${tag}§r§7: §f${message}`);
     });
   });
 }
@@ -1768,9 +1804,9 @@ import {
   CustomCommandParamType as CustomCommandParamType2,
   CustomCommandStatus as CustomCommandStatus3,
   CommandPermissionLevel as CommandPermissionLevel3,
-  system as system8
+  system as system9
 } from "@minecraft/server";
-import { world as world5 } from "@minecraft/server";
+import { world as world6 } from "@minecraft/server";
 init_enforcement();
 function canModerate(player, permissions2) {
   return permissions2.levelOf(player.name) >= 60 || player.playerPermissionLevel >= 2;
@@ -1778,12 +1814,12 @@ function canModerate(player, permissions2) {
 var DENIED = "§c[Modération] Niveau de rôle insuffisant (Modo requis).";
 var NOT_PLAYER = "§c[Modération] Réservé aux joueurs.";
 function notifyTarget(targetName, message) {
-  const target = world5.getAllPlayers().find((candidate) => candidate.name === targetName);
-  if (target !== void 0) system8.run(() => target.sendMessage(message));
+  const target = world6.getAllPlayers().find((candidate) => candidate.name === targetName);
+  if (target !== void 0) system9.run(() => target.sendMessage(message));
 }
 function registerModerationCommands(deps) {
   const { sanctions: sanctions2, permissions: permissions2 } = deps;
-  system8.beforeEvents.startup.subscribe((event) => {
+  system9.beforeEvents.startup.subscribe((event) => {
     const guardAndRun = (origin, action) => {
       const player = origin.sourceEntity;
       if (player === void 0 || player.typeId !== "minecraft:player") {
@@ -1792,7 +1828,7 @@ function registerModerationCommands(deps) {
       if (!canModerate(player, permissions2)) {
         return { status: CustomCommandStatus3.Failure, message: DENIED };
       }
-      system8.run(() => action(player));
+      system9.run(() => action(player));
       return { status: CustomCommandStatus3.Success };
     };
     const stringParam = (name) => ({ name, type: CustomCommandParamType2.String });
@@ -1848,7 +1884,7 @@ function registerModerationCommands(deps) {
           `§a[Modération] ${target} banni (${formatDuration(duration)}). Raison : ${reason}`
         );
         notifyTarget(target, `§4[Modération] Tu es banni (${formatDuration(duration)}) : ${reason}`);
-        system8.run(() => kickPlayer(target, reason));
+        system9.run(() => kickPlayer(target, reason));
       })
     );
     event.customCommandRegistry.registerCommand(
@@ -1964,26 +2000,26 @@ registerAdminCommands({ permissions, modules, territories, sanctions });
 registerModerationCommands({ sanctions, permissions });
 var protectionRegistered = false;
 function applyNameTag(playerName) {
-  const player = world6.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world7.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return;
   try {
     player.nameTag = permissions.nameTagFor(playerName);
   } catch {
   }
 }
-world6.afterEvents.worldLoad.subscribe(() => {
+world7.afterEvents.worldLoad.subscribe(() => {
   db.load();
   permissions.markLoaded();
   modules.markLoaded();
   territories.markLoaded();
   if (!permissions.hasAdmin()) {
-    const operator = world6.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+    const operator = world7.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
     if (operator !== void 0) {
       permissions.bootstrapAdmin(operator.name);
       console.log(`[OpenMontage] Bootstrap : ${operator.name} est promu Admin.`);
     }
   }
-  for (const player of world6.getAllPlayers()) {
+  for (const player of world7.getAllPlayers()) {
     applyNameTag(player.name);
   }
   registerChat(permissions);
@@ -1991,6 +2027,7 @@ world6.afterEvents.worldLoad.subscribe(() => {
   if (!protectionRegistered) {
     protectionRegistered = true;
     registerProtection(territories, modules);
+    registerAnnouncer(territories, modules);
   }
   const stats = db.stats();
   console.log(
@@ -1998,28 +2035,29 @@ world6.afterEvents.worldLoad.subscribe(() => {
   );
 });
 var worldReady = false;
-system9.runInterval(() => {
+system10.runInterval(() => {
   if (worldReady) return;
-  if (world6.getAllPlayers().length === 0) return;
+  if (world7.getAllPlayers().length === 0) return;
   if (!territories.loaded) {
     db.load();
     permissions.markLoaded();
     modules.markLoaded();
     territories.markLoaded();
     if (!permissions.hasAdmin()) {
-      const operator = world6.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+      const operator = world7.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
       if (operator !== void 0) permissions.bootstrapAdmin(operator.name);
     }
-    for (const player of world6.getAllPlayers()) applyNameTag(player.name);
+    for (const player of world7.getAllPlayers()) applyNameTag(player.name);
   }
   if (!protectionRegistered) {
     protectionRegistered = true;
     registerProtection(territories, modules);
+    registerAnnouncer(territories, modules);
     console.warn("[OpenMontage] Activation par fallback (worldLoad non reçu) : protection active.");
   }
   worldReady = true;
 }, 40);
-world6.afterEvents.playerSpawn.subscribe((event) => {
+world7.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
   const player = event.player;
   trackPlayerJoin(db, player.name);
@@ -2027,13 +2065,13 @@ world6.afterEvents.playerSpawn.subscribe((event) => {
   player.sendMessage("§a[OpenMontage]§r Bienvenue ! Menu principal : §f/sn:menu§r — territoire : §f/sn:create");
   player.onScreenDisplay.setTitle("§aOpenMontage §f✔");
 });
-system9.runInterval(() => {
+system10.runInterval(() => {
   if (!permissions.loaded) return;
-  for (const player of world6.getAllPlayers()) {
+  for (const player of world7.getAllPlayers()) {
     applyNameTag(player.name);
   }
 }, 100);
-system9.runInterval(() => {
+system10.runInterval(() => {
   const stats = db.stats();
   console.log(
     `[OpenMontage] DB : ${stats.documents} documents, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"}`
