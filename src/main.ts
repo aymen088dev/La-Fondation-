@@ -1,5 +1,5 @@
 import { world, system } from "@minecraft/server";
-import { createBedrockStorage, JsonDatabase } from "./db";
+import { createBedrockStorage, JsonDatabase, registerAutosave } from "./db";
 
 /**
  * OpenMontage — point d'entrée du behavior pack (TypeScript).
@@ -9,6 +9,9 @@ import { createBedrockStorage, JsonDatabase } from "./db";
 // Base de données locale, persistée dans les Dynamic Properties du monde
 const db = new JsonDatabase(createBedrockStorage(), "openmontage");
 db.load();
+
+// Sauvegarde automatique toutes les 5 secondes, uniquement si la DB a changé
+registerAutosave(db, 100);
 
 interface PlayerRecord {
   name: string;
@@ -20,14 +23,13 @@ world.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
 
   const player = event.player;
-  const existing = db.findOne<PlayerRecord>("players", player.name);
+  const record = db.findOne<PlayerRecord>("players", player.name);
 
-  if (existing === undefined) {
-    db.insert<PlayerRecord>("players", { name: player.name, sessions: 1 }, player.name);
-  } else {
-    db.update<PlayerRecord>("players", player.name, { sessions: existing.data.sessions + 1 });
-  }
-  db.save();
+  // Insère le joueur ou incrémente son compteur de sessions
+  db.upsert<PlayerRecord>("players", player.name, {
+    name: player.name,
+    sessions: (record?.data.sessions ?? 0) + 1,
+  });
 
   player.sendMessage("§a[OpenMontage]§r Bienvenue ! Script TypeScript + DB locale chargés ✅");
 });
@@ -35,7 +37,9 @@ world.afterEvents.playerSpawn.subscribe((event) => {
 // Heartbeat : état de la DB toutes les 30 secondes (600 ticks)
 system.runInterval(() => {
   const stats = db.stats();
-  console.log(`[OpenMontage] DB locale : ${stats.documents} documents, ${stats.bytes} octets`);
+  console.log(
+    `[OpenMontage] DB : ${stats.documents} documents, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"}`,
+  );
 }, 600);
 
 // Exemple : détecter les blocs cassés

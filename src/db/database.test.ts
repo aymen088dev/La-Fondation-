@@ -49,6 +49,57 @@ describe("JsonDatabase", () => {
     expect(reloaded.stats().documents).toBe(1);
   });
 
+  it("refuse un id en double et gère upsert", () => {
+    const db = new JsonDatabase(new MemoryStorageAdapter(), "test");
+    db.load();
+
+    db.insert("players", { name: "Aymen", sessions: 1 }, "Aymen");
+    expect(() => db.insert("players", { name: "Autre" }, "Aymen")).toThrow();
+
+    // upsert : met à jour au lieu de doubler
+    const upserted = db.upsert("players", "Aymen", { name: "Aymen", sessions: 5 });
+    expect(upserted.data.sessions).toBe(5);
+    expect(db.count("players")).toBe(1);
+
+    // upsert : insère si absent
+    db.upsert("players", "Lina", { name: "Lina", sessions: 1 });
+    expect(db.count("players")).toBe(2);
+  });
+
+  it("ne sauvegarde que si la base a changé (dirty tracking)", () => {
+    const storage = new MemoryStorageAdapter();
+    const db = new JsonDatabase(storage, "test");
+    db.load();
+
+    expect(db.save()).toBe(false); // rien n'a changé
+    db.insert("players", { name: "Aymen" });
+    expect(db.stats().dirty).toBe(true);
+    expect(db.save()).toBe(true);
+    expect(db.stats().dirty).toBe(false);
+    expect(db.save()).toBe(false); // toujours à jour
+    expect(db.save(true)).toBe(true); // force = réécrit
+  });
+
+  it("count, clear et drop fonctionnent", () => {
+    const db = new JsonDatabase(new MemoryStorageAdapter(), "test");
+    db.load();
+
+    db.insert("scores", { player: "Aymen", points: 42 });
+    db.insert("scores", { player: "Lina", points: 99 });
+    db.insert("joueurs", { nom: "Aymen" });
+
+    expect(db.count("scores")).toBe(2);
+    expect(db.count<{ points: number }>("scores", (d) => d.data.points > 50)).toBe(1);
+
+    expect(db.clear("scores")).toBe(2);
+    expect(db.clear("scores")).toBe(0);
+    expect(db.count("scores")).toBe(0);
+
+    expect(db.drop("scores")).toBe(true);
+    expect(db.drop("scores")).toBe(false);
+    expect(db.stats().collections["scores"]).toBeUndefined();
+  });
+
   it("tolère une base vide ou corrompue au chargement", () => {
     const storage = new MemoryStorageAdapter();
     const db = new JsonDatabase(storage, "test");

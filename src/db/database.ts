@@ -12,6 +12,7 @@ export interface DatabaseStats {
   documents: number;
   bytes: number;
   savedAt: number;
+  dirty: boolean;
 }
 
 /**
@@ -24,10 +25,13 @@ export interface DatabaseStats {
  * db.insert("players", { name: "Aymen", sessions: 1 }, "Aymen");
  * db.save();
  * ```
- * Les écritures sont explicites (save) pour limiter les coûts de sérialisation.
+ *
+ * Les mutations marquent la base comme "dirty" ; save() n'écrit que si
+ * nécessaire (sauf force). Pour un jeu, combinez avec registerAutosave().
  */
 export class JsonDatabase {
   private file: DatabaseFile;
+  private dirty = false;
 
   constructor(
     private readonly storage: StorageAdapter,
@@ -62,6 +66,7 @@ export class JsonDatabase {
         savedAt: parsed.savedAt ?? 0,
         collections: parsed.collections,
       };
+      this.dirty = false;
     } catch (error) {
       console.warn(
         `[DB] Chargement impossible ("${this.name}") : ${error instanceof Error ? error.message : String(error)}`,
@@ -69,18 +74,44 @@ export class JsonDatabase {
     }
   }
 
-  /** Sérialise et écrit toute la base dans le stockage. */
-  save(): void {
+  /**
+   * Écrit la base dans le stockage si elle a été modifiée (ou si force).
+   * Renvoie true si une écriture a eu lieu.
+   */
+  save(force = false): boolean {
+    if (!this.dirty && !force) return false;
+
     this.file.savedAt = Date.now();
     this.storage.write(JSON.stringify(this.file));
+    this.dirty = false;
+    return true;
   }
 
-  /** Insère un document (id auto ou fourni) et le renvoie. */
+  /** Insère un document (id auto ou fourni) et le renvoie. Échoue si l'id existe. */
   insert<T>(collection: string, data: T, id?: string): StoredDocument<T> {
     const now = Date.now();
     const doc: StoredDocument<T> = { id: id ?? generateId(), createdAt: now, updatedAt: now, data };
+
+    if (this.findOne(collection, doc.id) !== undefined) {
+      throw new Error(`[DB] L'id "${doc.id}" existe déjà dans "${collection}" (utilisez upsert).`);
+    }
+
     this.ensureCollection<T>(collection).push(doc);
+    this.dirty = true;
     return doc;
+  }
+
+  /** Insère ou met à jour un document par identifiant (fusion pour la mise à jour). */
+  upsert<T>(collection: string, id: string, data: T): StoredDocument<T> {
+    const existing = this.findOne<T>(collection, id);
+    if (existing === undefined) {
+      return this.insert(collection, data, id);
+    }
+
+    existing.data = { ...existing.data, ...data };
+    existing.updatedAt = Date.now();
+    this.dirty = true;
+    return existing;
   }
 
   /** Renvoie les documents d'une collection, éventuellement filtrés (copie défensive). */
@@ -101,6 +132,7 @@ export class JsonDatabase {
 
     doc.data = { ...doc.data, ...patch };
     doc.updatedAt = Date.now();
+    this.dirty = true;
     return doc;
   }
 
@@ -111,6 +143,32 @@ export class JsonDatabase {
     if (index === -1) return false;
 
     docs.splice(index, 1);
+    this.dirty = true;
+    return true;
+  }
+
+  /** Nombre de documents, éventuellement filtrés. */
+  count<T>(collection: string, predicate?: (doc: StoredDocument<T>) => boolean): number {
+    return predicate ? this.find(collection, predicate).length : this.getCollection(collection).length;
+  }
+
+  /** Vide une collection. Renvoie le nombre de documents supprimés. */
+  clear(collection: string): number {
+    const docs = this.getCollection(collection);
+    const removed = docs.length;
+    if (removed > 0) {
+      this.file.collections[collection] = [];
+      this.dirty = true;
+    }
+    return removed;
+  }
+
+  /** Supprime entièrement une collection. Renvoie true si elle existait. */
+  drop(collection: string): boolean {
+    if (this.file.collections[collection] === undefined) return false;
+
+    delete this.file.collections[collection];
+    this.dirty = true;
     return true;
   }
 
@@ -127,6 +185,7 @@ export class JsonDatabase {
       documents,
       bytes: JSON.stringify(this.file).length,
       savedAt: this.file.savedAt,
+      dirty: this.dirty,
     };
   }
 
