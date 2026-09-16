@@ -7,7 +7,12 @@
  */
 
 import type { Player } from "@minecraft/server";
-import { CustomForm } from "@minecraft/server-ui";
+import {
+  CustomForm,
+  ObservableString,
+  ObservableNumber,
+  ObservableBoolean,
+} from "@minecraft/server-ui";
 import type { DataDrivenScreenClosedReason } from "@minecraft/server-ui";
 
 /** Identifiant du Resource Pack OpenMontage (header.name de RP/manifest.json).
@@ -102,11 +107,44 @@ export function divider(): string {
   return "§8─────────────────────";
 }
 
+// ---------------------------------------------------------------------------
+// Moteur DDUI (CustomForm, bêta server-ui 2.3) — la vraie UI custom.
+// Contrairement aux forms vanilla (ActionFormData...), les boutons ont des
+// CALLBACKS DIRECTS (pas d'indexation fragile par position), et le layout
+// est riche : headers, dividers, toggles, images du RP.
+// ---------------------------------------------------------------------------
+
+/** Texte lié ( champ éditable, label réactif). */
+export function obString(initial: string): ObservableString {
+  return new ObservableString(initial);
+}
+
+/** Nombre lié (slider, dropdown). */
+export function obNumber(initial: number): ObservableNumber {
+  return new ObservableNumber(initial);
+}
+
+/** Booléen lié (toggle). */
+export function obBool(initial: boolean): ObservableBoolean {
+  return new ObservableBoolean(initial);
+}
+
+/**
+ * Booléen lié avec callback au changement — pour les toggles DDUI dont
+ * l'effet doit être immédiat (ex : activer/désactiver un module).
+ */
+export function obToggle(
+  initial: boolean,
+  onChange: (value: boolean) => void,
+): ObservableBoolean {
+  const observable = new ObservableBoolean(initial);
+  observable.subscribe(onChange);
+  return observable;
+}
+
 /**
  * Ouvre une fenêtre DDUI (CustomForm) avec le titre OpenMontage et un
  * bouton de fermeture. Les composants sont ajoutés via le callback.
- * À préférer aux forms classiques pour les nouveaux menus : boutons à
- * callbacks directs, images du RP, bindings réactifs.
  */
 export async function openWindow(
   player: Player,
@@ -116,5 +154,16 @@ export async function openWindow(
   const form = new CustomForm(player, windowTitle(section));
   build(form);
   form.closeButton();
+  return form.show();
+}
+
+/** Fenêtre DDUI sans bouton fermer intégré (le menu gère ses retours). */
+export async function openWindowRaw(
+  player: Player,
+  title: string,
+  build: (form: CustomForm) => void,
+): Promise<DataDrivenScreenClosedReason> {
+  const form = new CustomForm(player, title);
+  build(form);
   return form.show();
 }

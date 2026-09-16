@@ -12,6 +12,13 @@ import type { JsonDatabase } from "../db/database";
 import { defaultPermsForLevel, isPermId } from "./perms";
 import type { PermId } from "./perms";
 
+/** Nom du rôle attribué à tous les nouveaux joueurs. */
+export const DEFAULT_ROLE_NAME = "Joueur";
+/** Couleur du rôle Joueur : gris foncé. */
+export const DEFAULT_ROLE_COLOR = "§8";
+/** Prefix du rôle Joueur. */
+export const DEFAULT_ROLE_PREFIX = "[Joueur]";
+
 import { ROLES_COLLECTION, MEMBERS_COLLECTION } from "../db/collections";
 
 /** Collection DB des rôles (id = nom du rôle, ex : "Admin"). */
@@ -234,6 +241,16 @@ export class PermissionManager {
   }
 
   /**
+   * Attribue le rôle par défaut [Joueur] si le joueur n'a AUCUN rôle.
+   * Utilisé à chaque join : tout le monde a au minimum ce rôle (gris).
+   */
+  ensureDefaultRole(playerName: string, playerId?: string): void {
+    if (this.getMember(playerName) !== undefined) return;
+    if (this.getRole(DEFAULT_ROLE_NAME) === undefined) return; // pas encore bootstrappé
+    this.assignRole(playerName, DEFAULT_ROLE_NAME, playerId);
+  }
+
+  /**
    * Attribue un rôle à un joueur (upsert). `playerId` (id Bedrock) est
    * stocké quand connu : identité stable même si le pseudo change.
    */
@@ -382,5 +399,33 @@ export class PermissionManager {
       );
     }
     this.assignRole(operatorName, "Admin");
+  }
+
+  /**
+   * Crée les rôles par défaut du monde s'ils n'existent pas :
+   * [Joueur] (gris foncé, niveau 0, tout le monde) et [Modo] (niveau 60).
+   * À appeler au worldLoad, avant la promotion du premier admin.
+   */
+  bootstrapDefaultRoles(): void {
+    if (this.getRole(DEFAULT_ROLE_NAME) === undefined) {
+      this.db.insert<RoleData>(
+        ROLES_COLLECTION,
+        {
+          name: DEFAULT_ROLE_NAME,
+          color: DEFAULT_ROLE_COLOR,
+          prefix: DEFAULT_ROLE_PREFIX,
+          level: 0,
+          perms: defaultPermsForLevel(0),
+        },
+        DEFAULT_ROLE_NAME,
+      );
+    }
+    if (this.getRole("Modo") === undefined) {
+      this.db.insert<RoleData>(
+        ROLES_COLLECTION,
+        { name: "Modo", color: "§9", prefix: "[Modo]", level: 60, perms: defaultPermsForLevel(60) },
+        "Modo",
+      );
+    }
   }
 }

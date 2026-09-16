@@ -1,6 +1,14 @@
-import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 import type { Player } from "@minecraft/server";
-import { windowTitle, ICONS } from "../ui/theme";
+import {
+  windowTitle,
+  divider,
+  ICONS,
+  RP_PACK_ID,
+  openWindow,
+  openWindowRaw,
+  obString,
+  obNumber,
+} from "../ui/theme";
 import { TERRITORY_COLORS, getColor } from "./types";
 import type { StoredDocument } from "../db";
 import type { TerritoryData } from "./types";
@@ -8,40 +16,38 @@ import { chunkCenter, formatDate } from "./manager";
 import type { TerritoryManager } from "./manager";
 
 /**
+ * Menus territoires — DDUI CustomForm (boutons à callbacks directs, plus
+ * d'indexation fragile par position dans formValues).
+ */
+
+/**
  * Menu de création (/sn:create) : nom + couleur de drapeau.
  * Le chunk du joueur est revendiqué à la validation.
- *
- * ⚠️ On n'utilise QUE des champs saisissables (textField, dropdown) :
- * selon les versions, formValues indexe TOUS les contrôles (header,
- * label, divider inclus) ce qui décalait les indices et causait
- * l'erreur "nom entre 3 et 24 caractères" malgré un nom valide.
  */
 export function openCreateMenu(player: Player, manager: TerritoryManager): void {
-  const colorItems = TERRITORY_COLORS.map((color) => `${color.code}■ ${color.id}`);
+  const name = obString("");
+  const colorIndex = obNumber(0);
 
-  new ModalFormData()
-    .title("Créer un territoire")
-    .textField("Nom du territoire (3-24 caractères)", "Ex : Forteresse du Nord")
-    .dropdown("Couleur du drapeau", colorItems, { defaultValueIndex: 0 })
-    .submitButton("Revendiquer ce chunk !")
-    .show(player)
-    .then((response) => {
-      if (response.canceled) return;
+  void openWindowRaw(player, windowTitle("Créer un territoire"), (form) => {
+    form.header(`§a■ §lRevendiquer ce chunk`);
+    form.label(`§7Tu es en §fx=${Math.floor(player.location.x)}§7, §fz=${Math.floor(player.location.z)}§7 (§f${player.dimension.id}§7).`);
+    form.divider();
 
-      // Robuste : on retrouve les valeurs par leur TYPE, peu importe
-      // la façon dont le jeu indexe formValues.
-      const values = response.formValues ?? [];
-      const strings = values.filter((value): value is string => typeof value === "string");
-      const numbers = values.filter((value): value is number => typeof value === "number");
-
-      const name = (strings[0] ?? "").trim();
-      const colorIndex = numbers[0] ?? 0;
-      const color = TERRITORY_COLORS[colorIndex] ?? TERRITORY_COLORS[0];
+    form.textField("§eNom du territoire (3-24 caractères)", name);
+    form.dropdown(
+      "§eCouleur du drapeau",
+      colorIndex,
+      TERRITORY_COLORS.map((color, value) => ({ label: `${color.code}■ ${color.id}`, value })),
+    );
+    form.divider();
+    form.button(`§a■ §lRevendiquer ce chunk !`, () => {
+      const cleanName = name.getData().trim().replace(/\s+/g, " ");
+      const color = TERRITORY_COLORS[colorIndex.getData()] ?? TERRITORY_COLORS[0];
 
       const result = manager.create(
         player.name,
-        name,
-        color.id,
+        cleanName,
+        color?.id ?? "rouge",
         player.dimension.id,
         player.location.x,
         player.location.z,
@@ -53,12 +59,13 @@ export function openCreateMenu(player: Player, manager: TerritoryManager): void 
         return;
       }
       player.sendMessage(
-        `§a[Territoires] Territoire §r${color.code}■ ${result.territory.data.name} §r§acrée ! Ce chunk est désormais sous ta bannière.`,
+        `§a[Territoires] Territoire §r${color?.code}■ ${result.territory.data.name} §r§acrée ! Ce chunk est sous ta bannière.`,
       );
-    })
-    .catch((error: unknown) => {
-      console.warn(`[Territoires] Erreur menu création : ${error instanceof Error ? error.message : String(error)}`);
     });
+    form.closeButton();
+  }).catch((error: unknown) =>
+    console.warn(`[Territoires] Erreur menu création : ${error instanceof Error ? error.message : String(error)}`),
+  );
 }
 
 /** Menu liste (/sn:info) : tous les territoires, cliquables. */
@@ -70,28 +77,20 @@ export function openTerritoriesMenu(player: Player, manager: TerritoryManager): 
     return;
   }
 
-  const form = new ActionFormData()
-    .title(windowTitle("Territoires"))
-    .body(`§7${territories.length} territoire(s) revendiqué(s). Clique pour voir les infos.`);
+  void openWindow(player, "Territoires", (form) => {
+    form.label(`§7${territories.length} territoire(s) revendiqué(s) :`);
+    form.divider();
 
-  for (const territory of territories) {
-    const color = getColor(territory.data.color);
-    form.button(`${color.code}■ ${territory.data.name}§r\n§7par ${territory.data.owner}`, ICONS.flag);
-  }
-  form.button("§4Fermer", ICONS.barrier);
-
-  form
-    .show(player)
-    .then((response) => {
-      if (response.canceled || response.selection === undefined) return;
-      if (response.selection >= territories.length) return; // bouton Fermer
-
-      const selected = territories[response.selection];
-      if (selected !== undefined) showTerritoryInfo(player, selected, manager);
-    })
-    .catch((error: unknown) => {
-      console.warn(`[Territoires] Erreur menu liste : ${error instanceof Error ? error.message : String(error)}`);
-    });
+    for (const territory of territories) {
+      const color = getColor(territory.data.color);
+      form.button(
+        `${color.code}■ ${territory.data.name}§r\n§7par ${territory.data.owner}`,
+        () => showTerritoryInfo(player, territory, manager),
+      );
+    }
+  }).catch((error: unknown) =>
+    console.warn(`[Territoires] Erreur menu liste : ${error instanceof Error ? error.message : String(error)}`),
+  );
 }
 
 /** Fiche détaillée d'un territoire, avec bouton Retour vers la liste. */
@@ -100,32 +99,47 @@ export function showTerritoryInfo(
   territory: StoredDocument<TerritoryData>,
   manager: TerritoryManager,
 ): void {
+  void manager;
   const data = territory.data;
   const color = getColor(data.color);
   const center = chunkCenter(data.chunkKeys[0] ?? "");
+  const isOwner = data.ownerId === player.id || data.owner === player.name;
 
-  const body = [
-    `§ePropriétaire : §f${data.owner}`,
-    `§eDrapeau : §r${color.code}■ ${color.id}`,
-    `§eCréé le : §f${formatDate(data.createdAt)}`,
-    `§eChunks contrôlés : §f${data.chunkKeys.length}`,
-    `§eZone : §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
-    "",
-    `§7Ce territoire est protégé : seuls le propriétaire`,
-    `§7peut y construire, y ouvrir des conteneurs ou y combattre.`,
-  ].join("\n");
+  void openWindowRaw(player, windowTitle(data.name), (form) => {
+    form.header(`${color.code}■ §l${data.name}`);
+    form.label(
+      [
+        `§ePropriétaire : §f${data.owner}${isOwner ? " §a(toi)" : ""}`,
+        `§eDrapeau : §r${color.code}■ ${color.id}`,
+        `§eCréé le : §f${formatDate(data.createdAt)}`,
+        `§eChunks contrôlés : §f${data.chunkKeys.length}`,
+        `§eZone : §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
+        `§eMembres : §f${data.members.length}`,
+      ].join("\n"),
+    );
+    form.divider();
+    form.label("§7Seuls le propriétaire et ses membres peuvent y construire, y ouvrir des conteneurs ou y combattre.");
 
-  new ActionFormData()
-    .title(windowTitle(data.name))
-    .body(body)
-    .button("§fRetour à la liste", ICONS.arrow)
-    .button("§4Fermer", ICONS.barrier)
-    .show(player)
-    .then((response) => {
-      if (response.canceled || response.selection === undefined) return;
-      if (response.selection === 0) openTerritoriesMenu(player, manager);
-    })
-    .catch((error: unknown) => {
-      console.warn(`[Territoires] Erreur fiche territoire : ${error instanceof Error ? error.message : String(error)}`);
-    });
+    if (isOwner) {
+      form.spacer();
+      form.button(`§6■ Changer le drapeau (/sn:setflag)`, () => {
+        player.sendMessage(
+          `§7[Territoires] Couleurs : ${TERRITORY_COLORS.map((c) => `${c.code}${c.id}`).join("§7, ")}`,
+        );
+      });
+      form.button(`§c■ Supprimer ce territoire`, () => {
+        const ok = manager.remove(data.name, player.name);
+        player.sendMessage(
+          ok
+            ? `§a[Territoires] ${data.name} supprimé.`
+            : "§c[Territoires] Suppression impossible.",
+        );
+      });
+    }
+  }).catch((error: unknown) =>
+    console.warn(`[Territoires] Erreur fiche territoire : ${error instanceof Error ? error.message : String(error)}`),
+  );
 }
+
+// Ré-exports pour compat.
+export { windowTitle, divider, ICONS, RP_PACK_ID };

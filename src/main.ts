@@ -43,7 +43,7 @@ const sanctions = new SanctionsManager(db);
 
 // Les commandes /sn:* doivent être enregistrées au plus tôt (early execution)
 registerCommands(territories, db, modules, permissions);
-registerAdminCommands({ permissions, modules, territories, sanctions });
+registerAdminCommands({ permissions, modules, territories, sanctions, db });
 registerModerationCommands({ sanctions, permissions, db });
 
 let protectionRegistered = false;
@@ -68,13 +68,20 @@ world.afterEvents.worldLoad.subscribe(() => {
   modules.markLoaded();
   territories.markLoaded();
 
-  // Bootstrap admin : le premier opérateur vanilla devient Admin si aucun admin n'existe
+  // Rôles par défaut ([Joueur], [Modo]) puis bootstrap admin :
+  // le premier opérateur vanilla devient Admin si aucun admin n'existe
+  permissions.bootstrapDefaultRoles();
   if (!permissions.hasAdmin()) {
     const operator = world.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
     if (operator !== undefined) {
       permissions.bootstrapAdmin(operator.name);
       log.info(`Bootstrap : ${operator.name} est promu Admin.`);
     }
+  }
+
+  // Tout joueur déjà connecté sans rôle reçoit [Joueur]
+  for (const player of world.getAllPlayers()) {
+    permissions.ensureDefaultRole(player.name, player.id);
   }
 
   // Tags de rôle pour tous les joueurs déjà connectés
@@ -117,11 +124,15 @@ system.runInterval(() => {
     territories.markLoaded();
     sanctions.markLoaded();
 
+    permissions.bootstrapDefaultRoles();
     if (!permissions.hasAdmin()) {
       const operator = world.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
       if (operator !== undefined) permissions.bootstrapAdmin(operator.name);
     }
-    for (const player of world.getAllPlayers()) applyNameTag(player.name);
+    for (const player of world.getAllPlayers()) {
+      permissions.ensureDefaultRole(player.name, player.id);
+      applyNameTag(player.name);
+    }
   }
   if (!protectionRegistered) {
     protectionRegistered = true;
@@ -139,6 +150,8 @@ world.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
 
   const player = event.player;
+  // Tout nouveau joueur reçoit le rôle [Joueur] (gris) avant le tracking.
+  permissions.ensureDefaultRole(player.name, player.id);
   trackPlayerJoin(db, player.id, player.name, permissions.roleOf(player.name)?.data.name ?? "");
 
   // Résout les identités v3 : member (grade) + sanction par pseudo → Player.id

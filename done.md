@@ -51,7 +51,11 @@
 - [x] Bootstrap : le premier opérateur vanilla devient Admin (niveau 100)
 - [x] Rôle Admin intouchable (suppression interdite)
 - [x] **NameTags** colorés au-dessus des têtes, rafraîchis en continu
-- [x] **Chat custom** : format `[grade] nom > message` — `[Admin]`/`[Modo]` selon le rôle (ou op vanilla sans rôle), pseudo coloré, séparateur `>` gris. Mute géré dans le pipeline unique (bug du double subscriber corrigé : le message d'un muet était annulé puis ré-émis quand même)
+- [x] **Chat custom** : format `[grade] nom > message` — `[Admin]`/`[Modo]`/`[Joueur]` selon le rôle, pseudo coloré, séparateur `>` gris. Sans rôle : pseudo blanc + message gris clair ; avec rôle : couleur du rôle + message blanc. Mute géré dans le pipeline unique (bug du double subscriber corrigé)
+- [x] **Rôle [Joueur] par défaut** : attribué automatiquement à chaque nouveau joueur (gris foncé §8, niveau 0) — personne n'est « sans rôle » ; `[Modo]` (bleu, niv. 60) pré-créé aussi
+- [x] **Menus 100% DDUI (CustomForm)** : tous les menus (hub, territoires, rôles, joueurs, modération, modules, DB) utilisent la nouvelle API Data-Driven UI — boutons à **callbacks directs** (plus d'indexation fragile), headers, dividers, toggles réactifs, sliders et dropdowns à valeur explicite
+- [x] **Menu Joueurs à 2 onglets** : 🟢 en ligne (connectés maintenant) + 📜 hors ligne (index DB avec sessions et dernière vue) — les deux gèrent rôle/prefix/couleur pareil
+- [x] **BP dépend du RP** (`BP/manifest.json` → uuid RP) : activer le BP auto-active le RP dans le monde
 - [x] `/sn:roles` : personnalisation (tous) + gestion complète (admins)
 - [x] `/sn:admin` : menu central → Rôles / Joueurs / Modules
 

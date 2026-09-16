@@ -79,7 +79,13 @@ export function formatChatMessage(
   const grade = gradeTagFor(permissions, playerName, isVanillaOp);
   const nameColor = nameColorFor(permissions, playerName, isVanillaOp);
   const space = grade === "" ? "" : " ";
-  return `${grade}${space}${nameColor}${playerName}§r §7> §f${message}`;
+
+  // Sans rôle : pseudo blanc, message gris clair. Avec rôle : couleur du
+  // rôle + message blanc.
+  const hasRole = roleExists(permissions, playerName);
+  const messageColor = hasRole || isVanillaOp ? "§f" : "§7";
+
+  return `${grade}${space}${nameColor}${playerName}§r §7> ${messageColor}${message}`;
 }
 
 export function registerChat(deps: ChatDeps): void {
