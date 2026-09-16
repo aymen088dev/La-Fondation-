@@ -522,19 +522,40 @@ db.load();
 registerAutosave(db, 100);
 var territories = new TerritoryManager(db);
 registerCommands(territories);
+var protectionRegistered = false;
 world3.afterEvents.worldLoad.subscribe(() => {
+  db.load();
   territories.markLoaded();
-  registerProtection(territories);
+  if (!protectionRegistered) {
+    protectionRegistered = true;
+    registerProtection(territories);
+  }
   const stats = db.stats();
   console.log(
-    `[OpenMontage] DB chargée : ${stats.documents} documents, ${stats.bytes} octets. Commandes /sn:create et /sn:info actives.`
+    `[OpenMontage] worldLoad OK : ${stats.documents} documents, ${stats.bytes} octets. Commandes /sn:create et /sn:info actives.`
   );
 });
+var worldReady = false;
+system3.runInterval(() => {
+  if (worldReady) return;
+  if (world3.getAllPlayers().length === 0) return;
+  if (!territories.loaded) {
+    territories.markLoaded();
+    db.load();
+  }
+  if (!protectionRegistered) {
+    protectionRegistered = true;
+    registerProtection(territories);
+    console.warn("[OpenMontage] Activation par fallback (worldLoad non reçu) : protection active.");
+  }
+  worldReady = true;
+}, 40);
 world3.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
   const player = event.player;
   trackPlayerJoin(db, player.name);
   player.sendMessage("§a[OpenMontage]§r Bienvenue ! Tape §f/sn:create§r pour revendiquer ce chunk.");
+  player.onScreenDisplay.setTitle("§aOpenMontage §f✔");
 });
 system3.runInterval(() => {
   const stats = db.stats();
