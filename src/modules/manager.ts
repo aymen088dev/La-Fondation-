@@ -11,7 +11,7 @@ import type { JsonDatabase } from "../db/database";
 export const MODULES_COLLECTION = "modules";
 
 /** Identifiants des modules connus. */
-export const MODULE_IDS = ["territories"] as const;
+export const MODULE_IDS = ["territories", "moderation"] as const;
 export type ModuleId = (typeof MODULE_IDS)[number];
 
 export interface ModuleState {
@@ -31,6 +31,11 @@ export const MODULE_CATALOG: ModuleInfo[] = [
     id: "territories",
     name: "Territoires",
     description: "Revendication de chunks protégés (/sn:create, /sn:info)",
+  },
+  {
+    id: "moderation",
+    name: "Modération",
+    description: "Bans, mutes, warns et historique (/sn:mod, /sn:ban...)",
   },
 ];
 

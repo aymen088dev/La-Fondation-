@@ -241,8 +241,59 @@ var init_ui = __esm({
   }
 });
 
-// src/main.ts
+// src/moderation/enforcement.ts
+var enforcement_exports = {};
+__export(enforcement_exports, {
+  kickPlayer: () => kickPlayer,
+  registerEnforcement: () => registerEnforcement
+});
 import { world as world4, system as system6 } from "@minecraft/server";
+function kickPlayer(playerName, reason) {
+  const player = world4.getAllPlayers().find((candidate) => candidate.name === playerName);
+  if (player === void 0) return false;
+  try {
+    player.runCommand(`kick "${playerName}" ${reason}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function registerEnforcement(sanctions2, onChatReady) {
+  world4.afterEvents.playerSpawn.subscribe((event) => {
+    if (!event.initialSpawn || !sanctions2.loaded) return;
+    const player = event.player;
+    const ban = sanctions2.getBan(player.name);
+    if (ban === void 0) return;
+    const expiry = ban.expiresAt === 0 ? "§4BANNI PERMANENTLEMENT" : `§4BANNI§7 (encore ${Math.max(1, Math.ceil((ban.expiresAt - Date.now()) / 6e4))} min)`;
+    player.sendMessage(`§c[Territoires/OpenMontage] ${expiry}
+§7Motif : §f${ban.reason}§7 — par §f${ban.by}`);
+    system6.run(() => {
+      kickPlayer(player.name, ban.reason);
+    });
+  });
+  world4.beforeEvents.chatSend.subscribe((event) => {
+    if (!sanctions2.loaded) return;
+    const mute = sanctions2.getMute(event.sender.name);
+    if (mute === void 0) return;
+    event.cancel = true;
+    const sender = event.sender;
+    const remaining = mute.expiresAt === 0 ? "permanent" : `${Math.max(1, Math.ceil((mute.expiresAt - Date.now()) / 6e4))} min`;
+    system6.run(() => {
+      sender.sendMessage(
+        `§c[Modération] Tu es muet (${remaining}). §7Motif : §f${mute.reason}§7 — par §f${mute.by}`
+      );
+    });
+  });
+  onChatReady?.();
+}
+var init_enforcement = __esm({
+  "src/moderation/enforcement.ts"() {
+    "use strict";
+  }
+});
+
+// src/main.ts
+import { world as world6, system as system8 } from "@minecraft/server";
 
 // src/db/types.ts
 var DB_SCHEMA_VERSION = 1;
@@ -1118,12 +1169,17 @@ import { ActionFormData as ActionFormData4, MessageFormData as MessageFormData2 
 
 // src/modules/manager.ts
 var MODULES_COLLECTION = "modules";
-var MODULE_IDS = ["territories"];
+var MODULE_IDS = ["territories", "moderation"];
 var MODULE_CATALOG = [
   {
     id: "territories",
     name: "Territoires",
     description: "Revendication de chunks protégés (/sn:create, /sn:info)"
+  },
+  {
+    id: "moderation",
+    name: "Modération",
+    description: "Bans, mutes, warns et historique (/sn:mod, /sn:ban...)"
   }
 ];
 var ModuleManager = class {
@@ -1303,6 +1359,466 @@ function registerChat(permissions2) {
   });
 }
 
+// src/moderation/manager.ts
+var BANS_COLLECTION = "bans";
+var MUTES_COLLECTION = "mutes";
+var WARNS_COLLECTION = "warns";
+var INFRACTIONS_COLLECTION = "infractions";
+function formatDuration(minutes) {
+  if (minutes === 0) return "permanent";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+}
+var SanctionsManager = class {
+  /** Passe à true après le chargement DB (worldLoad). */
+  loaded = false;
+  /** Accès DB (lecture pour tests et GUI avancées). */
+  db;
+  constructor(db2) {
+    this.db = db2;
+  }
+  markLoaded() {
+    this.loaded = true;
+  }
+  /** Journalise une infraction (historique). */
+  log(kind, target, by, reason, durationMinutes = 0) {
+    this.db.insert(
+      INFRACTIONS_COLLECTION,
+      { kind, target, by, reason, at: Date.now(), durationMinutes },
+      `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    );
+    this.db.save();
+  }
+  // -------------------------------------------------------------------------
+  // Bans
+  // -------------------------------------------------------------------------
+  /** Banni un joueur. durationMinutes = 0 -> permanent. */
+  ban(name, by, reason, durationMinutes = 0) {
+    if (name.trim() === "") return { ok: false, error: "Pseudo vide." };
+    this.db.upsert(BANS_COLLECTION, name, {
+      name,
+      reason,
+      by,
+      at: Date.now(),
+      expiresAt: durationMinutes === 0 ? 0 : Date.now() + durationMinutes * 6e4
+    });
+    this.db.save();
+    this.log("ban", name, by, reason, durationMinutes);
+    return { ok: true };
+  }
+  unban(name) {
+    const removed = this.db.delete(BANS_COLLECTION, name);
+    if (!removed) return { ok: false, error: `${name} n'est pas banni.` };
+    this.db.save();
+    this.log("unban", name, "—", "déban");
+    return { ok: true };
+  }
+  /** Le joueur est-il banni ? Renvoie la raison si oui (avec purge des bans expirés). */
+  getBan(name) {
+    const ban = this.db.findOne(BANS_COLLECTION, name);
+    if (ban === void 0) return void 0;
+    if (ban.data.expiresAt !== 0 && ban.data.expiresAt <= Date.now()) {
+      this.db.delete(BANS_COLLECTION, name);
+      this.db.save();
+      return void 0;
+    }
+    return ban.data;
+  }
+  isBanned(name) {
+    return this.getBan(name) !== void 0;
+  }
+  allBans() {
+    return this.db.find(BANS_COLLECTION);
+  }
+  // -------------------------------------------------------------------------
+  // Mutes
+  // -------------------------------------------------------------------------
+  mute(name, by, reason, durationMinutes) {
+    if (name.trim() === "") return { ok: false, error: "Pseudo vide." };
+    this.db.upsert(MUTES_COLLECTION, name, {
+      name,
+      reason,
+      by,
+      at: Date.now(),
+      expiresAt: durationMinutes === 0 ? 0 : Date.now() + durationMinutes * 6e4
+    });
+    this.db.save();
+    this.log("mute", name, by, reason, durationMinutes);
+    return { ok: true };
+  }
+  unmute(name) {
+    const removed = this.db.delete(MUTES_COLLECTION, name);
+    if (!removed) return { ok: false, error: `${name} n'est pas muet.` };
+    this.db.save();
+    this.log("unmute", name, "—", "démute");
+    return { ok: true };
+  }
+  /** Le joueur est-il muet ? (purge automatique des mutes expirés) */
+  getMute(name) {
+    const mute = this.db.findOne(MUTES_COLLECTION, name);
+    if (mute === void 0) return void 0;
+    if (mute.data.expiresAt !== 0 && mute.data.expiresAt <= Date.now()) {
+      this.db.delete(MUTES_COLLECTION, name);
+      this.db.save();
+      return void 0;
+    }
+    return mute.data;
+  }
+  isMuted(name) {
+    return this.getMute(name) !== void 0;
+  }
+  allMutes() {
+    return this.db.find(MUTES_COLLECTION);
+  }
+  // -------------------------------------------------------------------------
+  // Warns
+  // -------------------------------------------------------------------------
+  warn(name, by, reason) {
+    if (name.trim() === "") return { ok: false, error: "Pseudo vide." };
+    this.db.insert(WARNS_COLLECTION, { name, reason, by, at: Date.now() });
+    this.db.save();
+    this.log("warn", name, by, reason);
+    return { ok: true };
+  }
+  warnsOf(name) {
+    return this.db.find(WARNS_COLLECTION, (doc) => doc.data.name === name);
+  }
+  /** Retire le dernier warn d'un joueur (pardon). */
+  clearLastWarn(name) {
+    const warns = this.warnsOf(name);
+    const last = warns[warns.length - 1];
+    if (last === void 0) return false;
+    this.db.delete(WARNS_COLLECTION, last.id);
+    this.db.save();
+    return true;
+  }
+  // -------------------------------------------------------------------------
+  // Historique
+  // -------------------------------------------------------------------------
+  /** Historique des infractions d'un joueur (du plus récent au plus ancien). */
+  historyOf(name, limit = 10) {
+    return this.db.find(INFRACTIONS_COLLECTION, (doc) => doc.data.target === name).reverse().slice(0, limit);
+  }
+  stats() {
+    return {
+      bans: this.allBans().length,
+      mutes: this.allMutes().length,
+      warns: this.db.count(WARNS_COLLECTION)
+    };
+  }
+};
+
+// src/moderation/index.ts
+init_enforcement();
+
+// src/moderation/commands.ts
+import {
+  CustomCommandParamType as CustomCommandParamType2,
+  CustomCommandStatus as CustomCommandStatus3,
+  CommandPermissionLevel as CommandPermissionLevel3,
+  system as system7
+} from "@minecraft/server";
+import { world as world5 } from "@minecraft/server";
+init_enforcement();
+
+// src/moderation/ui.ts
+import { ActionFormData as ActionFormData6, ModalFormData as ModalFormData4 } from "@minecraft/server-ui";
+function openSanctionsMenu(player, sanctions2, permissions2) {
+  const stats = sanctions2.stats();
+  new ActionFormData6().title("§lModération").body(
+    `§7Bans actifs : §f${stats.bans}
+§7Mutes actifs : §f${stats.mutes}
+§7Warns au total : §f${stats.warns}`
+  ).button("§4Bans actifs").button("§6Mutes actifs").button("§eSanctionner un joueur").button("§bHistorique d'un joueur").button("§4Fermer").show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    switch (response.selection) {
+      case 0:
+        openBansList(player, sanctions2, permissions2);
+        break;
+      case 1:
+        openMutesList(player, sanctions2, permissions2);
+        break;
+      case 2:
+        openSanctionForm(player, sanctions2);
+        break;
+      case 3:
+        openHistoryLookup(player, sanctions2);
+        break;
+    }
+  }).catch((error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openBansList(player, sanctions2, permissions2) {
+  const bans = sanctions2.allBans();
+  if (bans.length === 0) {
+    player.sendMessage("§7[Modération] Aucun ban actif.");
+    return;
+  }
+  const form = new ActionFormData6().title("§4Bans actifs").body("§7Clique sur un ban pour le lever.");
+  for (const ban of bans) {
+    const expiry = ban.data.expiresAt === 0 ? "§4permanent" : `§7(${formatDuration(Math.ceil((ban.data.expiresAt - Date.now()) / 6e4))})`;
+    form.button(`§f${ban.data.name} ${expiry}
+§7par ${ban.data.by}`);
+  }
+  form.button("§8← Retour");
+  form.show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    if (response.selection >= bans.length) return void openSanctionsMenu(player, sanctions2, permissions2);
+    const ban = bans[response.selection];
+    if (ban === void 0) return;
+    const result = sanctions2.unban(ban.data.name);
+    player.sendMessage(result.ok ? `§a[Modération] ${ban.data.name} débanni.` : `§c[Modération] ${result.error}`);
+    openBansList(player, sanctions2, permissions2);
+  }).catch((error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openMutesList(player, sanctions2, permissions2) {
+  const mutes = sanctions2.allMutes();
+  if (mutes.length === 0) {
+    player.sendMessage("§7[Modération] Aucun mute actif.");
+    return;
+  }
+  const form = new ActionFormData6().title("§6Mutes actifs").body("§7Clique sur un mute pour le lever.");
+  for (const mute of mutes) {
+    const expiry = mute.data.expiresAt === 0 ? "§cpermanent" : `§7(${formatDuration(Math.ceil((mute.data.expiresAt - Date.now()) / 6e4))})`;
+    form.button(`§f${mute.data.name} ${expiry}
+§7par ${mute.data.by}`);
+  }
+  form.button("§8← Retour");
+  form.show(player).then((response) => {
+    if (response.canceled || response.selection === void 0) return;
+    if (response.selection >= mutes.length) return void openSanctionsMenu(player, sanctions2, permissions2);
+    const mute = mutes[response.selection];
+    if (mute === void 0) return;
+    const result = sanctions2.unmute(mute.data.name);
+    player.sendMessage(result.ok ? `§a[Modération] ${mute.data.name} peut parler.` : `§c[Modération] ${result.error}`);
+    openMutesList(player, sanctions2, permissions2);
+  }).catch((error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openSanctionForm(player, sanctions2) {
+  new ModalFormData4().title("Sanctionner un joueur").textField("Pseudo du joueur", "Ex : Griefer_42").dropdown("Type de sanction", ["§aKick", "§4Ban", "§6Mute", "§eWarn"], { defaultValueIndex: 3 }).slider("Durée en minutes (0 = permanent)", 0, 1440, { valueStep: 15, defaultValue: 60 }).textField("Raison", "Ex : grief zone spawn").submitButton("Appliquer").show(player).then((response) => {
+    if (response.canceled) return;
+    const values = response.formValues ?? [];
+    const strings = values.filter((value) => typeof value === "string");
+    const numbers = values.filter((value) => typeof value === "number");
+    const target = (strings[0] ?? "").trim();
+    const typeIndex = numbers[0] ?? 3;
+    const minutes = numbers[1] ?? 60;
+    const reason = strings[1] ?? "non spécifiée";
+    if (target === "") {
+      player.sendMessage("§c[Modération] Pseudo vide.");
+      return;
+    }
+    if (typeIndex === 0) {
+      Promise.resolve().then(() => (init_enforcement(), enforcement_exports)).then(({ kickPlayer: kickPlayer2 }) => {
+        const ok = kickPlayer2(target, reason);
+        player.sendMessage(ok ? `§a[Modération] ${target} éjecté.` : `§c[Modération] ${target} hors ligne.`);
+        if (ok) sanctions2.log("kick", target, player.name, reason);
+      });
+    } else if (typeIndex === 1) {
+      const result = sanctions2.ban(target, player.name, reason, minutes);
+      player.sendMessage(result.ok ? `§a[Modération] ${target} banni (${formatDuration(minutes)}).` : `§c[Modération] ${result.error}`);
+    } else if (typeIndex === 2) {
+      const result = sanctions2.mute(target, player.name, reason, minutes);
+      player.sendMessage(result.ok ? `§a[Modération] ${target} muet (${formatDuration(minutes)}).` : `§c[Modération] ${result.error}`);
+    } else {
+      const result = sanctions2.warn(target, player.name, reason);
+      player.sendMessage(result.ok ? `§a[Modération] ${target} averti.` : `§c[Modération] ${result.error}`);
+    }
+  }).catch((error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openHistoryLookup(player, sanctions2) {
+  new ModalFormData4().title("Historique").textField("Pseudo du joueur", "Ex : Steve").submitButton("Voir").show(player).then((response) => {
+    if (response.canceled) return;
+    const strings = (response.formValues ?? []).filter((value) => typeof value === "string");
+    const target = (strings[0] ?? "").trim();
+    if (target === "") return;
+    const entries = sanctions2.historyOf(target, 15);
+    if (entries.length === 0) {
+      player.sendMessage(`§7[Modération] ${target} : casier vierge.`);
+      return;
+    }
+    player.sendMessage(`§6[Modération] Historique de ${target} (${entries.length}) :`);
+    for (const entry of entries) {
+      player.sendMessage(
+        `§7- §f${entry.data.kind} §7par §f${entry.data.by} §7— §f${entry.data.reason} §8(${new Date(entry.data.at).toLocaleString()})`
+      );
+    }
+  }).catch((error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`));
+}
+
+// src/moderation/commands.ts
+function canModerate(player, permissions2) {
+  return permissions2.levelOf(player.name) >= 60 || player.playerPermissionLevel >= 2;
+}
+var DENIED = "§c[Modération] Niveau de rôle insuffisant (Modo requis).";
+var NOT_PLAYER = "§c[Modération] Réservé aux joueurs.";
+function notifyTarget(targetName, message) {
+  const target = world5.getAllPlayers().find((candidate) => candidate.name === targetName);
+  if (target !== void 0) system7.run(() => target.sendMessage(message));
+}
+function registerModerationCommands(deps) {
+  const { sanctions: sanctions2, permissions: permissions2 } = deps;
+  system7.beforeEvents.startup.subscribe((event) => {
+    const guardAndRun = (origin, action) => {
+      const player = origin.sourceEntity;
+      if (player === void 0 || player.typeId !== "minecraft:player") {
+        return { status: CustomCommandStatus3.Failure, message: NOT_PLAYER };
+      }
+      if (!canModerate(player, permissions2)) {
+        return { status: CustomCommandStatus3.Failure, message: DENIED };
+      }
+      system7.run(() => action(player));
+      return { status: CustomCommandStatus3.Success };
+    };
+    const stringParam = (name) => ({ name, type: CustomCommandParamType2.String });
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:mod",
+        description: "Panneau de modération (bans, mutes, warns)",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false
+      },
+      (origin) => guardAndRun(origin, (player) => {
+        openSanctionsMenu(player, sanctions2, permissions2);
+      })
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:kick",
+        description: "Éjecte un joueur du monde",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [stringParam("joueur"), stringParam("raison")]
+      },
+      (origin, target, reason) => guardAndRun(origin, (player) => {
+        if (target === player.name) {
+          player.sendMessage("§c[Modération] Tu ne peux pas te kick toi-même.");
+          return;
+        }
+        if (kickPlayer(target, reason)) {
+          player.sendMessage(`§a[Modération] ${target} éjecté. Raison : ${reason}`);
+          sanctions2.log("kick", target, player.name, reason);
+        } else {
+          player.sendMessage(`§c[Modération] ${target} n'est pas en ligne.`);
+        }
+      })
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:ban",
+        description: "Banni un joueur (durée en minutes, 0 = permanent)",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [stringParam("joueur"), stringParam("raison")],
+        optionalParameters: [{ name: "duree_min", type: CustomCommandParamType2.Integer }]
+      },
+      (origin, target, reason, minutes) => guardAndRun(origin, (player) => {
+        const duration = minutes ?? 0;
+        const result = sanctions2.ban(target, player.name, reason, duration);
+        if (!result.ok) {
+          player.sendMessage(`§c[Modération] ${result.error}`);
+          return;
+        }
+        player.sendMessage(
+          `§a[Modération] ${target} banni (${formatDuration(duration)}). Raison : ${reason}`
+        );
+        notifyTarget(target, `§4[Modération] Tu es banni (${formatDuration(duration)}) : ${reason}`);
+        system7.run(() => kickPlayer(target, reason));
+      })
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:unban",
+        description: "Débanni un joueur",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [stringParam("joueur")]
+      },
+      (origin, target) => guardAndRun(origin, (player) => {
+        const result = sanctions2.unban(target);
+        player.sendMessage(result.ok ? `§a[Modération] ${target} débanni.` : `§c[Modération] ${result.error}`);
+      })
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:mute",
+        description: "Rend muet un joueur (durée en minutes, 0 = permanent)",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [stringParam("joueur"), { name: "duree_min", type: CustomCommandParamType2.Integer }],
+        optionalParameters: [stringParam("raison")]
+      },
+      (origin, target, minutes, reason) => guardAndRun(origin, (player) => {
+        const cleanReason = reason ?? "non spécifié";
+        const result = sanctions2.mute(target, player.name, cleanReason, minutes);
+        if (!result.ok) {
+          player.sendMessage(`§c[Modération] ${result.error}`);
+          return;
+        }
+        player.sendMessage(`§a[Modération] ${target} muet (${formatDuration(minutes)}).`);
+        notifyTarget(target, `§c[Modération] Tu es muet (${formatDuration(minutes)}) : ${cleanReason}`);
+      })
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:unmute",
+        description: "Rend la parole à un joueur muet",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [stringParam("joueur")]
+      },
+      (origin, target) => guardAndRun(origin, (player) => {
+        const result = sanctions2.unmute(target);
+        player.sendMessage(result.ok ? `§a[Modération] ${target} peut parler.` : `§c[Modération] ${result.error}`);
+      })
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:warn",
+        description: "Avertit un joueur (historisé)",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [stringParam("joueur"), stringParam("raison")]
+      },
+      (origin, target, reason) => guardAndRun(origin, (player) => {
+        const result = sanctions2.warn(target, player.name, reason);
+        if (!result.ok) {
+          player.sendMessage(`§c[Modération] ${result.error}`);
+          return;
+        }
+        const count = sanctions2.warnsOf(target).length;
+        player.sendMessage(`§a[Modération] ${target} averti (${count} warn(s) au total).`);
+        notifyTarget(target, `§6[Modération] ⚠ Avertissement (${count}) : ${reason}`);
+      })
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:history",
+        description: "Historique des sanctions d'un joueur",
+        permissionLevel: CommandPermissionLevel3.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [stringParam("joueur")]
+      },
+      (origin, target) => guardAndRun(origin, (player) => {
+        const entries = sanctions2.historyOf(target, 10);
+        if (entries.length === 0) {
+          player.sendMessage(`§7[Modération] ${target} : casier vierge.`);
+          return;
+        }
+        player.sendMessage(`§6[Modération] Historique de ${target} :`);
+        for (const entry of entries) {
+          const date = new Date(entry.data.at);
+          const hh = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+          player.sendMessage(
+            `§7- §f${entry.data.kind} §7par §f${entry.data.by} §7— §f${entry.data.reason} §8(${hh})`
+          );
+        }
+      })
+    );
+  });
+}
+
 // src/players.ts
 function trackPlayerJoin(db2, playerName) {
   const record = db2.findOne("players", playerName);
@@ -1318,33 +1834,36 @@ registerAutosave(db, 100);
 var permissions = new PermissionManager(db);
 var modules = new ModuleManager(db);
 var territories = new TerritoryManager(db);
+var sanctions = new SanctionsManager(db);
 registerCommands(territories, db, modules);
 registerAdminCommands({ permissions, modules, territories });
+registerModerationCommands({ sanctions, permissions });
 var protectionRegistered = false;
 function applyNameTag(playerName) {
-  const player = world4.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world6.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return;
   try {
     player.nameTag = permissions.nameTagFor(playerName);
   } catch {
   }
 }
-world4.afterEvents.worldLoad.subscribe(() => {
+world6.afterEvents.worldLoad.subscribe(() => {
   db.load();
   permissions.markLoaded();
   modules.markLoaded();
   territories.markLoaded();
   if (!permissions.hasAdmin()) {
-    const operator = world4.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+    const operator = world6.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
     if (operator !== void 0) {
       permissions.bootstrapAdmin(operator.name);
       console.log(`[OpenMontage] Bootstrap : ${operator.name} est promu Admin.`);
     }
   }
-  for (const player of world4.getAllPlayers()) {
+  for (const player of world6.getAllPlayers()) {
     applyNameTag(player.name);
   }
   registerChat(permissions);
+  registerEnforcement(sanctions);
   if (!protectionRegistered) {
     protectionRegistered = true;
     registerProtection(territories, modules);
@@ -1355,19 +1874,19 @@ world4.afterEvents.worldLoad.subscribe(() => {
   );
 });
 var worldReady = false;
-system6.runInterval(() => {
+system8.runInterval(() => {
   if (worldReady) return;
-  if (world4.getAllPlayers().length === 0) return;
+  if (world6.getAllPlayers().length === 0) return;
   if (!territories.loaded) {
     db.load();
     permissions.markLoaded();
     modules.markLoaded();
     territories.markLoaded();
     if (!permissions.hasAdmin()) {
-      const operator = world4.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+      const operator = world6.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
       if (operator !== void 0) permissions.bootstrapAdmin(operator.name);
     }
-    for (const player of world4.getAllPlayers()) applyNameTag(player.name);
+    for (const player of world6.getAllPlayers()) applyNameTag(player.name);
   }
   if (!protectionRegistered) {
     protectionRegistered = true;
@@ -1376,7 +1895,7 @@ system6.runInterval(() => {
   }
   worldReady = true;
 }, 40);
-world4.afterEvents.playerSpawn.subscribe((event) => {
+world6.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
   const player = event.player;
   trackPlayerJoin(db, player.name);
@@ -1384,13 +1903,13 @@ world4.afterEvents.playerSpawn.subscribe((event) => {
   player.sendMessage("§a[OpenMontage]§r Bienvenue ! §f/sn:create§r pour un territoire, §f/sn:roles§r pour ton rôle.");
   player.onScreenDisplay.setTitle("§aOpenMontage §f✔");
 });
-system6.runInterval(() => {
+system8.runInterval(() => {
   if (!permissions.loaded) return;
-  for (const player of world4.getAllPlayers()) {
+  for (const player of world6.getAllPlayers()) {
     applyNameTag(player.name);
   }
 }, 100);
-system6.runInterval(() => {
+system8.runInterval(() => {
   const stats = db.stats();
   console.log(
     `[OpenMontage] DB : ${stats.documents} documents, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"}`

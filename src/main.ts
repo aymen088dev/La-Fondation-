@@ -4,6 +4,11 @@ import { TerritoryManager, registerCommands, registerProtection } from "./territ
 import { PermissionManager, canUseAdminPanel, registerChat } from "./permissions";
 import { registerAdminCommands } from "./permissions/commands";
 import { ModuleManager } from "./modules";
+import {
+  SanctionsManager,
+  registerModerationCommands,
+  registerEnforcement,
+} from "./moderation";
 import { trackPlayerJoin } from "./players";
 
 /**
@@ -33,10 +38,12 @@ registerAutosave(db, 100);
 const permissions = new PermissionManager(db);
 const modules = new ModuleManager(db);
 const territories = new TerritoryManager(db);
+const sanctions = new SanctionsManager(db);
 
 // Les commandes /sn:* doivent être enregistrées au plus tôt (early execution)
 registerCommands(territories, db, modules);
 registerAdminCommands({ permissions, modules, territories });
+registerModerationCommands({ sanctions, permissions });
 
 let protectionRegistered = false;
 
@@ -75,6 +82,9 @@ world.afterEvents.worldLoad.subscribe(() => {
 
   // Chat custom : prefix coloré du rôle sur chaque message
   registerChat(permissions);
+
+  // Sanctions : éjection des bannis au spawn + blocage des muets dans le chat
+  registerEnforcement(sanctions);
 
   if (!protectionRegistered) {
     protectionRegistered = true;
