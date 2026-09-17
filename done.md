@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v10** — la vraie cause des « menus non custom » trouvée : `imagePackId` attend l'**UUID** du RP (pas son nom) et les chemins d'images doivent porter l'extension `.png`. Correctifs + bump 1.2.0 + diagnostic worldLoad.
+> Dernière mise à jour : **v10.1** — la vraie cause des « menus non custom » corrigée (`imagePackId` = UUID du RP + chemins `.png`), et finition du moteur : show différé de 2 ticks + fallback automatique sans images si un écran échoue à s'afficher.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -103,6 +103,11 @@
 ---
 
 ---
+
+## 🔧 Correctifs UI (v10.1) — moteur d'affichage : différé + fallback auto
+- [x] **Show différé de 2 ticks** : ouvrir un menu dans le même tick que la fermeture du précédent fait perdre le nouvel écran en silence (piège Bedrock DDUI) — `openWindow`/`openWindowRaw` passent par `buildAndShow` qui diffère le `show()` de 2 ticks
+- [x] **Fallback automatique sans images** : si un écran contenant des images échoue à s'afficher (client sans le RP, texture indisponible…), le design image est désactivé automatiquement (log warn filtrable) et le menu est **reconstruit sans aucune image** → il s'affiche toujours. Plus jamais « la commande n'ouvre rien »
+- [x] Tout passe par un **unique point de construction** (`buildAndShow`) : suivi du formulaire ouvert, bouton fermer, différé et fallback centralisés
 
 ## 🔧 Correctifs UI (v10) — la vraie cause : mauvais identifiant de pack
 - [x] **`imagePackId` = UUID, pas le nom** : l'API DDUI attend l'**identifiant** du pack — en Bedrock c'est son **UUID** (le `pack_id` de world_resource_packs.json). On passait `"OpenMontage UI"` (le nom d'affichage) → ne matchait aucun pack → **toutes les images des menus étaient silencieusement ignorées** alors même que le RP était correctement chargé. C'était LA cause du « menus toujours basiques »

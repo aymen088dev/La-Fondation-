@@ -6,6 +6,8 @@
  * = bouton silencieusement sans icône — c'était la cause des icônes manquantes.
  */
 
+import { logMod } from "../lib/log";
+import { system } from "@minecraft/server";
 import type { Player } from "@minecraft/server";
 import {
   CustomForm,
@@ -129,6 +131,18 @@ export const OM_PANEL_TEXTURE = "textures/ui/om_actionbar_bg";
  */
 let uiDesignEnabled = true;
 
+/**
+ * Désactivation automatique du design image : si un écran échoue à
+ * s'afficher alors qu'il contenait des images, on coupe héros + icônes pour
+ * la suite — les prochains menus s'affichent donc TOUJOURS (dégradation
+ * propre plutôt que des commandes qui « n'ouvrent rien »).
+ */
+function disableUiDesign(reason: string): void {
+  if (!uiDesignEnabled) return;
+  uiDesignEnabled = false;
+  logMod.warn(`Images désactivées automatiquement (${reason}) — menus sans image pour rester fonctionnels. /scriptevent sn:ui on pour réactiver.`);
+}
+
 /** Active/désactive le design image (héros + icônes). */
 export function setUiDesign(enabled: boolean): void {
   uiDesignEnabled = enabled;
@@ -191,7 +205,7 @@ function uiText(text: string): UIRawMessage {
 }
 
 /**
- * Enveloppe CustomForm du thème. Deux apports :
+ * Enveloppe CustomForm du thème. Apports :
  * 1. tout texte passé en string est converti en UIRawMessage (codes § rendus) ;
  * 2. le formulaire ouvert est suivi par joueur : la fermeture centralisée
  *    (`closeOpenForm`) permet aux menus de fermer l'écran courant avant
@@ -378,10 +392,54 @@ export function closeOpenForm(player: Player): void {
 }
 
 /**
- * Ouvre une fenêtre DDUI (OMForm) avec le titre OpenMontage, ferme
- * d'abord l'écran éventuellement ouvert, et ajoute un bouton de fermeture.
+ * Construit et affiche une fenêtre DDUI.
+ *
+ * ⚠️ Deux pièges Bedrock gérés ici :
+ * 1. Après `close()` d'un écran, re-montrer un autre DANS LE MÊME TICK le
+ *    fait perdre en silence (l'ancien écran se referme sous le nouveau) :
+ *    le show() est donc différé de 2 ticks.
+ * 2. Si l'écran contient des images que le client ne peut pas rendre, la
+ *    promesse `show()` peut échouer : on reconstruit alors TOUT le menu
+ *    sans images pour qu'il s'affiche quand même.
  */
-export async function openWindow(
+function buildAndShow(
+  player: Player,
+  title: string,
+  build: (form: OMForm) => void,
+  withCloseButton: boolean,
+): Promise<DataDrivenScreenClosedReason> {
+  const buildForm = (): OMForm => {
+    const form = new OMForm(player, title);
+    build(form);
+    if (withCloseButton) form.closeButton();
+    return form;
+  };
+
+  // Différé de 2 ticks : un show() dans le même tick qu'un close() est perdu.
+  return new Promise<DataDrivenScreenClosedReason>((resolve, reject) => {
+    system.runTimeout(() => {
+      buildForm()
+        .show()
+        .catch((error: unknown) => {
+          // Échec d'affichage : si le design image était actif, on le coupe
+          // et on retente UNE fois sans aucune image (le suivi du formulaire
+          // ouvert est déjà géré par OMForm.show()).
+          if (uiDesignEnabled) {
+            disableUiDesign(error instanceof Error ? error.message : "écran refusé");
+            return buildForm().show();
+          }
+          throw error;
+        })
+        .then(resolve, reject);
+    }, 2);
+  });
+}
+
+/**
+ * Ouvre une fenêtre DDUI (OMForm) avec le titre OpenMontage et un bouton
+ * de fermeture.
+ */
+export function openWindow(
   player: Player,
   section: string,
   build: (form: OMForm) => void,
@@ -389,21 +447,18 @@ export async function openWindow(
   hero?: HeroKind,
 ): Promise<DataDrivenScreenClosedReason> {
   closeOpenForm(player);
-  const form = new OMForm(player, windowTitle(section));
-  if (hero !== undefined) form.hero(hero);
-  build(form);
-  form.closeButton();
-  return form.show();
+  return buildAndShow(player, windowTitle(section), (form) => {
+    if (hero !== undefined) form.hero(hero);
+    build(form);
+  }, true);
 }
 
 /** Fenêtre DDUI sans bouton fermer intégré (le menu gère ses retours). */
-export async function openWindowRaw(
+export function openWindowRaw(
   player: Player,
   title: string,
   build: (form: OMForm) => void,
 ): Promise<DataDrivenScreenClosedReason> {
   closeOpenForm(player);
-  const form = new OMForm(player, title);
-  build(form);
-  return form.show();
+  return buildAndShow(player, title, build, false);
 }

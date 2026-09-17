@@ -1,5 +1,5 @@
 // src/main.ts
-import { world as world14, system as system14 } from "@minecraft/server";
+import { world as world14, system as system15 } from "@minecraft/server";
 
 // src/db/types.ts
 var DB_SCHEMA_VERSION = 3;
@@ -600,362 +600,7 @@ var TerritoryManager = class {
 };
 
 // src/territories/commands.ts
-import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system7 } from "@minecraft/server";
-
-// src/ui/theme.ts
-import {
-  CustomForm,
-  ObservableString,
-  ObservableNumber,
-  ObservableBoolean
-} from "@minecraft/server-ui";
-var RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
-var OM_ICONS = {
-  flag: "flag",
-  compass: "compass",
-  shield: "shield",
-  crown: "crown",
-  scroll: "scroll",
-  gear: "gear",
-  database: "database",
-  sword: "sword",
-  ban: "ban",
-  bell: "bell",
-  warn: "warn",
-  history: "history",
-  plus: "plus",
-  check: "check",
-  trash: "trash",
-  search: "search",
-  save: "save",
-  back: "back",
-  close: "close",
-  list: "list",
-  pencil: "pencil",
-  user: "user",
-  tag: "tag",
-  online: "online"
-};
-function OM_ICON(icon) {
-  return `textures/ui/om_ic_${OM_ICONS[icon]}.png`;
-}
-var HEROES = {
-  home: "om_hero_home",
-  territories: "om_hero_territories",
-  admin: "om_hero_admin",
-  mod: "om_hero_mod",
-  role: "om_hero_role",
-  modules: "om_hero_modules",
-  database: "om_hero_database"
-};
-function heroPath(kind) {
-  return `textures/ui/${HEROES[kind]}.png`;
-}
-var uiDesignEnabled = true;
-function setUiDesign(enabled) {
-  uiDesignEnabled = enabled;
-}
-function windowTitle(section) {
-  return `§l§aOM §r§8» §r§l${section}`;
-}
-function obString(initial) {
-  return new ObservableString(initial);
-}
-function obNumber(initial) {
-  return new ObservableNumber(initial);
-}
-function obBool(initial) {
-  return new ObservableBoolean(initial);
-}
-function obToggle(initial, onChange) {
-  const observable = new ObservableBoolean(initial);
-  observable.subscribe(onChange);
-  return observable;
-}
-function uiText(text) {
-  return { rawtext: [{ text }] };
-}
-var OMForm = class {
-  inner;
-  player;
-  constructor(player, title) {
-    this.player = player;
-    this.inner = new CustomForm(player, uiText(title));
-  }
-  /** Ferme ce formulaire si l'écran s'affiche encore (sinon no-op). */
-  closeIfShowing() {
-    try {
-      if (this.inner.isShowing()) this.inner.close();
-    } catch {
-    }
-  }
-  /**
-   * Bannière de héros en tête de menu (image pleine largeur du RP OM).
-   * À appeler EN PREMIER : c'est l'identité graphique du menu.
-   * Fail-safe : si l'API/le pack refuse l'image, le menu s'ouvre quand même.
-   */
-  hero(kind) {
-    if (!uiDesignEnabled) return this;
-    try {
-      this.inner.image(heroPath(kind), RP_PACK_ID, { width: 1 });
-    } catch {
-    }
-    return this;
-  }
-  header(text, options) {
-    this.inner.header(uiText(text), options);
-    return this;
-  }
-  label(text, options) {
-    this.inner.label(uiText(text), options);
-    return this;
-  }
-  button(label, onClick, options, icon) {
-    const imageDetails = icon === void 0 || !uiDesignEnabled ? void 0 : { imagePackId: RP_PACK_ID, imageSrc: OM_ICON(icon) };
-    const handler = () => {
-      closeOpenForm(this.player);
-      onClick();
-    };
-    try {
-      this.inner.button(
-        uiText(label),
-        handler,
-        imageDetails === void 0 ? options : { ...options, imageDetails }
-      );
-    } catch {
-      if (imageDetails === void 0) throw new Error("OMForm.button a échoué sans image");
-      this.inner.button(uiText(label), handler, options);
-    }
-    return this;
-  }
-  divider(options) {
-    this.inner.divider(options);
-    return this;
-  }
-  spacer(options) {
-    this.inner.spacer(options);
-    return this;
-  }
-  toggle(label, toggled, options) {
-    this.inner.toggle(uiText(label), toggled, options);
-    return this;
-  }
-  slider(label, value, min, max, options) {
-    this.inner.slider(uiText(label), value, min, max, options);
-    return this;
-  }
-  dropdown(label, value, items, options) {
-    const data = items.map((item, index) => {
-      if (typeof item === "string") return { label: uiText(item), value: index };
-      return {
-        ...item,
-        label: typeof item.label === "string" ? uiText(item.label) : item.label
-      };
-    });
-    this.inner.dropdown(uiText(label), value, data, options);
-    return this;
-  }
-  textField(label, text, options) {
-    this.inner.textField(uiText(label), text, options);
-    return this;
-  }
-  image(src, pack, options) {
-    this.inner.image(src, pack, options);
-    return this;
-  }
-  closeButton() {
-    this.inner.closeButton();
-    return this;
-  }
-  show() {
-    const previous = openForms.get(this.player.id);
-    if (previous !== void 0 && previous !== this) previous.closeIfShowing();
-    openForms.set(this.player.id, this);
-    return this.inner.show().finally(() => {
-      if (openForms.get(this.player.id) === this) {
-        openForms.delete(this.player.id);
-      }
-    });
-  }
-  isShowing() {
-    return this.inner.isShowing();
-  }
-};
-var openForms = /* @__PURE__ */ new Map();
-function closeOpenForm(player) {
-  const current = openForms.get(player.id);
-  if (current === void 0) return;
-  openForms.delete(player.id);
-  current.closeIfShowing();
-}
-async function openWindow(player, section, build, hero) {
-  closeOpenForm(player);
-  const form = new OMForm(player, windowTitle(section));
-  if (hero !== void 0) form.hero(hero);
-  build(form);
-  form.closeButton();
-  return form.show();
-}
-async function openWindowRaw(player, title, build) {
-  closeOpenForm(player);
-  const form = new OMForm(player, title);
-  build(form);
-  return form.show();
-}
-
-// src/db/menu.ts
-function summarize(doc) {
-  const data = doc.data ?? {};
-  if (typeof data.name === "string" && data.name !== "") {
-    const extras = [];
-    if (typeof data.level === "number") extras.push(`niv. ${data.level}`);
-    if (typeof data.role === "string") extras.push(String(data.role));
-    if (typeof data.reason === "string") extras.push(String(data.reason).slice(0, 30));
-    if (typeof data.enabled === "boolean") extras.push(data.enabled ? "ON" : "OFF");
-    if (typeof data.grade === "string" && data.grade !== "") extras.push(`grade ${data.grade}`);
-    if (typeof data.sessions === "number") extras.push(`${data.sessions} sessions`);
-    if (Array.isArray(data.perms)) extras.push(`${data.perms.length} perms`);
-    if (Array.isArray(data.members)) extras.push(`${data.members.length} membres`);
-    return `§f${data.name}§r§7${extras.length > 0 ? ` — ${extras.join(" · ")}` : ""}`;
-  }
-  if (typeof data.playerId === "string" && data.playerId !== "") {
-    return `§fid:${String(data.playerId).slice(0, 12)}…§r§7${typeof data.name === "string" ? ` ${data.name}` : ""}`;
-  }
-  return `§f${doc.id}`;
-}
-async function openDbMenu(db2, player) {
-  await openWindow(player, "Base de données", (form) => {
-    const stats = db2.stats();
-    const sections = listSections(db2);
-    form.hero("database");
-    form.header(`§a■ §lBase de données`);
-    form.label(
-      `§7${stats.documents} documents · ${stats.bytes} octets
-§7État : ${stats.dirty ? "§eà sauvegarder" : "§aà jour"}`
-    );
-    form.divider();
-    for (const section of sections) {
-      form.button(
-        `${collectionLabel(section)}
-§8${stats.collections[section]} doc(s)`,
-        () => {
-          void openSectionMenu(db2, player, section);
-        },
-        void 0,
-        "database"
-      );
-    }
-    form.divider();
-    form.button(`§a■ §lForcer la sauvegarde`, () => {
-      db2.save(true);
-      player.sendMessage("§a[DB] Sauvegarde forcée.");
-    }, void 0, "save");
-  }).catch(
-    (error) => console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`)
-  );
-}
-async function openSectionMenu(db2, player, section) {
-  await openWindow(player, collectionLabel(section), (form) => {
-    const docs = db2.find(section);
-    form.label(`§7${docs.length} document(s) — clique pour inspecter/modifier :`);
-    form.divider();
-    for (const doc of docs) {
-      form.button(summarize(doc), () => {
-        void openDocumentMenu(db2, player, section, doc.id);
-      });
-    }
-    form.divider();
-    form.button(`§c■ §lVider la section`, () => {
-      const removed = db2.clear(section);
-      db2.save();
-      player.sendMessage(`§c[DB] Section "${section}" vidée (${removed} document(s) supprimés).`);
-    });
-  }).catch(
-    (error) => console.warn(`[DB] Erreur section : ${error instanceof Error ? error.message : String(error)}`)
-  );
-}
-var READONLY_KEYS = /* @__PURE__ */ new Set(["chunkKeys"]);
-async function openDocumentMenu(db2, player, section, docId) {
-  const doc = db2.findOne(section, docId);
-  if (doc === void 0) {
-    player.sendMessage("§c[DB] Document introuvable (déjà supprimé ?).");
-    return;
-  }
-  const entries = Object.entries(doc.data).filter(([key]) => !READONLY_KEYS.has(key));
-  await openWindowRaw(player, windowTitle(docId), (form) => {
-    form.header(`§b■ §l${docId}`);
-    form.label(`§7collection : §f${section}`);
-    const editableKeys = [];
-    const kinds = [];
-    const boolValues = {};
-    const readonlyLines = [];
-    for (const [key, value] of entries) {
-      if (typeof value === "string") {
-        form.textField(`§e${key}`, obString(value));
-        editableKeys.push(key);
-        kinds.push("string");
-      } else if (typeof value === "number") {
-        form.textField(`§e${key} §7(nombre)`, obString(String(value)));
-        editableKeys.push(key);
-        kinds.push("number");
-      } else if (typeof value === "boolean") {
-        const toggle = obBool(value);
-        boolValues[key] = toggle;
-        form.toggle(`§e${key}`, toggle);
-        editableKeys.push(key);
-        kinds.push("boolean");
-      } else {
-        readonlyLines.push(`§7${key}: §f${summarizeValue(value)}`);
-      }
-    }
-    if (readonlyLines.length > 0) {
-      form.divider();
-      form.label(`§7— lecture seule —
-${readonlyLines.join("\n")}`);
-    }
-    form.divider();
-    form.button(`§a■ §lAppliquer`, () => {
-      const patch = {};
-      for (const [key, toggle] of Object.entries(boolValues)) {
-        const current = doc.data[key];
-        if (typeof current === "boolean" && toggle.getData() !== current) {
-          patch[key] = toggle.getData();
-        }
-      }
-      if (Object.keys(patch).length > 0) {
-        db2.update(section, docId, patch);
-        db2.save();
-        player.sendMessage(`§a[DB] "${docId}" mis à jour (${Object.keys(patch).length} champ(s)).`);
-      } else {
-        player.sendMessage("§7[DB] Aucun changement (seuls les interrupteurs sont éditables).");
-      }
-    });
-    form.closeButton();
-  }).catch(
-    (error) => console.warn(`[DB] Erreur document : ${error instanceof Error ? error.message : String(error)}`)
-  );
-}
-function summarizeValue(value) {
-  if (Array.isArray(value)) {
-    return `${value.length} élément(s) [${value.slice(0, 3).map((item) => typeof item === "object" ? JSON.stringify(item).slice(0, 40) : String(item)).join(", ")}${value.length > 3 ? ", …" : ""}]`;
-  }
-  if (value !== null && typeof value === "object") {
-    return `${Object.keys(value).length} champ(s)`;
-  }
-  return JSON.stringify(value) ?? "null";
-}
-function listSections(db2) {
-  const stats = db2.stats();
-  const names = Object.keys(stats.collections).filter((name) => stats.collections[name] > 0);
-  return names.sort((a, b) => {
-    const ia = SECTION_ORDER.indexOf(a);
-    const ib = SECTION_ORDER.indexOf(b);
-    if (ia === -1 && ib === -1) return a.localeCompare(b);
-    if (ia === -1) return 1;
-    if (ib === -1) return -1;
-    return ia - ib;
-  });
-}
+import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system8 } from "@minecraft/server";
 
 // node_modules/@bedrock-oss/bedrock-boost/dist/index.mjs
 import {
@@ -4479,6 +4124,390 @@ var DirectionUtils = class {
 };
 var log2 = Logger.getLogger("itemUtils", "bedrock-boost", "itemUtils");
 
+// src/lib/log.ts
+var log3 = Logger.getLogger("OpenMontage");
+var logDb = Logger.getLogger("OpenMontage", "db");
+var logTerr = Logger.getLogger("OpenMontage", "territories");
+var logMod = Logger.getLogger("OpenMontage", "moderation");
+var logPerm = Logger.getLogger("OpenMontage", "permissions");
+
+// src/ui/theme.ts
+import { system as system7 } from "@minecraft/server";
+import {
+  CustomForm,
+  ObservableString,
+  ObservableNumber,
+  ObservableBoolean
+} from "@minecraft/server-ui";
+var RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
+var OM_ICONS = {
+  flag: "flag",
+  compass: "compass",
+  shield: "shield",
+  crown: "crown",
+  scroll: "scroll",
+  gear: "gear",
+  database: "database",
+  sword: "sword",
+  ban: "ban",
+  bell: "bell",
+  warn: "warn",
+  history: "history",
+  plus: "plus",
+  check: "check",
+  trash: "trash",
+  search: "search",
+  save: "save",
+  back: "back",
+  close: "close",
+  list: "list",
+  pencil: "pencil",
+  user: "user",
+  tag: "tag",
+  online: "online"
+};
+function OM_ICON(icon) {
+  return `textures/ui/om_ic_${OM_ICONS[icon]}.png`;
+}
+var HEROES = {
+  home: "om_hero_home",
+  territories: "om_hero_territories",
+  admin: "om_hero_admin",
+  mod: "om_hero_mod",
+  role: "om_hero_role",
+  modules: "om_hero_modules",
+  database: "om_hero_database"
+};
+function heroPath(kind) {
+  return `textures/ui/${HEROES[kind]}.png`;
+}
+var uiDesignEnabled = true;
+function disableUiDesign(reason) {
+  if (!uiDesignEnabled) return;
+  uiDesignEnabled = false;
+  logMod.warn(`Images désactivées automatiquement (${reason}) — menus sans image pour rester fonctionnels. /scriptevent sn:ui on pour réactiver.`);
+}
+function setUiDesign(enabled) {
+  uiDesignEnabled = enabled;
+}
+function windowTitle(section) {
+  return `§l§aOM §r§8» §r§l${section}`;
+}
+function obString(initial) {
+  return new ObservableString(initial);
+}
+function obNumber(initial) {
+  return new ObservableNumber(initial);
+}
+function obBool(initial) {
+  return new ObservableBoolean(initial);
+}
+function obToggle(initial, onChange) {
+  const observable = new ObservableBoolean(initial);
+  observable.subscribe(onChange);
+  return observable;
+}
+function uiText(text) {
+  return { rawtext: [{ text }] };
+}
+var OMForm = class {
+  inner;
+  player;
+  constructor(player, title) {
+    this.player = player;
+    this.inner = new CustomForm(player, uiText(title));
+  }
+  /** Ferme ce formulaire si l'écran s'affiche encore (sinon no-op). */
+  closeIfShowing() {
+    try {
+      if (this.inner.isShowing()) this.inner.close();
+    } catch {
+    }
+  }
+  /**
+   * Bannière de héros en tête de menu (image pleine largeur du RP OM).
+   * À appeler EN PREMIER : c'est l'identité graphique du menu.
+   * Fail-safe : si l'API/le pack refuse l'image, le menu s'ouvre quand même.
+   */
+  hero(kind) {
+    if (!uiDesignEnabled) return this;
+    try {
+      this.inner.image(heroPath(kind), RP_PACK_ID, { width: 1 });
+    } catch {
+    }
+    return this;
+  }
+  header(text, options) {
+    this.inner.header(uiText(text), options);
+    return this;
+  }
+  label(text, options) {
+    this.inner.label(uiText(text), options);
+    return this;
+  }
+  button(label, onClick, options, icon) {
+    const imageDetails = icon === void 0 || !uiDesignEnabled ? void 0 : { imagePackId: RP_PACK_ID, imageSrc: OM_ICON(icon) };
+    const handler = () => {
+      closeOpenForm(this.player);
+      onClick();
+    };
+    try {
+      this.inner.button(
+        uiText(label),
+        handler,
+        imageDetails === void 0 ? options : { ...options, imageDetails }
+      );
+    } catch {
+      if (imageDetails === void 0) throw new Error("OMForm.button a échoué sans image");
+      this.inner.button(uiText(label), handler, options);
+    }
+    return this;
+  }
+  divider(options) {
+    this.inner.divider(options);
+    return this;
+  }
+  spacer(options) {
+    this.inner.spacer(options);
+    return this;
+  }
+  toggle(label, toggled, options) {
+    this.inner.toggle(uiText(label), toggled, options);
+    return this;
+  }
+  slider(label, value, min, max, options) {
+    this.inner.slider(uiText(label), value, min, max, options);
+    return this;
+  }
+  dropdown(label, value, items, options) {
+    const data = items.map((item, index) => {
+      if (typeof item === "string") return { label: uiText(item), value: index };
+      return {
+        ...item,
+        label: typeof item.label === "string" ? uiText(item.label) : item.label
+      };
+    });
+    this.inner.dropdown(uiText(label), value, data, options);
+    return this;
+  }
+  textField(label, text, options) {
+    this.inner.textField(uiText(label), text, options);
+    return this;
+  }
+  image(src, pack, options) {
+    this.inner.image(src, pack, options);
+    return this;
+  }
+  closeButton() {
+    this.inner.closeButton();
+    return this;
+  }
+  show() {
+    const previous = openForms.get(this.player.id);
+    if (previous !== void 0 && previous !== this) previous.closeIfShowing();
+    openForms.set(this.player.id, this);
+    return this.inner.show().finally(() => {
+      if (openForms.get(this.player.id) === this) {
+        openForms.delete(this.player.id);
+      }
+    });
+  }
+  isShowing() {
+    return this.inner.isShowing();
+  }
+};
+var openForms = /* @__PURE__ */ new Map();
+function closeOpenForm(player) {
+  const current = openForms.get(player.id);
+  if (current === void 0) return;
+  openForms.delete(player.id);
+  current.closeIfShowing();
+}
+function buildAndShow(player, title, build, withCloseButton) {
+  const buildForm = () => {
+    const form = new OMForm(player, title);
+    build(form);
+    if (withCloseButton) form.closeButton();
+    return form;
+  };
+  return new Promise((resolve, reject) => {
+    system7.runTimeout(() => {
+      buildForm().show().catch((error) => {
+        if (uiDesignEnabled) {
+          disableUiDesign(error instanceof Error ? error.message : "écran refusé");
+          return buildForm().show();
+        }
+        throw error;
+      }).then(resolve, reject);
+    }, 2);
+  });
+}
+function openWindow(player, section, build, hero) {
+  closeOpenForm(player);
+  return buildAndShow(player, windowTitle(section), (form) => {
+    if (hero !== void 0) form.hero(hero);
+    build(form);
+  }, true);
+}
+function openWindowRaw(player, title, build) {
+  closeOpenForm(player);
+  return buildAndShow(player, title, build, false);
+}
+
+// src/db/menu.ts
+function summarize(doc) {
+  const data = doc.data ?? {};
+  if (typeof data.name === "string" && data.name !== "") {
+    const extras = [];
+    if (typeof data.level === "number") extras.push(`niv. ${data.level}`);
+    if (typeof data.role === "string") extras.push(String(data.role));
+    if (typeof data.reason === "string") extras.push(String(data.reason).slice(0, 30));
+    if (typeof data.enabled === "boolean") extras.push(data.enabled ? "ON" : "OFF");
+    if (typeof data.grade === "string" && data.grade !== "") extras.push(`grade ${data.grade}`);
+    if (typeof data.sessions === "number") extras.push(`${data.sessions} sessions`);
+    if (Array.isArray(data.perms)) extras.push(`${data.perms.length} perms`);
+    if (Array.isArray(data.members)) extras.push(`${data.members.length} membres`);
+    return `§f${data.name}§r§7${extras.length > 0 ? ` — ${extras.join(" · ")}` : ""}`;
+  }
+  if (typeof data.playerId === "string" && data.playerId !== "") {
+    return `§fid:${String(data.playerId).slice(0, 12)}…§r§7${typeof data.name === "string" ? ` ${data.name}` : ""}`;
+  }
+  return `§f${doc.id}`;
+}
+async function openDbMenu(db2, player) {
+  await openWindow(player, "Base de données", (form) => {
+    const stats = db2.stats();
+    const sections = listSections(db2);
+    form.hero("database");
+    form.header(`§a■ §lBase de données`);
+    form.label(
+      `§7${stats.documents} documents · ${stats.bytes} octets
+§7État : ${stats.dirty ? "§eà sauvegarder" : "§aà jour"}`
+    );
+    form.divider();
+    for (const section of sections) {
+      form.button(
+        `${collectionLabel(section)}
+§8${stats.collections[section]} doc(s)`,
+        () => {
+          void openSectionMenu(db2, player, section);
+        },
+        void 0,
+        "database"
+      );
+    }
+    form.divider();
+    form.button(`§a■ §lForcer la sauvegarde`, () => {
+      db2.save(true);
+      player.sendMessage("§a[DB] Sauvegarde forcée.");
+    }, void 0, "save");
+  }).catch(
+    (error) => console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+async function openSectionMenu(db2, player, section) {
+  await openWindow(player, collectionLabel(section), (form) => {
+    const docs = db2.find(section);
+    form.label(`§7${docs.length} document(s) — clique pour inspecter/modifier :`);
+    form.divider();
+    for (const doc of docs) {
+      form.button(summarize(doc), () => {
+        void openDocumentMenu(db2, player, section, doc.id);
+      });
+    }
+    form.divider();
+    form.button(`§c■ §lVider la section`, () => {
+      const removed = db2.clear(section);
+      db2.save();
+      player.sendMessage(`§c[DB] Section "${section}" vidée (${removed} document(s) supprimés).`);
+    });
+  }).catch(
+    (error) => console.warn(`[DB] Erreur section : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+var READONLY_KEYS = /* @__PURE__ */ new Set(["chunkKeys"]);
+async function openDocumentMenu(db2, player, section, docId) {
+  const doc = db2.findOne(section, docId);
+  if (doc === void 0) {
+    player.sendMessage("§c[DB] Document introuvable (déjà supprimé ?).");
+    return;
+  }
+  const entries = Object.entries(doc.data).filter(([key]) => !READONLY_KEYS.has(key));
+  await openWindowRaw(player, windowTitle(docId), (form) => {
+    form.header(`§b■ §l${docId}`);
+    form.label(`§7collection : §f${section}`);
+    const editableKeys = [];
+    const kinds = [];
+    const boolValues = {};
+    const readonlyLines = [];
+    for (const [key, value] of entries) {
+      if (typeof value === "string") {
+        form.textField(`§e${key}`, obString(value));
+        editableKeys.push(key);
+        kinds.push("string");
+      } else if (typeof value === "number") {
+        form.textField(`§e${key} §7(nombre)`, obString(String(value)));
+        editableKeys.push(key);
+        kinds.push("number");
+      } else if (typeof value === "boolean") {
+        const toggle = obBool(value);
+        boolValues[key] = toggle;
+        form.toggle(`§e${key}`, toggle);
+        editableKeys.push(key);
+        kinds.push("boolean");
+      } else {
+        readonlyLines.push(`§7${key}: §f${summarizeValue(value)}`);
+      }
+    }
+    if (readonlyLines.length > 0) {
+      form.divider();
+      form.label(`§7— lecture seule —
+${readonlyLines.join("\n")}`);
+    }
+    form.divider();
+    form.button(`§a■ §lAppliquer`, () => {
+      const patch = {};
+      for (const [key, toggle] of Object.entries(boolValues)) {
+        const current = doc.data[key];
+        if (typeof current === "boolean" && toggle.getData() !== current) {
+          patch[key] = toggle.getData();
+        }
+      }
+      if (Object.keys(patch).length > 0) {
+        db2.update(section, docId, patch);
+        db2.save();
+        player.sendMessage(`§a[DB] "${docId}" mis à jour (${Object.keys(patch).length} champ(s)).`);
+      } else {
+        player.sendMessage("§7[DB] Aucun changement (seuls les interrupteurs sont éditables).");
+      }
+    });
+    form.closeButton();
+  }).catch(
+    (error) => console.warn(`[DB] Erreur document : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+function summarizeValue(value) {
+  if (Array.isArray(value)) {
+    return `${value.length} élément(s) [${value.slice(0, 3).map((item) => typeof item === "object" ? JSON.stringify(item).slice(0, 40) : String(item)).join(", ")}${value.length > 3 ? ", …" : ""}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `${Object.keys(value).length} champ(s)`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+function listSections(db2) {
+  const stats = db2.stats();
+  const names = Object.keys(stats.collections).filter((name) => stats.collections[name] > 0);
+  return names.sort((a, b) => {
+    const ia = SECTION_ORDER.indexOf(a);
+    const ib = SECTION_ORDER.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+}
+
 // src/territories/ui.ts
 function openCreateMenu(player, manager) {
   const name = obString("");
@@ -4589,7 +4618,7 @@ function registerCommands(manager, db2, modules2, permissions2) {
     if (permissions2 === void 0) return true;
     return permissions2.can(player.name, perm, player.playerPermissionLevel >= 2);
   };
-  system7.beforeEvents.startup.subscribe((event) => {
+  system8.beforeEvents.startup.subscribe((event) => {
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:create",
@@ -4608,7 +4637,7 @@ function registerCommands(manager, db2, modules2, permissions2) {
         if (!allowed(player, "territories.create")) {
           return { status: CustomCommandStatus.Failure, message: "§c[Territoires] Tu n'as pas la permission de créer un territoire." };
         }
-        system7.run(() => openCreateMenu(player, manager));
+        system8.run(() => openCreateMenu(player, manager));
         return { status: CustomCommandStatus.Success };
       }
     );
@@ -4624,7 +4653,7 @@ function registerCommands(manager, db2, modules2, permissions2) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus.Failure, message: "Seuls les joueurs peuvent utiliser cette commande." };
         }
-        system7.run(() => openTerritoriesMenu(player, manager));
+        system8.run(() => openTerritoriesMenu(player, manager));
         return { status: CustomCommandStatus.Success };
       }
     );
@@ -4678,7 +4707,7 @@ function registerCommands(manager, db2, modules2, permissions2) {
         switch (action) {
           case "menu": {
             if (db2.loaded) {
-              system7.run(() => {
+              system8.run(() => {
                 void openDbMenu(db2, _origin.sourceEntity).catch(
                   (error) => console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`)
                 );
@@ -4738,9 +4767,9 @@ function registerCommands(manager, db2, modules2, permissions2) {
 }
 
 // src/territories/protection.ts
-import { world as world7, system as system8, GameMode as GameMode2, Player as Player3 } from "@minecraft/server";
+import { world as world7, system as system9, GameMode as GameMode2, Player as Player3 } from "@minecraft/server";
 function safeSend(player, message) {
-  system8.run(() => {
+  system9.run(() => {
     try {
       player.sendMessage(message);
     } catch {
@@ -4782,7 +4811,7 @@ function registerProtection(manager, modules2) {
     const x = Math.floor(location.x);
     const y = Math.floor(location.y);
     const z = Math.floor(location.z);
-    system8.run(() => {
+    system9.run(() => {
       try {
         dimension.runCommand(`setblock ${x} ${y} ${z} air`);
       } catch {
@@ -4861,7 +4890,7 @@ function registerProtection(manager, modules2) {
 }
 
 // src/territories/announce.ts
-import { system as system9, world as world8 } from "@minecraft/server";
+import { system as system10, world as world8 } from "@minecraft/server";
 var NO_TERRITORY_MESSAGE = "§7Zone libre";
 function registerAnnouncer(manager, modules2, intervalTicks = 10) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
@@ -4869,7 +4898,7 @@ function registerAnnouncer(manager, modules2, intervalTicks = 10) {
   world8.afterEvents.playerLeave.subscribe((event) => {
     lastKeyByPlayer.delete(event.playerName);
   });
-  system9.runInterval(() => {
+  system10.runInterval(() => {
     if (!manager.loaded || !enabled()) return;
     for (const player of world8.getAllPlayers()) {
       const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
@@ -5534,7 +5563,7 @@ function openAssignRoleMenu(player, targetName, permissions2, db2) {
 }
 
 // src/permissions/commands.ts
-import { CustomCommandStatus as CustomCommandStatus2, CommandPermissionLevel as CommandPermissionLevel2, system as system11, PlayerPermissionLevel } from "@minecraft/server";
+import { CustomCommandStatus as CustomCommandStatus2, CommandPermissionLevel as CommandPermissionLevel2, system as system12, PlayerPermissionLevel } from "@minecraft/server";
 
 // src/modules/manager.ts
 var MODULE_IDS = ["territories", "moderation"];
@@ -5779,7 +5808,7 @@ var SanctionsManager = class {
 };
 
 // src/moderation/enforcement.ts
-import { world as world10, system as system10 } from "@minecraft/server";
+import { world as world10, system as system11 } from "@minecraft/server";
 function kickPlayer(playerName, reason) {
   const player = world10.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return false;
@@ -5799,7 +5828,7 @@ function registerEnforcement(sanctions2) {
     const expiry = ban.expiresAt === 0 ? "§4BANNI PERMANENTLEMENT" : `§4BANNI§7 (encore ${Math.max(1, Math.ceil((ban.expiresAt - Date.now()) / 6e4))} min)`;
     player.sendMessage(`§c[OpenMontage] ${expiry}
 §7Motif : §f${ban.reason}§7 — par §f${ban.by}`);
-    system10.run(() => {
+    system11.run(() => {
       kickPlayer(player.name, ban.reason);
     });
   });
@@ -6039,7 +6068,7 @@ function canUseAdminPanel(player, permissions2) {
   return permissions2.levelOf(player.name) >= 100 || player.playerPermissionLevel >= PlayerPermissionLevel.Operator;
 }
 function registerAdminCommands(ctx) {
-  system11.beforeEvents.startup.subscribe((event) => {
+  system12.beforeEvents.startup.subscribe((event) => {
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:roles",
@@ -6052,7 +6081,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system11.run(() => {
+        system12.run(() => {
           if (canUseAdminPanel(player, ctx.permissions)) {
             openRolesMenu(player, ctx.permissions);
             return;
@@ -6085,7 +6114,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system11.run(() => openHubMenu(player, ctx));
+        system12.run(() => openHubMenu(player, ctx));
         return { status: CustomCommandStatus2.Success };
       }
     );
@@ -6101,7 +6130,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system11.run(() => {
+        system12.run(() => {
           if (!canUseAdminPanel(player, ctx.permissions)) {
             player.sendMessage("§c[Admin] Il te faut le rôle Admin (ou être op).");
             return;
@@ -6136,7 +6165,7 @@ function registerAdminCommands(ctx) {
 }
 
 // src/permissions/chat.ts
-import { world as world12, system as system12 } from "@minecraft/server";
+import { world as world12, system as system13 } from "@minecraft/server";
 function stripFormatting(raw) {
   return raw.replace(/§/g, "");
 }
@@ -6183,7 +6212,7 @@ function registerChat(deps) {
     if (mute !== void 0) {
       event.cancel = true;
       const remaining = mute.expiresAt === 0 ? "permanent" : `${Math.max(1, Math.ceil((mute.expiresAt - Date.now()) / 6e4))} min`;
-      system12.run(() => {
+      system13.run(() => {
         sender.sendMessage(
           `§c[Modération] Tu es muet (${remaining}). §7Motif : §f${mute.reason}§7 — par §f${mute.by}`
         );
@@ -6193,7 +6222,7 @@ function registerChat(deps) {
     event.cancel = true;
     const message = sanitizeMessage(event.message);
     const formatted = formatChatMessage(permissions2, sender.name, message, isVanillaOp);
-    system12.run(() => {
+    system13.run(() => {
       for (const line of formatted.split("\n")) {
         world12.sendMessage(line);
       }
@@ -6206,7 +6235,7 @@ import {
   CustomCommandParamType as CustomCommandParamType2,
   CustomCommandStatus as CustomCommandStatus3,
   CommandPermissionLevel as CommandPermissionLevel3,
-  system as system13
+  system as system14
 } from "@minecraft/server";
 import { world as world13 } from "@minecraft/server";
 var NOT_PLAYER = "§c[Modération] Réservé aux joueurs.";
@@ -6215,7 +6244,7 @@ function requires(player, permissions2, perm) {
 }
 function notifyTarget(targetName, message) {
   const target = world13.getAllPlayers().find((candidate) => candidate.name === targetName);
-  if (target !== void 0) system13.run(() => target.sendMessage(message));
+  if (target !== void 0) system14.run(() => target.sendMessage(message));
 }
 function resolveTargetId2(targetName, db2) {
   const online = world13.getAllPlayers().find((candidate) => candidate.name === targetName);
@@ -6225,7 +6254,7 @@ function resolveTargetId2(targetName, db2) {
 }
 function registerModerationCommands(deps) {
   const { sanctions: sanctions2, permissions: permissions2, db: db2 } = deps;
-  system13.beforeEvents.startup.subscribe((event) => {
+  system14.beforeEvents.startup.subscribe((event) => {
     const guardAndRun = (origin, action) => {
       const player = origin.sourceEntity;
       if (player === void 0 || player.typeId !== "minecraft:player") {
@@ -6234,7 +6263,7 @@ function registerModerationCommands(deps) {
       if (!requires(player, permissions2, "mod.panel")) {
         return { status: CustomCommandStatus3.Failure, message: "§c[Modération] Permission manquante (mod.panel)." };
       }
-      system13.run(() => action(player));
+      system14.run(() => action(player));
       return { status: CustomCommandStatus3.Success };
     };
     const guardPerm = (origin, perm, action) => {
@@ -6245,7 +6274,7 @@ function registerModerationCommands(deps) {
       if (!requires(player, permissions2, perm)) {
         return { status: CustomCommandStatus3.Failure, message: `§c[Modération] Permission manquante (${perm}).` };
       }
-      system13.run(() => action(player));
+      system14.run(() => action(player));
       return { status: CustomCommandStatus3.Success };
     };
     const stringParam = (name) => ({ name, type: CustomCommandParamType2.String });
@@ -6301,7 +6330,7 @@ function registerModerationCommands(deps) {
           `§a[Modération] ${target} banni (${formatDuration(duration)}). Raison : ${reason}`
         );
         notifyTarget(target, `§4[Modération] Tu es banni (${formatDuration(duration)}) : ${reason}`);
-        system13.run(() => kickPlayer(target, reason));
+        system14.run(() => kickPlayer(target, reason));
       })
     );
     event.customCommandRegistry.registerCommand(
@@ -6396,13 +6425,6 @@ function registerModerationCommands(deps) {
   });
 }
 
-// src/lib/log.ts
-var log3 = Logger.getLogger("OpenMontage");
-var logDb = Logger.getLogger("OpenMontage", "db");
-var logTerr = Logger.getLogger("OpenMontage", "territories");
-var logMod = Logger.getLogger("OpenMontage", "moderation");
-var logPerm = Logger.getLogger("OpenMontage", "permissions");
-
 // src/main.ts
 var db = new JsonDatabase(createBedrockStorage(), "openmontage");
 registerAutosave(db, 100);
@@ -6467,7 +6489,7 @@ world14.afterEvents.worldLoad.subscribe(() => {
   log3.info(`UI images : pack_id=${RP_PACK_ID} (doit matcher l'UUID du RP actif).`);
 });
 var worldReady = false;
-system14.runInterval(() => {
+system15.runInterval(() => {
   if (worldReady) return;
   if (world14.getAllPlayers().length === 0) return;
   if (!territories.loaded) {
@@ -6518,13 +6540,13 @@ world14.afterEvents.playerSpawn.subscribe((event) => {
   player.sendMessage("§a[OpenMontage]§r Bienvenue ! Menu principal : §f/sn:menu§r — territoire : §f/sn:create");
   player.onScreenDisplay.setTitle("§aOpenMontage §f✔");
 });
-system14.runInterval(() => {
+system15.runInterval(() => {
   if (!permissions.loaded) return;
   for (const player of world14.getAllPlayers()) {
     applyNameTag(player.name);
   }
 }, 100);
-system14.afterEvents.scriptEventReceive.subscribe((event) => {
+system15.afterEvents.scriptEventReceive.subscribe((event) => {
   if (event.id !== "sn:ui" || event.sourceEntity === void 0) return;
   if (event.sourceEntity.typeId !== "minecraft:player") return;
   const player = event.sourceEntity;
@@ -6537,7 +6559,7 @@ system14.afterEvents.scriptEventReceive.subscribe((event) => {
     );
   }
 });
-system14.runInterval(() => {
+system15.runInterval(() => {
   const stats = db.stats();
   logDb.info(
     `${stats.documents} documents, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"}`
