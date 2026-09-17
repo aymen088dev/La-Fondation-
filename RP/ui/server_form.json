@@ -37,6 +37,13 @@
     "nineslice_size": [2, 2, 2, 2]
   },
 
+  "om_ornate_background": {
+    "type": "image",
+    "texture": "textures/ui/om_ornate_bg",
+    "layer": 1,
+    "nineslice_size": [12, 12, 12, 12]
+  },
+
   "om_title_band": {
     "type": "image",
     "texture": "textures/ui/om_btn",
@@ -81,7 +88,7 @@
     "$text_name": "#title_text",
     "$title_text_binding_type": "none",
     "$child_control": "server_form.custom_form_panel",
-    "$custom_background": "server_form.om_dialog_background",
+    "$custom_background": "server_form.om_ornate_background",
     "size": [280, 220],
     "layer": 2
   },
@@ -94,7 +101,7 @@
     "$text_name": "#title_text",
     "$title_text_binding_type": "none",
     "$child_control": "server_form.long_form_panel",
-    "$custom_background": "server_form.om_dialog_background",
+    "$custom_background": "server_form.om_ornate_background",
     "size": [280, 220],
     "layer": 2
   },
@@ -137,12 +144,12 @@
           "$button_text": "#submit_text",
           "$button_text_binding_type": "global",
           "$button_binding_condition": "once",
-          "$default_button_texture": "textures/ui/om_btn",
-          "$hover_button_texture": "textures/ui/om_btn_hover",
-          "$pressed_button_texture": "textures/ui/om_btn_press",
-          "$default_text_color": [0.95, 0.97, 1.0],
-          "$hover_text_color": [0.62, 0.94, 0.72],
-          "$pressed_text_color": [0.42, 0.90, 0.55],
+          "$default_button_texture": "textures/ui/om_tile",
+          "$hover_button_texture": "textures/ui/om_tile_hover",
+          "$pressed_button_texture": "textures/ui/om_tile_press",
+          "$default_text_color": [0.95, 0.93, 0.86],
+          "$hover_text_color": [0.98, 0.87, 0.45],
+          "$pressed_text_color": [0.75, 0.62, 0.28],
           "bindings": [
             {
               "binding_name": "#submit_button_visible",
@@ -640,12 +647,12 @@
           "$button_text_binding_type": "collection",
           "$button_text_grid_collection_name": "form_buttons",
           "$button_text_max_size": ["100%", 20],
-          "$default_button_texture": "textures/ui/om_btn",
-          "$hover_button_texture": "textures/ui/om_btn_hover",
-          "$pressed_button_texture": "textures/ui/om_btn_press",
-          "$default_text_color": [0.95, 0.97, 1.0],
-          "$hover_text_color": [0.62, 0.94, 0.72],
-          "$pressed_text_color": [0.42, 0.90, 0.55],
+          "$default_button_texture": "textures/ui/om_tile",
+          "$hover_button_texture": "textures/ui/om_tile_hover",
+          "$pressed_button_texture": "textures/ui/om_tile_press",
+          "$default_text_color": [0.95, 0.93, 0.86],
+          "$hover_text_color": [0.98, 0.87, 0.45],
+          "$pressed_text_color": [0.75, 0.62, 0.28],
           "bindings": [
             {
               "binding_type": "collection_details",

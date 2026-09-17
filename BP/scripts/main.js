@@ -4816,6 +4816,7 @@ function showTerritoryInfo(player, territory, manager) {
   const center = chunkCenter(data.chunkKeys[0] ?? "");
   const isOwner = data.ownerId === player.id || data.owner === player.name;
   void openWindowRaw(player, windowTitle(data.name), (form) => {
+    form.hero("territories");
     form.header(`${color.code}■ §l${data.name}`);
     form.label(
       [
@@ -4829,6 +4830,13 @@ function showTerritoryInfo(player, territory, manager) {
     );
     form.divider();
     form.label("§7Seuls le propriétaire et ses membres peuvent y construire, y ouvrir des conteneurs ou y combattre.");
+    if (data.members.length > 0) {
+      form.divider();
+      form.label(
+        `§7Membres :
+${data.members.map((m) => `§8· §f${m.name} §7(${m.rank === "officer" ? "officier" : "membre"})`).join("\n")}`
+      );
+    }
     if (isOwner) {
       form.spacer();
       form.button(`§6■ §lChanger le drapeau (/sn:setflag)`, () => {
@@ -6482,6 +6490,7 @@ function openHubMenu(player, deps) {
       hasRole ? `§7Salut §f${player.name}§7 ! Ton rôle : ${permissions2.nameTagFor(player.name)}§r` : `§7Salut §f${player.name}§7 ! Tu n'as pas encore de rôle.`
     );
     form.spacer();
+    form.header(`§a§lMonde`);
     form.button(
       `§a■ §lTerritoires§r
 §7${canCreate ? "créer, lister, explorer" : "lister, explorer"}`,
@@ -6489,6 +6498,17 @@ function openHubMenu(player, deps) {
       { tooltip: "Revendique et explore les territoires" },
       "flag"
     );
+    form.button(`§e■ §lInfos territoire§r
+§7le chunk où tu te trouves`, () => {
+      const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
+      const here = territories2.findByChunk(key);
+      if (here === void 0) {
+        player.sendMessage("§7[Territoires] Ce chunk est libre — personne le contrôle. §f/sn:create§7 pour le revendiquer !");
+        return;
+      }
+      showTerritoryInfo(player, here, territories2);
+    }, void 0, "search");
+    form.header(`§d§lProgression`);
     if (canSelfColor) {
       form.button(
         `§b■ §lMon rôle§r
@@ -6514,6 +6534,7 @@ function openHubMenu(player, deps) {
 §7bûcheron, mineur… (à venir)`, () => openJobsMenu(player, jobs2), void 0, "axe");
     }
     if (isMod) {
+      form.header(`§4§lGestion`);
       form.button(
         `§4■ §lModération§r
 §7bans, mutes, warns`,
@@ -6523,7 +6544,7 @@ function openHubMenu(player, deps) {
       );
     }
     if (isAdmin) {
-      form.header(`§6§lAdministration`);
+      if (!isMod) form.header(`§6§lGestion`);
       form.button(`§6■ §lRôles§r
 §7créer et régler les rôles`, () => openRolesMenu(player, permissions2), void 0, "crown");
       form.button(

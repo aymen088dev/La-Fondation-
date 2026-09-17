@@ -1,7 +1,8 @@
 import type { Player } from "@minecraft/server";
 import { windowTitle, RP_PACK_ID, openWindow } from "./theme";
-import { openTerritoriesMenu } from "../territories/ui";
+import { openTerritoriesMenu, showTerritoryInfo } from "../territories/ui";
 import type { TerritoryManager } from "../territories/manager";
+import { chunkKeyFromPosition } from "../territories/manager";
 import { openRolesMenu, openColorPicker } from "../permissions/ui";
 import { openPlayersMenu } from "../permissions/players-ui";
 import type { PermissionManager } from "../permissions/manager";
@@ -50,7 +51,7 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
     form.header(`§a■ §lOpenMontage`);
     form.divider();
 
-    // Bandeau d'identité : le rôle du joueur, coloré.
+    // Bandeau d'identité : le rôle du joueur, coloré (sans heure, sans date).
     form.label(
       hasRole
         ? `§7Salut §f${player.name}§7 ! Ton rôle : ${permissions.nameTagFor(player.name)}§r`
@@ -58,13 +59,26 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
     );
     form.spacer();
 
-    // Entrées joueur.
+    // ---- Section Monde ----
+    form.header(`§a§lMonde`);
     form.button(
       `§a■ §lTerritoires§r\n§7${canCreate ? "créer, lister, explorer" : "lister, explorer"}`,
       () => openTerritoriesMenu(player, territories),
       { tooltip: "Revendique et explore les territoires" },
       "flag",
     );
+    form.button(`§e■ §lInfos territoire§r\n§7le chunk où tu te trouves`, () => {
+      const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
+      const here = territories.findByChunk(key);
+      if (here === undefined) {
+        player.sendMessage("§7[Territoires] Ce chunk est libre — personne le contrôle. §f/sn:create§7 pour le revendiquer !");
+        return;
+      }
+      showTerritoryInfo(player, here, territories);
+    }, undefined, "search");
+
+    // ---- Section Progression ----
+    form.header(`§d§lProgression`);
     if (canSelfColor) {
       form.button(`§b■ §lMon rôle§r\n§7couleur, prefix perso`, () =>
         openSelfRoleMenu(player, permissions),
@@ -72,8 +86,6 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
         "tag",
       );
     }
-
-    // Classes & métiers (progression du joueur).
     if (classes !== undefined) {
       const chosen = classes.classOf(player.name);
       form.button(
@@ -89,18 +101,17 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
       form.button(`§6■ §lMétiers§r\n§7bûcheron, mineur… (à venir)`, () => openJobsMenu(player, jobs), undefined, "axe");
     }
 
-    // Entrées modération.
+    // ---- Section Gestion (modération + admin) ----
     if (isMod) {
+      form.header(`§4§lGestion`);
       form.button(`§4■ §lModération§r\n§7bans, mutes, warns`, () =>
         openSanctionsMenu(player, sanctions, permissions),
         undefined,
         "shield",
       );
     }
-
-    // Entrées admin.
     if (isAdmin) {
-      form.header(`§6§lAdministration`);
+      if (!isMod) form.header(`§6§lGestion`);
       form.button(`§6■ §lRôles§r\n§7créer et régler les rôles`, () => openRolesMenu(player, permissions), undefined, "crown");
       form.button(`§b■ §lJoueurs§r\n§7en ligne + hors ligne`, () =>
         openPlayersMenu(player, permissions, deps.db),

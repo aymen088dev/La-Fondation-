@@ -394,6 +394,99 @@ def form_reskin_textures() -> None:
     panel_png("om_btn_press", 32, 32, (9, 12, 22), BTN_BORDER_HOVER)
 
 
+def ornate_textures() -> None:
+    """Textures « grand menu » (style capture : cuir sombre + ornements or) :
+    - om_ornate_bg : grand panneau principal, cadre sombre + liseré or,
+      coins ornementés, médaillon central discret ;
+    - om_tile : tuile-bouton cuir sombre à cadre or, 3 états (hover/press)."""
+
+    # ---- Panneau principal 128x128 (nineslice 12px) ----
+    w = h = 128
+    px: list[list[tuple[int, int, int, int]]] = []
+    for y in range(h):
+        row: list[tuple[int, int, int, int]] = []
+        for x in range(w):
+            # Dégradé radial inversé : centre légèrement plus clair
+            d = ((x - w / 2) ** 2 + (y - h / 2) ** 2) ** 0.5 / (w / 2)
+            base = lerp((46, 44, 42), (32, 30, 29), min(1.0, d))
+            # Grain cuir léger
+            grain = ((x * 7 + y * 13) % 5) - 2
+            base = (max(0, base[0] + grain), max(0, base[1] + grain), max(0, base[2] + grain))
+            row.append((*base, 255))
+        px.append(row)
+
+    # Cadre sombre épais (bord externe) + liseré or fin
+    for y in range(h):
+        for x in range(w):
+            edge = min(x, y, w - 1 - x, h - 1 - y)
+            if edge == 0 or edge == 1:
+                px[y][x] = (18, 17, 18, 255)          # cadre sombre
+            elif edge == 2 or edge == 3:
+                px[y][x] = (*lerp(GOLD, GOLD_LIGHT, (x + y) / (w + h)), 255)  # or
+            elif edge == 4:
+                px[y][x] = (30, 28, 26, 255)          # ombre interne
+
+    # Coins ornementés : arcs dorés dans les 4 coins
+    for cx, cy, sx, sy in ((6, 6, 1, 1), (w - 7, 6, -1, 1), (6, h - 7, 1, -1), (w - 7, h - 7, -1, -1)):
+        for i in range(9):
+            # petit arc : ligne horizontale qui remonte vers le coin
+            x = cx + sx * (8 - i)
+            y = cy + sy * 8
+            if 4 <= x < w - 4 and 4 <= y < h - 4:
+                px[y][x] = (*GOLD, 255)
+            # arc vertical symétrique
+            x2 = cx + sx * 8
+            y2 = cy + sy * (8 - i)
+            if 4 <= x2 < w - 4 and 4 <= y2 < h - 4:
+                px[y2][x2] = (*GOLD, 255)
+        # point lumineux au coin de l'arc
+        xg, yg = cx + sx * 8, cy + sy * 8
+        if 4 <= xg < w - 4 and 4 <= yg < h - 4:
+            px[yg][xg] = (*GOLD_LIGHT, 255)
+
+    # Médaillon central discret (losange or pâle)
+    cx = cy = w // 2
+    for dy in range(-7, 8):
+        for dx in range(-7, 8):
+            dist = abs(dx) + abs(dy)
+            if dist <= 7:
+                shade = GOLD if dist > 4 else GOLD_LIGHT
+                px[cy + dy][cx + dx] = (*shade, 110)  # semi-transparent sur le cuir
+
+    write_png(RP_ROOT / "textures" / "ui" / "om_ornate_bg.png", w, h, px)
+
+    # ---- Tuile-bouton 48x48 (nineslice 10px) : cuir sombre, cadre or, 3 états ----
+    def tile(name: str, frame: tuple[int, int, int], fill: tuple[int, int, int], inner: tuple[int, int, int]) -> None:
+        tw = th = 48
+        tpx: list[list[tuple[int, int, int, int]]] = []
+        for y in range(th):
+            trow: list[tuple[int, int, int, int]] = []
+            for x in range(tw):
+                edge = min(x, y, tw - 1 - x, th - 1 - y)
+                if edge == 0:
+                    trow.append((14, 13, 14, 255))            # contour sombre
+                elif edge == 1 or edge == 2:
+                    trow.append((*frame, 255))                 # cadre or
+                elif edge == 3:
+                    trow.append((28, 26, 25, 255))             # ombre interne
+                else:
+                    # fond cuir avec grain léger
+                    g = ((x * 5 + y * 11) % 4) - 1
+                    trow.append((max(0, fill[0] + g), max(0, fill[1] + g), max(0, fill[2] + g), 255))
+            tpx.append(trow)
+        # Coins arrondis ornementaux : arc doré interne dans chaque coin
+        for cx, cy, sx, sy in ((5, 5, 1, 1), (tw - 6, 5, -1, 1), (5, th - 6, 1, -1), (tw - 6, th - 6, -1, -1)):
+            for i in range(5):
+                x, y = cx + sx * (4 - i), cy + sy * 4
+                if 3 <= x < tw - 3 and 3 <= y < th - 3:
+                    tpx[y][x] = (*inner, 255)
+        write_png(RP_ROOT / "textures" / "ui" / f"{name}.png", tw, th, tpx)
+
+    tile("om_tile", GOLD, (28, 26, 30), GOLD_LIGHT)
+    tile("om_tile_hover", GOLD_LIGHT, (36, 33, 38), WHITE)
+    tile("om_tile_press", (170, 128, 40), (22, 20, 24), GOLD)
+
+
 def actionbar_bg() -> None:
     """Fond d'actionbar 128x10 : panneau sombre semi-transparent aux coins adoucis."""
     px: list[list[tuple[int, int, int, int]]] = []
@@ -450,6 +543,7 @@ def main() -> None:
         hero(name, a, b)
     make_icons()
     form_reskin_textures()
+    ornate_textures()
     actionbar_bg()
     pack_icon()
     print("Terminé.")

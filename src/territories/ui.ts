@@ -107,6 +107,7 @@ export function showTerritoryInfo(
   const isOwner = data.ownerId === player.id || data.owner === player.name;
 
   void openWindowRaw(player, windowTitle(data.name), (form) => {
+    form.hero("territories");
     form.header(`${color.code}■ §l${data.name}`);
     form.label(
       [
@@ -120,6 +121,16 @@ export function showTerritoryInfo(
     );
     form.divider();
     form.label("§7Seuls le propriétaire et ses membres peuvent y construire, y ouvrir des conteneurs ou y combattre.");
+
+    // Membres listés (avec leur rang) — utile pour tous les lecteurs de la fiche.
+    if (data.members.length > 0) {
+      form.divider();
+      form.label(
+        `§7Membres :\n${data.members
+          .map((m) => `§8· §f${m.name} §7(${m.rank === "officer" ? "officier" : "membre"})`)
+          .join("\n")}`,
+      );
+    }
 
     if (isOwner) {
       form.spacer();
