@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v14** — reprise des menus de ZÉRO après les artifacts des captures : (1) `server_form.json` est désormais une **copie exacte du vanilla** avec UNE seule substitution (`$custom_background` → fond orné cuir/or sans médaillon — le « carré chelou » venait du médaillon étiré par le nineslice) ; (2) tuiles `om_tile` supprimées (elles cassaient le rendu vanilla : icônes détachées, rectangle de focus parasite) — boutons vanilla purs ; (3) **bannières hero désactivées** dans le moteur (source de la barre de chargement bloquée) ; (4) **hub épuré** : plus d'options admin dans `/sn:menu` (elles vivent dans `/sn:admin`, rappel affiché aux admins). Packs en **1.5.6**.
+> Dernière mise à jour : **v15 — LAYOUT SIDEBAR**. Le JSON UI (`server_form.json`) place désormais les **boutons dans la colonne de gauche** (scrollable) et le **texte du body dans le grand panneau de droite** — le menu de la capture de référence. Nouvelle méthode `form.body()` dans le moteur. **Hub** : sidebar (Territoires · Mes infos · Modération si modo · Admin si admin) + panneau d'accueil (rôle, classe, stats du monde). Nouveau **« Mes infos »** (fiche joueur + actions rapides). **Admin** extrait dans `src/ui/admin.ts` (Rôles · Joueurs · Modules · **Base de données** · Classes reset) avec état du serveur en panneau. **/sn:create** refait (infos du chunk + règles à droite, formulaire à gauche). `/sn:admin` ouvre le même menu. Packs en **1.6.0**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---

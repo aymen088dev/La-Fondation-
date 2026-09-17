@@ -1,5 +1,5 @@
 // src/main.ts
-import { world as world14, system as system15 } from "@minecraft/server";
+import { world as world16, system as system15 } from "@minecraft/server";
 
 // src/db/types.ts
 var DB_SCHEMA_VERSION = 3;
@@ -4175,9 +4175,8 @@ var uiDesignEnabled = true;
 function setUiDesign(enabled) {
   uiDesignEnabled = enabled;
 }
-var UI_TITLE_TAG = "§r§r";
 function windowTitle(section) {
-  return `${UI_TITLE_TAG}§l§aOM §r§8» §r§l${section}`;
+  return `§l§aOM §r§8» §r§l${section}`;
 }
 var ObservableString = class {
   value;
@@ -4294,6 +4293,16 @@ var OMForm = class {
   }
   header(text) {
     this.elements.push({ kind: "header", text });
+    return this;
+  }
+  /**
+   * Texte libre du panneau de droite (layout sidebar du RP).
+   * En JSON UI vanilla ce texte s'appelle le body du form ; avec notre
+   * server_form.json il s'affiche dans la GRANDE COLONNE, tandis que les
+   * boutons/headers/labels vont dans la colonne de gauche (sidebar).
+   */
+  body(text) {
+    this.elements.push({ kind: "body", text });
     return this;
   }
   label(text) {
@@ -4521,6 +4530,8 @@ var OMForm = class {
         bodyLines.push("§8─────────────────────");
       } else if (action.kind === "label") {
         bodyLines.push(action.text);
+      } else if (action.kind === "body") {
+        bodyLines.unshift(action.text);
       }
     }
     if (bodyLines.length > 0) form.body(bodyLines.join("\n"));
@@ -4728,24 +4739,44 @@ function listSections(db2) {
 function openCreateMenu(player, manager) {
   const name = obString("");
   const colorIndex = obNumber(0);
+  const cx = Math.floor(player.location.x);
+  const cz = Math.floor(player.location.z);
   void openWindowRaw(player, windowTitle("Créer un territoire"), (form) => {
-    form.header(`§a■ §lRevendiquer ce chunk`);
-    form.label(`§7Tu es en §fx=${Math.floor(player.location.x)}§7, §fz=${Math.floor(player.location.z)}§7 (§f${player.dimension.id}§7).`);
-    form.divider();
-    form.textField("§eNom du territoire (3-24 caractères)", name);
+    form.body(
+      [
+        `§a§l■ Revendiquer ce chunk§r`,
+        ``,
+        `§ePosition : §fx=${cx}§7, §fz=${cz}`,
+        `                        
+        §eDimension : §f${player.dimension.id}`,
+        ``,
+        `§8────────────────────`,
+        `§7Le territoire protège ce chunk :`,
+        `§8· casse/pose de blocs`,
+        `§8· coffres et conteneurs`,
+        `§8· PvP contre les non-membres`,
+        ``,
+        `§7Règles du nom :`,
+        `§8· 3 à 24 caractères`,
+        `§8· lettres, chiffres, espaces, _ et -`,
+        ``,
+        `§8Un seul territoire par joueur.`
+      ].join("\n")
+    );
+    form.header(`§a§l≡ Nouveau territoire`);
+    form.textField("§eNom du territoire", name, { placeholder: "3-24 caractères" });
     form.dropdown(
       "§eCouleur du drapeau",
       colorIndex,
-      TERRITORY_COLORS.map((color, value) => ({ label: `${color.code}■ ${color.id}`, value }))
+      TERRITORY_COLORS.map((c, value) => ({ label: `${c.code}■ ${c.id}`, value }))
     );
-    form.divider();
-    form.button(`§a■ §lRevendiquer ce chunk !`, () => {
+    form.button(`§a■ Revendiquer ce chunk !`, () => {
       const cleanName = name.getData().trim().replace(/\s+/g, " ");
-      const color = TERRITORY_COLORS[colorIndex.getData()] ?? TERRITORY_COLORS[0];
+      const chosen = TERRITORY_COLORS[colorIndex.getData()] ?? TERRITORY_COLORS[0];
       const result = manager.create(
         player.name,
         cleanName,
-        color?.id ?? "rouge",
+        chosen?.id ?? "rouge",
         player.dimension.id,
         player.location.x,
         player.location.z,
@@ -4756,10 +4787,9 @@ function openCreateMenu(player, manager) {
         return;
       }
       player.sendMessage(
-        `§a[Territoires] Territoire §r${color?.code}■ ${result.territory.data.name} §r§acrée ! Ce chunk est sous ta bannière.`
+        `§a[Territoires] Territoire §r${chosen?.code}■ ${result.territory.data.name} §r§acrée ! Ce chunk est sous ta bannière.`
       );
-    });
-    form.closeButton();
+    }, void 0, "flag");
   }).catch(
     (error) => console.warn(`[Territoires] Erreur menu création : ${error instanceof Error ? error.message : String(error)}`)
   );
@@ -5797,99 +5827,8 @@ function openAssignRoleMenu(player, targetName, permissions2, db2) {
 // src/permissions/commands.ts
 import { CustomCommandStatus as CustomCommandStatus2, CommandPermissionLevel as CommandPermissionLevel2, system as system12, PlayerPermissionLevel } from "@minecraft/server";
 
-// src/modules/manager.ts
-var MODULE_IDS = ["territories", "moderation"];
-var MODULE_CATALOG = [
-  {
-    id: "territories",
-    name: "Territoires",
-    description: "Revendication de chunks protégés (/sn:create, /sn:info)"
-  },
-  {
-    id: "moderation",
-    name: "Modération",
-    description: "Bans, mutes, warns et historique (/sn:mod, /sn:ban...)"
-  }
-];
-var ModuleManager = class {
-  constructor(db2) {
-    this.db = db2;
-  }
-  /** Passe à true après le chargement DB (worldLoad). */
-  loaded = false;
-  markLoaded() {
-    this.loaded = true;
-  }
-  /** Le module est-il activé ? (défaut : activé si absent de la DB) */
-  isEnabled(id) {
-    const state = this.db.findOne(MODULES_COLLECTION, id);
-    return state === void 0 ? true : state.data.enabled;
-  }
-  /** Active/désactive un module. */
-  setEnabled(id, enabled) {
-    this.db.upsert(MODULES_COLLECTION, id, { id, enabled });
-    this.db.save();
-  }
-  /** Nombre de modules activés (affichage). */
-  enabledCount() {
-    return MODULE_IDS.filter((id) => this.isEnabled(id)).length;
-  }
-};
-
-// src/modules/ui.ts
-function openModulesMenu(player, modules2, territories2) {
-  void openWindow(player, "Modules", (form) => {
-    form.hero("modules");
-    form.header(`§6■ §lModules`);
-    form.label(`§7${modules2.enabledCount()}/${MODULE_CATALOG.length} module(s) actif(s).`);
-    form.divider();
-    for (const info of MODULE_CATALOG) {
-      const enabled = modules2.isEnabled(info.id);
-      form.button(
-        `${enabled ? "§a✔" : "§c✘"} §l${info.name}§r
-§7${info.description}`,
-        () => {
-          const next = !modules2.isEnabled(info.id);
-          modules2.setEnabled(info.id, next);
-          player.sendMessage(`§a[Modules] ${info.name} ${next ? "§aactivé" : "§cdésactivé"}§a.`);
-          openModulesMenu(player, modules2, territories2);
-        },
-        void 0,
-        enabled ? "check" : "close"
-      );
-    }
-    if (MODULE_CATALOG.some((info) => info.id === "territories")) {
-      form.divider();
-      form.button(`§e■ §lVoir les territoires`, () => {
-        if (territories2 !== void 0) openTerritoriesMenu(player, territories2);
-      }, void 0, "flag");
-      form.button(`§c■ §lSupprimer TOUS les territoires`, () => {
-        if (territories2 !== void 0) openWipeTerritoriesMenu(player, modules2, territories2);
-      }, void 0, "trash");
-    }
-  }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
-}
-function openWipeTerritoriesMenu(player, modules2, territories2) {
-  void openWindowRaw(player, windowTitle("Supprimer les territoires"), (form) => {
-    form.header(`§4⚠ §lDANGER`);
-    form.label(
-      `Supprimer §lTOUS§r§4 les territoires (${territories2.all().length}) ?
-
-§7Action irréversible !`
-    );
-    form.divider();
-    form.hero("modules");
-    form.button(`§4■ §lSUPPRIMER TOUT`, () => {
-      let removed = 0;
-      for (const territory of territories2.all()) {
-        if (territories2.removeForced(territory.id)) removed++;
-      }
-      player.sendMessage(`§a[Modules] ${removed} territoire(s) supprimé(s).`);
-      openModulesMenu(player, modules2, territories2);
-    });
-    form.button(`§a■ §lAnnuler`, () => openModulesMenu(player, modules2, territories2), void 0, "back");
-  }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
-}
+// src/ui/hub.ts
+import { world as world13 } from "@minecraft/server";
 
 // src/moderation/ui.ts
 import { world as world11 } from "@minecraft/server";
@@ -6452,93 +6391,228 @@ ${xpBar2(progress, 50)} §8(${progress}/50 XP)`
   }).catch((error) => console.warn(`[Jobs] ${error instanceof Error ? error.message : String(error)}`));
 }
 
+// src/ui/admin.ts
+import { world as world12 } from "@minecraft/server";
+
+// src/modules/manager.ts
+var MODULE_IDS = ["territories", "moderation"];
+var MODULE_CATALOG = [
+  {
+    id: "territories",
+    name: "Territoires",
+    description: "Revendication de chunks protégés (/sn:create, /sn:info)"
+  },
+  {
+    id: "moderation",
+    name: "Modération",
+    description: "Bans, mutes, warns et historique (/sn:mod, /sn:ban...)"
+  }
+];
+var ModuleManager = class {
+  constructor(db2) {
+    this.db = db2;
+  }
+  /** Passe à true après le chargement DB (worldLoad). */
+  loaded = false;
+  markLoaded() {
+    this.loaded = true;
+  }
+  /** Le module est-il activé ? (défaut : activé si absent de la DB) */
+  isEnabled(id) {
+    const state = this.db.findOne(MODULES_COLLECTION, id);
+    return state === void 0 ? true : state.data.enabled;
+  }
+  /** Active/désactive un module. */
+  setEnabled(id, enabled) {
+    this.db.upsert(MODULES_COLLECTION, id, { id, enabled });
+    this.db.save();
+  }
+  /** Nombre de modules activés (affichage). */
+  enabledCount() {
+    return MODULE_IDS.filter((id) => this.isEnabled(id)).length;
+  }
+};
+
+// src/modules/ui.ts
+function openModulesMenu(player, modules2, territories2) {
+  void openWindow(player, "Modules", (form) => {
+    form.hero("modules");
+    form.header(`§6■ §lModules`);
+    form.label(`§7${modules2.enabledCount()}/${MODULE_CATALOG.length} module(s) actif(s).`);
+    form.divider();
+    for (const info of MODULE_CATALOG) {
+      const enabled = modules2.isEnabled(info.id);
+      form.button(
+        `${enabled ? "§a✔" : "§c✘"} §l${info.name}§r
+§7${info.description}`,
+        () => {
+          const next = !modules2.isEnabled(info.id);
+          modules2.setEnabled(info.id, next);
+          player.sendMessage(`§a[Modules] ${info.name} ${next ? "§aactivé" : "§cdésactivé"}§a.`);
+          openModulesMenu(player, modules2, territories2);
+        },
+        void 0,
+        enabled ? "check" : "close"
+      );
+    }
+    if (MODULE_CATALOG.some((info) => info.id === "territories")) {
+      form.divider();
+      form.button(`§e■ §lVoir les territoires`, () => {
+        if (territories2 !== void 0) openTerritoriesMenu(player, territories2);
+      }, void 0, "flag");
+      form.button(`§c■ §lSupprimer TOUS les territoires`, () => {
+        if (territories2 !== void 0) openWipeTerritoriesMenu(player, modules2, territories2);
+      }, void 0, "trash");
+    }
+  }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
+}
+function openWipeTerritoriesMenu(player, modules2, territories2) {
+  void openWindowRaw(player, windowTitle("Supprimer les territoires"), (form) => {
+    form.header(`§4⚠ §lDANGER`);
+    form.label(
+      `Supprimer §lTOUS§r§4 les territoires (${territories2.all().length}) ?
+
+§7Action irréversible !`
+    );
+    form.divider();
+    form.hero("modules");
+    form.button(`§4■ §lSUPPRIMER TOUT`, () => {
+      let removed = 0;
+      for (const territory of territories2.all()) {
+        if (territories2.removeForced(territory.id)) removed++;
+      }
+      player.sendMessage(`§a[Modules] ${removed} territoire(s) supprimé(s).`);
+      openModulesMenu(player, modules2, territories2);
+    });
+    form.button(`§a■ §lAnnuler`, () => openModulesMenu(player, modules2, territories2), void 0, "back");
+  }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
+}
+
+// src/ui/admin.ts
+function openAdminMenu(player, deps) {
+  const { permissions: permissions2, modules: modules2, territories: territories2, db: db2, classes: classes2 } = deps;
+  if (!canUseAdminPanel(player, permissions2)) {
+    player.sendMessage("§c[Admin] Il te faut le rôle Admin (ou être op).");
+    return;
+  }
+  const stats = db2?.stats();
+  const online = world12.getAllPlayers().length;
+  const roleCount = permissions2.allRoles().length;
+  const territoryCount = territories2.all().length;
+  const moduleCount = modules2.enabledCount();
+  void openWindow(player, "Administration", (form) => {
+    form.body(
+      [
+        `§6§l■ Panneau d'administration§r`,
+        ``,
+        `§eEn ligne : §f${online}`,
+        `§eRôles : §f${roleCount}   §eTerritoires : §f${territoryCount}`,
+        `§eModules actifs : §f${moduleCount}`,
+        stats !== void 0 ? `§eBase de données : §f${stats.documents} documents§7 (${stats.bytes} octets, ${stats.dirty ? "§eà sauvegarder§7" : "§aà jour§7"})` : `§eBase de données : §8index indisponible`,
+        ``,
+        `§8Choisis une section à gauche.`
+      ].join("\n")
+    );
+    form.header(`§6§l≡ Gestion`);
+    form.button(`§6■ Rôles`, () => openRolesMenu(player, permissions2), void 0, "crown");
+    form.button(`§b■ Joueurs`, () => openPlayersMenu(player, permissions2, db2), void 0, "user");
+    form.button(`§d■ Modules`, () => openModulesMenu(player, modules2, territories2), void 0, "gear");
+    if (db2 !== void 0) {
+      form.button(`§a■ Base de données`, () => {
+        void openDbMenu(db2, player);
+      }, void 0, "database");
+    }
+    if (classes2 !== void 0) {
+      form.button(`§d■ Classes (reset admin)`, () => openClassesMenu(player, classes2, true), void 0, "compass");
+    }
+  }).catch((error) => console.warn(`[Admin] ${error instanceof Error ? error.message : String(error)}`));
+}
+
 // src/ui/hub.ts
 function openHubMenu(player, deps) {
-  const { permissions: permissions2, territories: territories2, sanctions: sanctions2, classes: classes2, jobs: jobs2 } = deps;
+  const { permissions: permissions2, territories: territories2, sanctions: sanctions2, classes: classes2, db: db2 } = deps;
   const isOp = player.playerPermissionLevel >= 2;
   const isAdmin = canUseAdminPanel(player, permissions2);
   const isMod = permissions2.can(player.name, "mod.panel", isOp);
-  const canCreate = permissions2.can(player.name, "territories.create", isOp);
   const hasRole = permissions2.getMember(player.name) !== void 0;
-  const canSelfColor = permissions2.can(player.name, "chat.color", isOp) || hasRole;
+  const online = world13.getAllPlayers().length;
+  const territoryCount = territories2.all().length;
+  const knownCount = db2 !== void 0 ? allKnownPlayers(db2).length : 0;
+  const myTerritory = territories2.findByOwner(player.name);
+  const myClass = classes2?.classOf(player.name);
+  const roleTag = hasRole ? permissions2.nameTagFor(player.name) : "§8aucun rôle";
   void openWindow(player, "Menu", (form) => {
-    form.hero("home");
-    form.header(`§a■ §lOpenMontage`);
-    form.divider();
-    form.label(
-      hasRole ? `§7Salut §f${player.name}§7 ! Ton rôle : ${permissions2.nameTagFor(player.name)}§r` : `§7Salut §f${player.name}§7 ! Tu n'as pas encore de rôle.`
+    form.body(
+      [
+        `§a§l■ OpenMontage§r`,
+        ``,
+        `§7Bienvenue, §f${player.name}§7 !`,
+        `§7Ton rôle : ${roleTag}§r`,
+        myClass !== void 0 ? `§7Ta classe : §d${myClass.classId}` : `§7Ta classe : §8pas encore choisie`,
+        ``,
+        `§8────────────────────`,
+        `§7En ligne : §f${online}   §7Territoires : §f${territoryCount}   §7Joueurs connus : §f${knownCount}`,
+        ``,
+        `§8Choisis une section à gauche.`,
+        myTerritory !== void 0 ? `§8Ton territoire : ${myTerritory.data.name}§r` : `§8Astuce : §f/sn:create§8 pour revendiquer ce chunk.`
+      ].join("\n")
     );
-    form.spacer();
-    form.header(`§a§lMonde`);
-    form.button(
-      `§a■ §lTerritoires§r
-§7${canCreate ? "créer, lister, explorer" : "lister, explorer"}`,
-      () => openTerritoriesMenu(player, territories2),
-      { tooltip: "Revendique et explore les territoires" },
-      "flag"
-    );
-    form.button(`§e■ §lInfos territoire§r
-§7le chunk où tu te trouves`, () => {
-      const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
-      const here = territories2.findByChunk(key);
-      if (here === void 0) {
-        player.sendMessage("§7[Territoires] Ce chunk est libre — personne le contrôle. §f/sn:create§7 pour le revendiquer !");
-        return;
-      }
-      showTerritoryInfo(player, here, territories2);
-    }, void 0, "search");
-    form.header(`§d§lProgression`);
-    if (canSelfColor) {
-      form.button(
-        `§b■ §lMon rôle§r
-§7couleur, prefix perso`,
-        () => openSelfRoleMenu(player, permissions2),
-        void 0,
-        "tag"
-      );
-    }
-    if (classes2 !== void 0) {
-      const chosen = classes2.classOf(player.name);
-      form.button(
-        chosen === void 0 ? `§d■ §lClasses§r
-§7choisis ta route (définitif !)` : `§d■ §lMa classe§r
-§7voir ta progression`,
-        () => openClassesMenu(player, classes2, isAdmin),
-        { tooltip: chosen === void 0 ? "Choix définitif à la première connexion" : "Niveau, XP, progression" },
-        chosen === void 0 ? "plus" : "compass"
-      );
-    }
-    if (jobs2 !== void 0) {
-      form.button(`§6■ §lMétiers§r
-§7bûcheron, mineur… (à venir)`, () => openJobsMenu(player, jobs2), void 0, "axe");
-    }
+    form.header(`§a§l≡ Navigation`);
+    form.button(`§a■ Territoires`, () => openTerritoriesMenu(player, territories2), void 0, "flag");
+    form.button(`§e■ Mes infos`, () => openMyInfoMenu(player, deps), void 0, "user");
     if (isMod) {
-      form.header(`§4§lGestion`);
-      form.button(
-        `§4■ §lModération§r
-§7bans, mutes, warns`,
-        () => openSanctionsMenu(player, sanctions2, permissions2),
-        void 0,
-        "shield"
-      );
+      form.divider();
+      form.button(`§4■ Modération`, () => openSanctionsMenu(player, sanctions2, permissions2), void 0, "shield");
     }
     if (isAdmin) {
-      form.divider();
-      form.label("§8Panneau complet : §f/sn:admin§8 (rôles, joueurs, modules).");
+      form.button(`§6■ Admin`, () => openAdminMenu(player, deps), void 0, "crown");
     }
   }).catch((error) => console.warn(`[Hub] ${error instanceof Error ? error.message : String(error)}`));
 }
-function openSelfRoleMenu(player, permissions2) {
+function openMyInfoMenu(player, deps) {
+  const { permissions: permissions2, territories: territories2, classes: classes2, jobs: jobs2, db: db2 } = deps;
   const member = permissions2.getMember(player.name);
-  if (member === void 0) {
-    player.sendMessage("§7[OM] Tu n'as pas encore de rôle. Demande à un admin !");
-    return;
-  }
-  player.sendMessage(`§a[OM] Ton rôle : ${permissions2.nameTagFor(player.name)}§r§a — choisis ta couleur :`);
-  openColorPicker(player, "Ta couleur de nom", (colorId) => {
-    const result = permissions2.setCustomColor(player.name, colorId);
-    player.sendMessage(result.ok ? "§a[OM] Couleur mise à jour !" : `§c[OM] ${result.error}`);
-  });
+  const roleLabel = member === void 0 ? "§8aucun" : `${permissions2.getRole(member.data.role)?.data.color ?? "§7"}${member.data.role}§r`;
+  const myTerritory = territories2.findByOwner(player.name);
+  const selection = classes2?.classOf(player.name);
+  const myJobs = jobs2?.jobsOf(player.name) ?? [];
+  const record = db2 !== void 0 ? allKnownPlayers(db2).find((r) => r.data.name === player.name) : void 0;
+  void openWindow(player, "Mes infos", (form) => {
+    form.body(
+      [
+        `§b§l■ ${player.name}§r`,
+        ``,
+        `§eRôle : ${roleLabel}`,
+        `§eClasse : ${selection !== void 0 ? `§d${selection.classId}§r §7(niv. ${Math.floor(selection.xp / 100) + 1})` : "§8non choisie"}`,
+        `§eTerritoire : ${myTerritory !== void 0 ? `§a${myTerritory.data.name}` : "§8aucun"}`,
+        myJobs.length > 0 ? `§eMétiers : §f${myJobs.map((j) => j.jobId).join(", ")}` : `§eMétiers : §8aucun`,
+        ``,
+        `§8────────────────────`,
+        record !== void 0 ? `§7Sessions : §f${record.data.sessions}   §7Première visite : §f${new Date(record.data.firstSeen).toLocaleDateString()}` : `§7Sessions : §f?`
+      ].join("\n")
+    );
+    form.header(`§e§l≡ Actions`);
+    form.button(`§d■ Ma classe`, () => {
+      if (classes2 !== void 0) openClassesMenu(player, classes2, false);
+    }, void 0, "compass");
+    if (jobs2 !== void 0) {
+      form.button(`§6■ Métiers`, () => openJobsMenu(player, jobs2), void 0, "axe");
+    }
+    if (member !== void 0) {
+      form.button(`§b■ Couleur de mon nom`, () => {
+        player.sendMessage(`§a[OM] Ton rôle : ${permissions2.nameTagFor(player.name)}§r§a — choisis ta couleur :`);
+        openColorPicker(player, "Ta couleur de nom", (colorId) => {
+          const result = permissions2.setCustomColor(player.name, colorId);
+          player.sendMessage(result.ok ? "§a[OM] Couleur mise à jour !" : `§c[OM] ${result.error}`);
+        });
+      }, void 0, "tag");
+    }
+    if (myTerritory !== void 0) {
+      form.button(`§a■ Mon territoire`, () => showTerritoryInfo(player, myTerritory, territories2), void 0, "flag");
+    } else {
+      form.button(`§a■ Créer un territoire`, () => openCreateMenu(player, territories2), void 0, "plus");
+    }
+  }).catch((error) => console.warn(`[Mes infos] ${error instanceof Error ? error.message : String(error)}`));
 }
 
 // src/permissions/commands.ts
@@ -6608,34 +6682,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system12.run(() => {
-          if (!canUseAdminPanel(player, ctx.permissions)) {
-            player.sendMessage("§c[Admin] Il te faut le rôle Admin (ou être op).");
-            return;
-          }
-          void openWindow(player, "Administration", (form) => {
-            form.header(`§6■ §lAdministration`);
-            form.label("§7Que veux-tu gérer ?");
-            form.divider();
-            form.button(
-              `§6■ Rôles
-§7créer, couleurs, niveaux, permissions`,
-              () => openRolesMenu(player, ctx.permissions)
-            );
-            form.button(
-              `§b■ Joueurs
-§7en ligne + hors ligne`,
-              () => openPlayersMenu(player, ctx.permissions, ctx.db)
-            );
-            form.button(
-              `§a■ Modules
-§7activer/désactiver les features`,
-              () => openModulesMenu(player, ctx.modules, ctx.territories)
-            );
-          }).catch(
-            (error) => console.warn(`[Admin] ${error instanceof Error ? error.message : String(error)}`)
-          );
-        });
+        system12.run(() => openAdminMenu(player, ctx));
         return { status: CustomCommandStatus2.Success };
       }
     );
@@ -6688,7 +6735,7 @@ function registerAdminCommands(ctx) {
 }
 
 // src/permissions/chat.ts
-import { world as world12, system as system13 } from "@minecraft/server";
+import { world as world14, system as system13 } from "@minecraft/server";
 function stripFormatting(raw) {
   return raw.replace(/§/g, "");
 }
@@ -6727,7 +6774,7 @@ function formatChatMessage(permissions2, playerName, message, isVanillaOp = fals
 }
 function registerChat(deps) {
   const { permissions: permissions2, getMute } = deps;
-  world12.beforeEvents.chatSend.subscribe((event) => {
+  world14.beforeEvents.chatSend.subscribe((event) => {
     if (!permissions2.loaded) return;
     const sender = event.sender;
     const isVanillaOp = sender.playerPermissionLevel >= 2;
@@ -6747,7 +6794,7 @@ function registerChat(deps) {
     const formatted = formatChatMessage(permissions2, sender.name, message, isVanillaOp);
     system13.run(() => {
       for (const line of formatted.split("\n")) {
-        world12.sendMessage(line);
+        world14.sendMessage(line);
       }
     });
   });
@@ -6760,17 +6807,17 @@ import {
   CommandPermissionLevel as CommandPermissionLevel3,
   system as system14
 } from "@minecraft/server";
-import { world as world13 } from "@minecraft/server";
+import { world as world15 } from "@minecraft/server";
 var NOT_PLAYER = "§c[Modération] Réservé aux joueurs.";
 function requires(player, permissions2, perm) {
   return permissions2.can(player.name, perm, player.playerPermissionLevel >= 2);
 }
 function notifyTarget(targetName, message) {
-  const target = world13.getAllPlayers().find((candidate) => candidate.name === targetName);
+  const target = world15.getAllPlayers().find((candidate) => candidate.name === targetName);
   if (target !== void 0) system14.run(() => target.sendMessage(message));
 }
 function resolveTargetId2(targetName, db2) {
-  const online = world13.getAllPlayers().find((candidate) => candidate.name === targetName);
+  const online = world15.getAllPlayers().find((candidate) => candidate.name === targetName);
   if (online !== void 0) return online.id;
   if (db2 !== void 0) return resolvePlayer(db2, targetName)?.data.playerId ?? null;
   return null;
@@ -6972,14 +7019,14 @@ function registerChatOnce() {
   registerEnforcement(sanctions);
 }
 function applyNameTag(playerName) {
-  const player = world14.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world16.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return;
   try {
     player.nameTag = permissions.nameTagFor(playerName);
   } catch {
   }
 }
-world14.afterEvents.worldLoad.subscribe(() => {
+world16.afterEvents.worldLoad.subscribe(() => {
   Timings.begin("worldLoad");
   db.load();
   permissions.markLoaded();
@@ -6990,16 +7037,16 @@ world14.afterEvents.worldLoad.subscribe(() => {
   jobs.markLoaded();
   permissions.bootstrapDefaultRoles();
   if (!permissions.hasAdmin()) {
-    const operator = world14.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+    const operator = world16.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
     if (operator !== void 0) {
       permissions.bootstrapAdmin(operator.name);
       log3.info(`Bootstrap : ${operator.name} est promu Admin.`);
     }
   }
-  for (const player of world14.getAllPlayers()) {
+  for (const player of world16.getAllPlayers()) {
     permissions.ensureDefaultRole(player.name, player.id);
   }
-  for (const player of world14.getAllPlayers()) {
+  for (const player of world16.getAllPlayers()) {
     applyNameTag(player.name);
   }
   registerChatOnce();
@@ -7018,7 +7065,7 @@ world14.afterEvents.worldLoad.subscribe(() => {
 var worldReady = false;
 system15.runInterval(() => {
   if (worldReady) return;
-  if (world14.getAllPlayers().length === 0) return;
+  if (world16.getAllPlayers().length === 0) return;
   if (!territories.loaded) {
     db.load();
     permissions.markLoaded();
@@ -7029,10 +7076,10 @@ system15.runInterval(() => {
     jobs.markLoaded();
     permissions.bootstrapDefaultRoles();
     if (!permissions.hasAdmin()) {
-      const operator = world14.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+      const operator = world16.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
       if (operator !== void 0) permissions.bootstrapAdmin(operator.name);
     }
-    for (const player of world14.getAllPlayers()) {
+    for (const player of world16.getAllPlayers()) {
       permissions.ensureDefaultRole(player.name, player.id);
       applyNameTag(player.name);
     }
@@ -7046,7 +7093,7 @@ system15.runInterval(() => {
   }
   worldReady = true;
 }, 40);
-world14.afterEvents.playerSpawn.subscribe((event) => {
+world16.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
   const player = event.player;
   permissions.ensureDefaultRole(player.name, player.id);
@@ -7080,7 +7127,7 @@ world14.afterEvents.playerSpawn.subscribe((event) => {
 });
 system15.runInterval(() => {
   if (!permissions.loaded) return;
-  for (const player of world14.getAllPlayers()) {
+  for (const player of world16.getAllPlayers()) {
     applyNameTag(player.name);
   }
 }, 100);

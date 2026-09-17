@@ -4,14 +4,14 @@
     "name": "OpenMontage UI",
     "description": "Resource Pack OpenMontage : bannières de héros et icônes pixel-art des menus DDUI, bandeaux de territoire et actionbar restylés.",
     "uuid": "33ca6e1c-4f30-46ae-8b56-1510382e3f61",
-    "version": [1, 5, 6],
+    "version": [1, 6, 0],
     "min_engine_version": [1, 26, 50]
   },
   "modules": [
     {
       "type": "resources",
       "uuid": "3d4b14c5-a09d-493f-8cbe-799dd3688d18",
-      "version": [1, 5, 6]
+      "version": [1, 6, 0]
     }
   ]
 }

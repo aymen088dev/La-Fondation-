@@ -120,18 +120,16 @@ export function isUiDesignEnabled(): boolean {
 }
 
 /**
- * Tag UI invisible préfixé aux titres (technique « pro » décodée sur l'addon
- * Leaf/NutUI, adaptée OM) : le JSON UI du RP teste la présence de ce tag dans
- * #title_text pour révéler le bandeau de marque OM sur nos formulaires.
- * Deux codes reset §r§r = strictement invisibles à l'écran, sans casser le
- * rendu du titre. Les formulaires d'autres add-ons (sans tag) gardent le
- * skin neutre.
+ * Tag UI invisible préfixé aux titres.
+ * HISTORIQUE : servait au JSON UI pour détecter nos formulaires (technique
+ * Leaf/NutUI). Depuis le layout sidebar, plus aucun binding n'en dépend —
+ * conservé uniquement pour la compat des menus existants (invisible).
  */
-export const UI_TITLE_TAG = "§r§r";
+export const UI_TITLE_TAG = "";
 
 /** Construit un titre de fenêtre normalisé : "OM » <title>" (gras, vert/gris). */
 export function windowTitle(section: string): string {
-  return `${UI_TITLE_TAG}§l§aOM §r§8» §r§l${section}`;
+  return `§l§aOM §r§8» §r§l${section}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -252,7 +250,7 @@ export interface TextFieldOptions {
  * deux modes. Forts : button (actions / submit) et field (ModalForm).
  */
 type FormElement =
-  | { kind: "header" | "label" | "divider"; text: string }
+  | { kind: "header" | "label" | "divider" | "body"; text: string }
   | { kind: "image"; texture: string }
   | { kind: "button"; text: string; icon?: string; onClick: () => void }
   | {
@@ -327,6 +325,17 @@ export class OMForm {
 
   header(text: string): OMForm {
     this.elements.push({ kind: "header", text });
+    return this;
+  }
+
+  /**
+   * Texte libre du panneau de droite (layout sidebar du RP).
+   * En JSON UI vanilla ce texte s'appelle le body du form ; avec notre
+   * server_form.json il s'affiche dans la GRANDE COLONNE, tandis que les
+   * boutons/headers/labels vont dans la colonne de gauche (sidebar).
+   */
+  body(text: string): OMForm {
+    this.elements.push({ kind: "body", text });
     return this;
   }
 
@@ -599,6 +608,8 @@ export class OMForm {
         bodyLines.push("§8─────────────────────");
       } else if (action.kind === "label") {
         bodyLines.push(action.text);
+      } else if (action.kind === "body") {
+        bodyLines.unshift(action.text);
       }
     }
 

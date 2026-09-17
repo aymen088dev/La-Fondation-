@@ -1,15 +1,13 @@
 import { CustomCommandStatus, CommandPermissionLevel, system, PlayerPermissionLevel } from "@minecraft/server";
-import { openWindow } from "../ui/theme";
 import type { CustomCommandOrigin, Player, StartupEvent } from "@minecraft/server";
 import type { PermissionManager } from "./manager";
 import { openRolesMenu, openColorPicker } from "./ui";
-import { openPlayersMenu as openPlayersManager } from "./players-ui";
 import type { ModuleManager } from "../modules/manager";
-import { openModulesMenu } from "../modules/ui";
 import type { TerritoryManager } from "../territories/manager";
 import type { SanctionsManager } from "../moderation/manager";
 import type { JsonDatabase } from "../db/database";
 import { openHubMenu } from "../ui/hub";
+import { openAdminMenu } from "../ui/admin";
 import { openClassesMenu } from "../classes/ui";
 import type { ClassManager } from "../classes/manager";
 import { openJobsMenu } from "../jobs/ui";
@@ -112,29 +110,7 @@ export function registerAdminCommands(ctx: AdminContext): void {
           return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
         }
 
-        system.run(() => {
-          if (!canUseAdminPanel(player, ctx.permissions)) {
-            player.sendMessage("§c[Admin] Il te faut le rôle Admin (ou être op).");
-            return;
-          }
-
-          void openWindow(player, "Administration", (form) => {
-            form.header(`§6■ §lAdministration`);
-            form.label("§7Que veux-tu gérer ?");
-            form.divider();
-            form.button(`§6■ Rôles\n§7créer, couleurs, niveaux, permissions`, () =>
-              openRolesMenu(player, ctx.permissions),
-            );
-            form.button(`§b■ Joueurs\n§7en ligne + hors ligne`, () =>
-              openPlayersManager(player, ctx.permissions, ctx.db),
-            );
-            form.button(`§a■ Modules\n§7activer/désactiver les features`, () =>
-              openModulesMenu(player, ctx.modules, ctx.territories),
-            );
-          }).catch((error: unknown) =>
-            console.warn(`[Admin] ${error instanceof Error ? error.message : String(error)}`),
-          );
-        });
+        system.run(() => openAdminMenu(player, ctx));
         return { status: CustomCommandStatus.Success };
       },
     );

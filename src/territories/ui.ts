@@ -19,33 +19,55 @@ import type { TerritoryManager } from "./manager";
  */
 
 /**
- * Menu de création (/sn:create) : nom + couleur de drapeau.
- * Le chunk du joueur est revendiqué à la validation.
+ * Menu de création (/sn:create) — layout sidebar.
+ * Panneau de droite : infos du chunk + rappel des règles.
+ * Sidebar : champ nom, choix couleur, validation.
  */
 export function openCreateMenu(player: Player, manager: TerritoryManager): void {
   const name = obString("");
   const colorIndex = obNumber(0);
+  const cx = Math.floor(player.location.x);
+  const cz = Math.floor(player.location.z);
 
   void openWindowRaw(player, windowTitle("Créer un territoire"), (form) => {
-    form.header(`§a■ §lRevendiquer ce chunk`);
-    form.label(`§7Tu es en §fx=${Math.floor(player.location.x)}§7, §fz=${Math.floor(player.location.z)}§7 (§f${player.dimension.id}§7).`);
-    form.divider();
+    // ---- Panneau de droite : infos du chunk ----
+    form.body(
+      [
+        `§a§l■ Revendiquer ce chunk§r`,
+        ``,
+        `§ePosition : §fx=${cx}§7, §fz=${cz}`,`                        
+        §eDimension : §f${player.dimension.id}`,
+        ``,
+        `§8────────────────────`,
+        `§7Le territoire protège ce chunk :`,
+        `§8· casse/pose de blocs`,
+        `§8· coffres et conteneurs`,
+        `§8· PvP contre les non-membres`,
+        ``,
+        `§7Règles du nom :`,
+        `§8· 3 à 24 caractères`,
+        `§8· lettres, chiffres, espaces, _ et -`,
+        ``,
+        `§8Un seul territoire par joueur.`,
+      ].join("\n"),
+    );
 
-    form.textField("§eNom du territoire (3-24 caractères)", name);
+    // ---- Sidebar : le formulaire ----
+    form.header(`§a§l≡ Nouveau territoire`);
+    form.textField("§eNom du territoire", name, { placeholder: "3-24 caractères" });
     form.dropdown(
       "§eCouleur du drapeau",
       colorIndex,
-      TERRITORY_COLORS.map((color, value) => ({ label: `${color.code}■ ${color.id}`, value })),
+      TERRITORY_COLORS.map((c, value) => ({ label: `${c.code}■ ${c.id}`, value })),
     );
-    form.divider();
-    form.button(`§a■ §lRevendiquer ce chunk !`, () => {
+    form.button(`§a■ Revendiquer ce chunk !`, () => {
       const cleanName = name.getData().trim().replace(/\s+/g, " ");
-      const color = TERRITORY_COLORS[colorIndex.getData()] ?? TERRITORY_COLORS[0];
+      const chosen = TERRITORY_COLORS[colorIndex.getData()] ?? TERRITORY_COLORS[0];
 
       const result = manager.create(
         player.name,
         cleanName,
-        color?.id ?? "rouge",
+        chosen?.id ?? "rouge",
         player.dimension.id,
         player.location.x,
         player.location.z,
@@ -57,10 +79,9 @@ export function openCreateMenu(player: Player, manager: TerritoryManager): void 
         return;
       }
       player.sendMessage(
-        `§a[Territoires] Territoire §r${color?.code}■ ${result.territory.data.name} §r§acrée ! Ce chunk est sous ta bannière.`,
+        `§a[Territoires] Territoire §r${chosen?.code}■ ${result.territory.data.name} §r§acrée ! Ce chunk est sous ta bannière.`,
       );
-    });
-    form.closeButton();
+    }, undefined, "flag");
   }).catch((error: unknown) =>
     console.warn(`[Territoires] Erreur menu création : ${error instanceof Error ? error.message : String(error)}`),
   );
