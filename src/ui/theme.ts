@@ -219,9 +219,11 @@ function uiText(text: string): UIRawMessage {
 export class OMForm {
   readonly inner: CustomForm;
   private readonly player: Player;
+  private readonly titleText: string;
 
   constructor(player: Player, title: string) {
     this.player = player;
+    this.titleText = title.replace(/§./g, "").trim();
     this.inner = new CustomForm(player, uiText(title));
   }
 
@@ -275,7 +277,15 @@ export class OMForm {
       // - navigation : le menu ouvert par onClick remplace celui-ci ;
       // - action terminale (création, sanctions…) : l'écran se referme.
       closeOpenForm(this.player);
-      onClick();
+      // ⚠️ Une exception dans l'action (manager.create, sanctions…) sortirait
+      // du callback de l'API et mourrait en silence : on la rapporte EN JEU.
+      try {
+        onClick();
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        logMod.warn(`Action du menu « ${this.titleText} » échouée : ${message}`);
+        this.player.sendMessage(`§c[OM] L'action du menu « ${this.titleText} » a échoué : §f${message}`);
+      }
     };
     try {
       this.inner.button(
@@ -413,6 +423,9 @@ function buildAndShow(
   build: (form: OMForm) => void,
   withCloseButton: boolean,
 ): Promise<DataDrivenScreenClosedReason> {
+  /** Nom court du menu pour les messages en jeu (sans les codes §). */
+  const shortName = title.replace(/§./g, "").trim();
+
   const buildForm = (): OMForm => {
     const form = new OMForm(player, title);
     build(form);
@@ -420,21 +433,25 @@ function buildAndShow(
     return form;
   };
 
+  /** Rend l'erreur VISIBLE en jeu (un console.warn seul = personne ne le lit). */
+  const report = (what: string, error: unknown): void => {
+    const message = error instanceof Error ? error.message : String(error);
+    logMod.warn(`Menu « ${shortName} » ${what} : ${message}`);
+    player.sendMessage(`§c[OM] Le menu « ${shortName} » ${what} : §f${message}`);
+  };
+
   // Différé de 2 ticks : un show() dans le même tick qu'un close() est perdu.
   return new Promise<DataDrivenScreenClosedReason>((resolve, reject) => {
     system.runTimeout(() => {
       // ⚠️ try/catch AUTOUR de la construction : si build(form) lève (élément
-      // refusé par l'API DDUI bêta — ex. dropdown d'objets), l'exception
-      // sortirait du runTimeout SANS rejeter la promesse → menu mort en
-      // silence (le bug « /sn:create ne s'ouvre pas »). On journalise et on
-      // rejette proprement pour que le .catch() du menu s'affiche.
+      // refusé par l'API DDUI bêta), l'exception sortirait du runTimeout SANS
+      // rejeter la promesse → menu mort en silence. On journalise ET on
+      // affiche l'erreur EN JEU pour qu'elle soit diagnostiquable.
       let form: OMForm;
       try {
         form = buildForm();
       } catch (error: unknown) {
-        console.warn(
-          `[UI] Construction du formulaire « ${title} » échouée : ${error instanceof Error ? error.message : String(error)}`,
-        );
+        report("n'a pas pu se construire", error);
         reject(error instanceof Error ? error : new Error(String(error)));
         return;
       }
@@ -450,7 +467,10 @@ function buildAndShow(
           }
           throw error;
         })
-        .then(resolve, reject);
+        .then(resolve, (error: unknown) => {
+          report("n'a pas pu s'afficher", error);
+          reject(error instanceof Error ? error : new Error(String(error)));
+        });
     }, 2);
   });
 }

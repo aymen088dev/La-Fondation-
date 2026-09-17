@@ -4222,8 +4222,10 @@ function uiText(text) {
 var OMForm = class {
   inner;
   player;
+  titleText;
   constructor(player, title) {
     this.player = player;
+    this.titleText = title.replace(/§./g, "").trim();
     this.inner = new CustomForm(player, uiText(title));
   }
   /** Ferme ce formulaire si l'écran s'affiche encore (sinon no-op). */
@@ -4258,7 +4260,13 @@ var OMForm = class {
     const imageDetails = icon === void 0 || !uiDesignEnabled ? void 0 : { imagePackId: RP_PACK_ID, imageSrc: OM_ICON(icon) };
     const handler = () => {
       closeOpenForm(this.player);
-      onClick();
+      try {
+        onClick();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logMod.warn(`Action du menu « ${this.titleText} » échouée : ${message}`);
+        this.player.sendMessage(`§c[OM] L'action du menu « ${this.titleText} » a échoué : §f${message}`);
+      }
     };
     try {
       this.inner.button(
@@ -4333,11 +4341,17 @@ function closeOpenForm(player) {
   current.closeIfShowing();
 }
 function buildAndShow(player, title, build, withCloseButton) {
+  const shortName = title.replace(/§./g, "").trim();
   const buildForm = () => {
     const form = new OMForm(player, title);
     build(form);
     if (withCloseButton) form.closeButton();
     return form;
+  };
+  const report = (what, error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    logMod.warn(`Menu « ${shortName} » ${what} : ${message}`);
+    player.sendMessage(`§c[OM] Le menu « ${shortName} » ${what} : §f${message}`);
   };
   return new Promise((resolve, reject) => {
     system7.runTimeout(() => {
@@ -4345,9 +4359,7 @@ function buildAndShow(player, title, build, withCloseButton) {
       try {
         form = buildForm();
       } catch (error) {
-        console.warn(
-          `[UI] Construction du formulaire « ${title} » échouée : ${error instanceof Error ? error.message : String(error)}`
-        );
+        report("n'a pas pu se construire", error);
         reject(error instanceof Error ? error : new Error(String(error)));
         return;
       }
@@ -4357,7 +4369,10 @@ function buildAndShow(player, title, build, withCloseButton) {
           return buildForm().show();
         }
         throw error;
-      }).then(resolve, reject);
+      }).then(resolve, (error) => {
+        report("n'a pas pu s'afficher", error);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      });
     }, 2);
   });
 }

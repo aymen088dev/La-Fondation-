@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v12** — **reskin JSON UI des formulaires** (panneau bleu nuit, boutons noirs bordés, en-têtes sur bandeau — style serveurs) + fix du bug « /sn:create ne s'ouvre pas » (exception silencieuse dans le différé de ticks). Packs en 1.4.0.
+> Dernière mise à jour : **v12.1** — le reskin v12 n'avait **aucun effet** (mauvais namespace : fusion impossible) ; le fichier reskin a été réécrit en **écrasement complet** de `ui/server_form.json` (même chemin que vanilla). Toutes les erreurs de menus sont maintenant **visibles en jeu**. Packs en 1.4.1.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -102,12 +102,15 @@
 
 ---
 
-## 🎨 Reskin JSON UI des formulaires + fix /sn:create (v12)
-- [x] **Fix « /sn:create ne s'ouvre pas »** : si la **construction** du formulaire levait (élément refusé par l'API DDUI bêta), l'exception sortait du `runTimeout` **sans rejeter la promesse** → menu mort en silence, le `.catch()` du menu jamais appelé. `buildAndShow` entoure maintenant la construction d'un try/catch qui journalise et rejette proprement — **tous les menus** sont concernés, plus aucun ne peut mourir en silence
-- [x] **Reskin JSON UI complet des formulaires** (méthode de fusion par nom vanilla, celle du hud_screen) : `RP/ui/om_server_form.json` surcharge `server_form.custom_form`/`long_form` (**fond bleu nuit** `om_dialog_bg` derrière les deux types de forms DDUI et vanilla) et les headers (`custom_header`/`dynamic_header` reçoivent un **bandeau sombre** `om_header_band`) ; `RP/ui/om_buttons.json` surcharge `common_buttons.light_text_button` (le bouton utilisé par TOUS les formulaires : submit, boutons de liste) avec **3 états** — normal/hover/pressed (liseré bleu clair au survol)
+## 🎨 Reskin JSON UI des formulaires + fix /sn:create (v12.1)
+- [x] **⚠️ Correction v12.1 — pourquoi le reskin v12 n'a rien changé** : le fichier déclarait `namespace: "om_server_form"` → ses éléments (`om_server_form.custom_form`) n'étaient référencés **par rien** (l'usine vanilla charge `@server_form.custom_form`) et la fusion « par nom » ne peut pas faire matcher deux namespaces différents. Pareil pour `om_buttons` : `common_buttons.light_text_button` vit dans un namespace intégré au moteur, **non définissable** depuis un RP
+- [x] **Nouvelle méthode : écrasement complet** — le RP fournit `ui/server_form.json` (même chemin que vanilla, comme notre `hud_screen.json`) avec `namespace: "server_form"` : tout le fichier vanilla est remplacé par notre version (32 éléments, copie fidèle des bindings, zéro héritage de `common_dialogs` non définissable)
+- [x] **Rendu custom réel** : `custom_form`/`long_form` = panneaux autonomes — **fond bleu nuit** (`om_dialog_bg`) sur toute la surface, **titre sur bandeau noir** en tête, `om_submit_button`/`om_form_button` (boutons noirs bordés à 3 états normal/hover/pressed) utilisés par les forms DDUI ET les long forms vanilla, headers/labels de section sur bandeau
+- [x] **Widgets restés vanilla** (toggles, sliders, dropdowns, inputs, multiselect) : définis en wrappers exacts des composants `settings_common` (namespaces `settings_common`/`common`/`progress` = fichiers vanilla réels ou intégrés moteur, tous disponibles à l'héritage)
+- [x] `RP/ui/om_buttons.json` (namespace mort) supprimé, `_ui_defs.json` nettoyé
+- [x] **Erreurs de menus VISIBLES EN JEU** (v12.1) : construction ET affichage d'un écran en échec affichent désormais `§c[OM] Le menu « … » … : <raison>` au joueur + log serveur — plus jamais un menu mort sans explication ; les **actions de boutons** sont aussi couvertes (exception dans un callback `manager.create` etc. → message en jeu au lieu de mourir en silence)
 - [x] **Nouvelles textures** : `om_dialog_bg` (bleu nuit, bordure bleue), `om_header_band`, `om_btn`, `om_btn_hover`, `om_btn_press`
-- [x] `RP/ui/_ui_defs.json` créé pour déclarer les fichiers de reskin
-- [x] Packs bumpés **1.3.0 → 1.4.0** (textures + JSON UI nouveaux — indispensable pour le cache)
+- [x] Packs bumpés **1.4.0 → 1.4.1** (fichier reskin réécrit — indispensable pour le cache)
 
 ## ⚔️ Module Classes & Métiers (v11) — `src/classes/` + `src/jobs/`
 - [x] **Classes — la route du joueur** : `/sn:classes` ouvre UN menu à deux états — sans classe : catalogue cliquable (Guerrier, Mage, Archer) avec **confirmation** (le choix est **DÉFINITIF**) ; avec classe : **progression** (niveau, barre d'XP ASCII, XP total). Le menu « change » tout seul après le choix, comme demandé
