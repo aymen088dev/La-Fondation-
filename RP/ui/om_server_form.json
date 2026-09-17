@@ -1,5 +1,5 @@
 {
-  "_comment": "Reskin OpenMontage des formulaires serveur (ActionForm/ModalForm). METHODE (leçons v11-v13) : on redecl custom_form/long_form en HERITANT de common_dialogs.main_panel_no_buttons (fichier VANILLA reel : ui/ui_template_dialogs.json, charge par le jeu), en lui passant $custom_background = notre panneau bleu nuit. common_dialogs et common_buttons sont des namespaces bien reels charges par le jeu (_ui_defs.json officiel) : l'heritage @common_dialogs... et @common_buttons.light_text_button sont donc valides. C'est la porte d'entree officielle du vanilla ($custom_background existe precisement pour ca). Aucun widget vanilla n'est redefini : toggles/sliders/dropdowns/champs restent 100% natifs.",
+  "_comment": "Reskin OpenMontage des formulaires serveur (ActionForm/ModalForm). TECHNIQUE PRO (celle des vrais packs) : la structure reste 100% vanilla (heritage common_dialogs.main_panel_no_buttons + common_buttons.light_text_button, namespaces reels charges par le jeu) et on ne passe que des VARIABLES au point d'usage : $custom_background (fond bleu nuit OM), $default/hover/pressed_button_texture (boutons noirs bordes OM 3 etats), $title_text_color (titre OM). Portee limitee aux forms serveur : le reste du jeu n'est pas touche. Aucune structure copiee : si Mojang change ses widgets, on suit automatiquement.",
 
   "namespace": "server_form",
 
@@ -41,11 +41,12 @@
     "$title_panel": "common_dialogs.standard_title_label",
     "$title_size": ["100% - 15px", 10],
     "$title_max_size": ["100% - 15px", 10],
+    "$title_text_color": [0.42, 0.90, 0.55],
     "$text_name": "#title_text",
     "$title_text_binding_type": "none",
     "$child_control": "server_form.custom_form_panel",
     "$custom_background": "server_form.om_dialog_background",
-    "size": [260, 220],
+    "size": [280, 220],
     "layer": 2
   },
 
@@ -53,11 +54,12 @@
     "$title_panel": "common_dialogs.standard_title_label",
     "$title_size": ["100% - 15px", 10],
     "$title_max_size": ["100% - 15px", 10],
+    "$title_text_color": [0.42, 0.90, 0.55],
     "$text_name": "#title_text",
     "$title_text_binding_type": "none",
     "$child_control": "server_form.long_form_panel",
     "$custom_background": "server_form.om_dialog_background",
-    "size": [260, 220],
+    "size": [280, 220],
     "layer": 2
   },
 
@@ -99,6 +101,12 @@
           "$button_text": "#submit_text",
           "$button_text_binding_type": "global",
           "$button_binding_condition": "once",
+          "$default_button_texture": "textures/ui/om_btn",
+          "$hover_button_texture": "textures/ui/om_btn_hover",
+          "$pressed_button_texture": "textures/ui/om_btn_press",
+          "$default_text_color": [0.95, 0.97, 1.0],
+          "$hover_text_color": [0.62, 0.94, 0.72],
+          "$pressed_text_color": [0.42, 0.90, 0.55],
           "bindings": [
             {
               "binding_name": "#submit_button_visible",
@@ -596,6 +604,12 @@
           "$button_text_binding_type": "collection",
           "$button_text_grid_collection_name": "form_buttons",
           "$button_text_max_size": ["100%", 20],
+          "$default_button_texture": "textures/ui/om_btn",
+          "$hover_button_texture": "textures/ui/om_btn_hover",
+          "$pressed_button_texture": "textures/ui/om_btn_press",
+          "$default_text_color": [0.95, 0.97, 1.0],
+          "$hover_text_color": [0.62, 0.94, 0.72],
+          "$pressed_text_color": [0.42, 0.90, 0.55],
           "bindings": [
             {
               "binding_type": "collection_details",

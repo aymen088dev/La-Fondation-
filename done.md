@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v13.1** — fix `/sn:create` (le verrou de mode du moteur refusait le mélange légitime header/label + textField — `ModalFormData` supporte nativement header/label/divider/submitButton, le moteur route maintenant correctement : dernier bouton = submit) + reskin recentré sur l'héritage vanilla réel. Packs en 1.5.1.
+> Dernière mise à jour : **v13.2** — reskin « technique pro » : la structure reste 100 % vanilla (héritage `common_dialogs`/`common_buttons`), seules des **variables** sont passées au point d'usage — fond bleu nuit (`$custom_background`), **boutons OM 3 états** (`$default/hover/pressed_button_texture` → textures noires bordées, texte qui passe au vert au survol), titre vert OM (`$title_text_color`). Portée limitée aux forms serveur. Packs en **1.5.2**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -101,6 +101,13 @@
 - ⚠️ Rappel : après toute modif TS, `bun run build` puis re-copier `BP/` sur le serveur
 
 ---
+
+## 🎨 Reskin « technique pro » par variables (v13.2)
+- [x] **Méthode des vrais packs** (décodée dans `ui_template_buttons.json` vanilla) : `light_text_button` est entièrement piloté par des **variables** (`$default_button_texture`, `$hover_button_texture`, `$pressed_button_texture`, `$default/hover/pressed_text_color`) — au lieu de recopier la structure, on **redéfinit les variables au point d'usage** : mêmes leviers officiels, nos textures à nous, **zéro structure copiée** (si Mojang change ses widgets, on suit automatiquement)
+- [x] **Boutons OM 3 états** : submit + boutons de listes = textures noires bordées bleu (normal / liseré vert clair au survol / enfoncé), texte blanc → vert au survol
+- [x] **Titre vert OM** sur les deux types de formulaires (`$title_text_color`)
+- [x] Portée limitée aux **forms serveur** : le reste de l'UI du jeu (menus settings, etc.) n'est pas touché
+- [x] Packs bumpés **1.5.1 → 1.5.2**
 
 ## 🔧 Fix routage moteur + reskin héritage vanilla (v13.1)
 - [x] **`/sn:create` réparé (la vraie cause, merci le message en jeu)** : `OMForm: textField() impossible après un bouton/label (ce menu est en mode ActionForm)` — le verrou de mode v13.0 était **trop strict** : il refusait le mélange header/label + textField, or **`ModalFormData` supporte nativement `header()`, `label()`, `divider()` et `submitButton()`** (vérifié dans l'API 2.3.0). Le moteur ne verrouille plus le mode sur les éléments neutres : `button()` → mode actions, `textField/toggle/slider/dropdown()` → mode fields, header/label/divider acceptés partout. En mode fields, le **dernier bouton devient le submit natif** (son callback part à la validation) — exactement le schéma de /sn:create
