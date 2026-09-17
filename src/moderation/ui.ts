@@ -23,7 +23,6 @@ export function openSanctionsMenu(player: Player, sanctions: SanctionsManager, p
   const stats = sanctions.stats();
 
   void openWindow(player, "Modération", (form) => {
-    form.hero("mod");
     form.header(`§4■ §lModération`);
     form.label(
       `§7Bans actifs : §f${stats.bans}\n§7Mutes actifs : §f${stats.mutes}\n§7Warns au total : §f${stats.warns}`,
@@ -53,7 +52,7 @@ function openBansList(player: Player, sanctions: SanctionsManager, permissions: 
         ban.data.expiresAt === 0
           ? "§4permanent"
           : `§7(${formatDuration(Math.ceil((ban.data.expiresAt - Date.now()) / 60_000))})`;
-      form.button(`§f${ban.data.name} ${expiry}\n§7par ${ban.data.by}`, () => {
+      form.button(`§f${ban.data.name} §7— ${expiry} · §7par ${ban.data.by}`, () => {
         const result = sanctions.unban(ban.data.name);
         player.sendMessage(result.ok ? `§a[Modération] ${ban.data.name} débanni.` : `§c[Modération] ${result.error}`);
         openBansList(player, sanctions, permissions);
@@ -79,7 +78,7 @@ function openMutesList(player: Player, sanctions: SanctionsManager, permissions:
         mute.data.expiresAt === 0
           ? "§cpermanent"
           : `§7(${formatDuration(Math.ceil((mute.data.expiresAt - Date.now()) / 60_000))})`;
-      form.button(`§f${mute.data.name} ${expiry}\n§7par ${mute.data.by}`, () => {
+      form.button(`§f${mute.data.name} §7— ${expiry} · §7par ${mute.data.by}`, () => {
         const result = sanctions.unmute(mute.data.name);
         player.sendMessage(
           result.ok ? `§a[Modération] ${mute.data.name} peut parler.` : `§c[Modération] ${result.error}`,

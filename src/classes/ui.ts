@@ -28,7 +28,6 @@ function xpBar(xp: number, perLevel: number): string {
  */
 export function openClassesMenu(player: Player, classes: ClassManager, isAdmin = false): void {
   void openWindow(player, "Classes", (form) => {
-    form.hero("classes");
     form.header("§d■ §lClasses");
     form.divider();
 
@@ -37,10 +36,10 @@ export function openClassesMenu(player: Player, classes: ClassManager, isAdmin =
     // ----- État 1 : pas encore de classe → catalogue de choix -----
     if (selection === undefined) {
       form.label("§7Choisis ta §lroute§r§7. Ce choix est §lDÉFINITIF§r§7 :\nil déterminera ta progression sur le serveur.");
-      form.spacer();
+      form.divider();
       for (const info of CLASS_CATALOG) {
         form.button(
-          `${info.color}■ §l${info.name}§r\n§7${info.description}`,
+          `${info.color}■ §l${info.name}§r §7— ${info.description}`,
           () => confirmClassChoice(player, classes, info.id, info.name, info.color),
           undefined,
           info.icon,
@@ -66,7 +65,7 @@ export function openClassesMenu(player: Player, classes: ClassManager, isAdmin =
     form.label("§8Le catalogue et les bonus de classe seront complétés prochainement.");
 
     if (isAdmin) {
-      form.button("§c■ Réinitialiser (admin)\n§7le joueur pourra re-choisir", () => {
+      form.button("§c■ §lRéinitialiser (admin)§r §7— le joueur pourra re-choisir", () => {
         if (classes.clearClass(player.name)) {
           player.sendMessage("§a[Classes] Classe réinitialisée — tu peux re-choisir.");
         }

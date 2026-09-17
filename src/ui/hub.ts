@@ -1,9 +1,8 @@
 import type { Player } from "@minecraft/server";
 import { world } from "@minecraft/server";
-import { windowTitle, RP_PACK_ID, openWindow } from "./theme";
+import { openWindow } from "./theme";
 import { openTerritoriesMenu, showTerritoryInfo, openCreateMenu } from "../territories/ui";
 import type { TerritoryManager } from "../territories/manager";
-import { openColorPicker } from "../permissions/ui";
 import type { PermissionManager } from "../permissions/manager";
 import { canUseAdminPanel } from "../permissions/commands";
 import type { ModuleManager } from "../modules/manager";
@@ -16,6 +15,7 @@ import type { JobManager } from "../jobs/manager";
 import type { JsonDatabase } from "../db/database";
 import { allKnownPlayers } from "../players";
 import { openAdminMenu } from "./admin";
+import { formatDate } from "../territories/manager";
 
 export interface HubDeps {
   permissions: PermissionManager;
@@ -35,7 +35,7 @@ export interface HubDeps {
  *
  * Grâce au JSON UI du RP (server_form.json), les BOUTONS d'un menu
  * ActionForm s'affichent dans la COLONNE DE GAUCHE et le TEXTE (body)
- * dans le grand panneau de droite. Le hub exploite ça :
+ * dans le grand panneau de droite :
  *  - sidebar : Territoires · Mes infos · Modération (modo) · Admin (admin)
  *  - panneau : accueil (bienvenue, ton rôle, stats du monde).
  */
@@ -59,7 +59,7 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
     // ---- Panneau de droite : accueil ----
     form.body(
       [
-        `§a§l■ OpenMontage§r`,
+        `§6§l■ NaLandia§r`,
         ``,
         `§7Bienvenue, §f${player.name}§7 !`,
         `§7Ton rôle : ${roleTag}§r`,
@@ -76,9 +76,9 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
     );
 
     // ---- Sidebar (colonne de gauche) ----
-    form.header(`§a§l≡ Navigation`);
+    form.header(`§6§l≡ Navigation`);
 
-    form.button(`§a■ Territoires`, () => openTerritoriesMenu(player, territories), undefined, "flag");
+    form.button(`§6■ Territoires`, () => openTerritoriesMenu(player, territories), undefined, "flag");
     form.button(`§e■ Mes infos`, () => openMyInfoMenu(player, deps), undefined, "user");
 
     if (isMod) {
@@ -93,8 +93,8 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
 
 /**
  * « Mes infos » : la fiche du joueur (rôle, classe, territoire, sessions).
- * Actions rapides : choisir/voir sa classe, personnaliser son rôle,
- * rejoindre son territoire.
+ * Actions rapides : choisir/voir sa classe, gérer son territoire.
+ * (La personnalisation de couleur — retirée : la couleur vient du rôle.)
  */
 export function openMyInfoMenu(player: Player, deps: HubDeps): void {
   const { permissions, territories, classes, jobs, db } = deps;
@@ -123,7 +123,7 @@ export function openMyInfoMenu(player: Player, deps: HubDeps): void {
         ``,
         `§8────────────────────`,
         record !== undefined
-          ? `§7Sessions : §f${record.data.sessions}   §7Première visite : §f${new Date(record.data.firstSeen).toLocaleDateString()}`
+          ? `§7Sessions : §f${record.data.sessions}   §7Première visite : §f${formatDate(record.data.firstSeen)}`
           : `§7Sessions : §f?`,
       ].join("\n"),
     );
@@ -136,15 +136,6 @@ export function openMyInfoMenu(player: Player, deps: HubDeps): void {
     if (jobs !== undefined) {
       form.button(`§6■ Métiers`, () => openJobsMenu(player, jobs), undefined, "axe");
     }
-    if (member !== undefined) {
-      form.button(`§b■ Couleur de mon nom`, () => {
-        player.sendMessage(`§a[OM] Ton rôle : ${permissions.nameTagFor(player.name)}§r§a — choisis ta couleur :`);
-        openColorPicker(player, "Ta couleur de nom", (colorId) => {
-          const result = permissions.setCustomColor(player.name, colorId);
-          player.sendMessage(result.ok ? "§a[OM] Couleur mise à jour !" : `§c[OM] ${result.error}`);
-        });
-      }, undefined, "tag");
-    }
     if (myTerritory !== undefined) {
       form.button(`§a■ Mon territoire`, () => showTerritoryInfo(player, myTerritory, territories), undefined, "flag");
     } else {
@@ -152,6 +143,3 @@ export function openMyInfoMenu(player: Player, deps: HubDeps): void {
     }
   }).catch((error: unknown) => console.warn(`[Mes infos] ${error instanceof Error ? error.message : String(error)}`));
 }
-
-// Ré-exports pour compat avec les anciens imports.
-export { windowTitle, RP_PACK_ID };

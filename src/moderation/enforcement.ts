@@ -37,7 +37,7 @@ export function registerEnforcement(sanctions: SanctionsManager): void {
         : `§4BANNI§7 (encore ${Math.max(1, Math.ceil((ban.expiresAt - Date.now()) / 60_000))} min)`;
 
     // On affiche le motif puis on éjecte au tick suivant
-    player.sendMessage(`§c[OpenMontage] ${expiry}\n§7Motif : §f${ban.reason}§7 — par §f${ban.by}`);
+    player.sendMessage(`§c[NaLandia] ${expiry}\n§7Motif : §f${ban.reason}§7 — par §f${ban.by}`);
     system.run(() => {
       kickPlayer(player.name, ban.reason);
     });

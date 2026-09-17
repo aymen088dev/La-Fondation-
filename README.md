@@ -1,6 +1,8 @@
-# La Fondation — Add-on Minecraft Bedrock
+# NaLandia — Add-on Minecraft Bedrock
 
 > ⚠️ **Projet en développement** — tout est en cours de construction, rien n'est figé. Ne l'utilise pas encore sur un monde important : le schéma de données peut changer sans migration.
+
+> **NaLandia** (anciennement « OpenMontage ») : l'add-on de serveur avec territoires, rôles, modération, classes et métiers — le tout dans une UI noir & or/argent avec surbrillance au survol.
 
 ## C'est quoi ce repo ?
 
@@ -74,7 +76,7 @@ bun run typecheck  # vérifier les types
 1. Copie le dossier `BP/` dans `development_behavior_packs/`
 2. Active le pack dans les **Paramètres du monde → Packs de comportements**
 3. **Quitte et relance le monde** (les commandes `/sn:*` s'enregistrent au démarrage)
-4. Teste `/sn:create` — le titre « OpenMontage ✔ » au spawn confirme que le script tourne
+4. Teste `/sn:create` — le titre « NaLandia ✔ » au spawn confirme que le script tourne
 
 ## Roadmap (idées en vrac)
 

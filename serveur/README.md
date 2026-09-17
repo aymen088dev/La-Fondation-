@@ -1,6 +1,6 @@
 # 🌍 Dossier `serveur/` — Installation sur ton serveur Bedrock
 
-Ce dossier contient **uniquement les fichiers de monde** qui activent OpenMontage automatiquement
+Ce dossier contient **uniquement les fichiers de monde** qui activent NaLandia automatiquement
 sur un serveur Bedrock Dedicated (BDS). Tu n'as **rien à toucher** dans le monde via `/behaviorpack list` :
 le BP (et le RP qu'il appelle) se chargent dès le démarrage.
 
@@ -14,14 +14,14 @@ le BP (et le RP qu'il appelle) se chargent dès le démarrage.
 
 | Dossier | Contenu |
 |---|---|
-| `BP/` | Behavior Pack OpenMontage (scripts compilés `BP/scripts/main.js`) |
-| `RP/` | Resource Pack OpenMontage UI (JSON UI + textures) |
+| `BP/` | Behavior Pack NaLandia (scripts compilés `BP/scripts/main.js`) |
+| `RP/` | Resource Pack NaLandia UI (JSON UI + textures) |
 
 ### 2. Copier les packs dans ton serveur
 
 ```
-<serveur>/behavior_packs/OpenMontageBP/     ← tout le contenu de BP/
-<serveur>/resource_packs/OpenMontageRP/     ← tout le contenu de RP/
+<serveur>/behavior_packs/NaLandiaBP/     ← tout le contenu de BP/
+<serveur>/resource_packs/NaLandiaRP/     ← tout le contenu de RP/
 ```
 
 > Les noms de dossiers sont libres ; seuls les UUID des manifests comptent.
@@ -63,8 +63,8 @@ Bedrock identifie un pack par **uuid + version** : si tu remplaces les fichiers 
 Au démarrage, tu dois voir le pack chargé :
 
 ```
-[INFO] Loaded BehaviorPack: OpenMontage BP
-[INFO] Loaded ResourcePack: OpenMontage UI
+[INFO] Loaded BehaviorPack: NaLandia BP
+[INFO] Loaded ResourcePack: NaLandia UI
 ```
 
 Le BP dépend du RP (déclaré dans `BP/manifest.json` → dependencies) :
@@ -74,7 +74,7 @@ Le BP dépend du RP (déclaré dans `BP/manifest.json` → dependencies) :
 
 ## ✅ Vérifications en jeu
 
-1. `/scriptevent sn:menu` → le hub OpenMontage s'ouvre (DDUI)
+1. `/scriptevent sn:menu` → le hub NaLandia s'ouvre
 2. `/scriptevent log:level 4` → logs détaillés du chargement DB
 3. La DB se charge **après le worldLoad** (garde anti-écrasement) — un message s'affiche en cas de problème
 
@@ -100,7 +100,7 @@ bun run build      # → BP/scripts/main.js
 bun test           # 33 tests
 ```
 
-Puis re-copie `BP/` vers `<serveur>/behavior_packs/OpenMontageBP/`.
+Puis re-copie `BP/` vers `<serveur>/behavior_packs/NaLandiaBP/`.
 
 ---
 

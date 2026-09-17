@@ -1,5 +1,5 @@
 /**
- * Thème graphique commun à toutes les GUI OpenMontage.
+ * Thème graphique commun à toutes les GUI NaLandia (ex-OpenMontage).
  *
  * MOTEUR (v13.1) : formulaires VANILLA stables de @minecraft/server-ui :
  * - ActionFormData : menus à boutons (icônes du RP, labels multi-lignes,
@@ -16,7 +16,8 @@
  * (son callback part à la validation) — c'est le schéma de /sn:create.
  *
  * Le DDUI (CustomForm bêta) est ABANDONNÉ. Les forms vanilla sont rendues
- * par notre reskin JSON UI (RP/ui/server_form.json) : habillage bleu nuit.
+ * par notre reskin JSON UI (RP/ui/server_form.json) : habillage noir +
+ * ornements or/argent, surbrillance dorée au survol des boutons.
  */
 
 import { logMod } from "../lib/log";
@@ -30,7 +31,7 @@ import type {
 } from "@minecraft/server-ui";
 
 /**
- * Identifiant du Resource Pack OpenMontage (icônes des boutons ActionForm).
+ * Identifiant du Resource Pack NaLandia (icônes des boutons ActionForm).
  */
 export const RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
 
@@ -43,7 +44,7 @@ export const THEME = {
 } as const;
 
 /**
- * Icônes OM (RP OpenMontage, tuiles 32x32 pixel-art générées par
+ * Icônes OM (RP NaLandia, tuiles 32x32 pixel-art générées par
  * scripts/make_ui_textures.py) — passées aux boutons ActionFormData.
  */
 const OM_ICONS = {
@@ -51,7 +52,6 @@ const OM_ICONS = {
   compass: "compass",
   shield: "shield",
   crown: "crown",
-  scroll: "scroll",
   gear: "gear",
   database: "database",
   sword: "sword",
@@ -87,7 +87,7 @@ export function OM_ICON(icon: UIIcon): string {
 export const ICONS = OM_ICONS;
 
 /**
- * Bannières de héros (RP OpenMontage, 256x48) affichées en tête des menus
+ * Bannières de héros (RP NaLandia, 256x48) affichées en tête des menus
  * principaux comme image dans le body.
  */
 const HEROES = {
@@ -127,9 +127,9 @@ export function isUiDesignEnabled(): boolean {
  */
 export const UI_TITLE_TAG = "";
 
-/** Construit un titre de fenêtre normalisé : "OM » <title>" (gras, vert/gris). */
+/** Construit un titre de fenêtre normalisé : "NaLandia » <title>" (or/gris). */
 export function windowTitle(section: string): string {
-  return `§l§aOM §r§8» §r§l${section}`;
+  return `§l§6NaLandia §r§8» §r§l${section}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -317,14 +317,25 @@ export class OMForm {
    * Bannière de héros — DÉSACTIVÉE (v14) : les images en tête de menu
    * produisaient des artifacts (barre de chargement bloquée, bande étirée).
    * Le style visuel vient du fond orné du RP JSON UI. Méthode conservée
-   * (no-op) pour ne pas casser les 10 menus appelants.
+   * (no-op) pour ne pas casser les menus appelants.
    */
   hero(_kind: HeroKind): OMForm {
     return this;
   }
 
+  /**
+   * En-tête de section. En mode actions, passe par le body du form (le
+   * body s'affiche dans le grand panneau de droite) ; en mode champs,
+   * header natif du ModalForm.
+   */
   header(text: string): OMForm {
-    this.elements.push({ kind: "header", text });
+    if (this.mode === "fields") {
+      this.elements.push({ kind: "header", text });
+      return this;
+    }
+    // Bandeau graphique om_header_band (filet or/argent, texture du RP)
+    // autour du libellé — rendu par le JSON UI via le marqueur §h…§h.
+    this.elements.push({ kind: "header", text: `§h${text}§h` });
     return this;
   }
 
@@ -350,7 +361,13 @@ export class OMForm {
     _options?: ButtonOptions,
     icon?: UIIcon,
   ): OMForm {
-    const flat = label.replace(/\s*\n\s*/g, "\n").trim();
+    /*
+     * FIX « texte des boutons invisible » (v17) : le template vanilla
+     * l'impose — « Per design buttons are single line text only ». Un \n
+     * dans le label écrase le rendu du label (bouton vide). On aplatit
+     * donc tout label en UNE ligne (retours → espace-insécable « — »).
+     */
+    const flat = label.replace(/\s*\n\s*/g, "  —  ").trim();
     const wrapped = (): void => {
       try {
         onClick();
@@ -603,7 +620,10 @@ export class OMForm {
         form.button(action.text, action.icon);
         clickHandlers.push(action.onClick);
       } else if (action.kind === "header") {
-        bodyLines.push(`§l${action.text}§r`);
+        // Bandeau doré (§h…§h → traité par le JSON UI ; § sans effet en
+        // ActionForm : on garcit simplement le texte).
+        const clean = action.text.replace(/§h/g, "");
+        bodyLines.push(`§l${clean}§r`);
       } else if (action.kind === "divider") {
         bodyLines.push("§8─────────────────────");
       } else if (action.kind === "label") {

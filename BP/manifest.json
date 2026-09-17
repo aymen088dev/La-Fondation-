@@ -1,10 +1,10 @@
 {
   "format_version": 2,
   "header": {
-    "name": "OpenMontage BP",
-    "description": "Behavior Pack OpenMontage : territoires, permissions, modération (Script API 1.26.50). Dépend du Resource Pack OpenMontage UI (auto-activé).",
+    "name": "NaLandia BP",
+    "description": "Behavior Pack NaLandia : territoires, permissions, modération, classes (Script API 1.26.50). Dépend du Resource Pack NaLandia UI (auto-activé).",
     "uuid": "2915bab9-50f2-442e-a17a-4c8e9cd688fb",
-    "version": [1, 6, 0],
+    "version": [1, 7, 0],
     "min_engine_version": [1, 26, 50]
   },
   "modules": [
@@ -18,7 +18,7 @@
       "language": "javascript",
       "entry": "scripts/main.js",
       "uuid": "b30a468a-b645-4f8d-a76c-ccdd5b0e7a30",
-      "version": [1, 5, 1]
+      "version": [1, 7, 0]
     }
   ],
   "dependencies": [
@@ -32,7 +32,7 @@
     },
     {
       "uuid": "33ca6e1c-4f30-46ae-8b56-1510382e3f61",
-      "version": [1, 6, 0]
+      "version": [1, 7, 0]
     }
   ]
 }

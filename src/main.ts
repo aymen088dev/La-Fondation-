@@ -17,13 +17,16 @@ import { log, logDb } from "./lib/log";
 import { setUiDesign, RP_PACK_ID } from "./ui/theme";
 import { Timings } from "@bedrock-oss/bedrock-boost";
 /**
- * OpenMontage — point d'entrée du behavior pack (TypeScript).
+ * NaLandia (ex-OpenMontage) — point d'entrée du behavior pack (TypeScript).
  * Ce fichier est bundlé vers BP/scripts/main.js, entry déclaré dans BP/manifest.json.
  *
  * Ordre d'exécution Bedrock :
  *  1. Early execution : création DB, enregistrement des commandes /sn:*
  *  2. worldLoad : lectures DB, bootstrap admin, nameTags, protection
  *  3. playerSpawn : bienvenue + tracking joueurs
+ *
+ * NOTE v17 : plus AUCUN message de DB/technique dans le chat — tout passe
+ * par les logs console (visibles via /scriptevent log:* uniquement).
  */
 
 // ---------------------------------------------------------------------------
@@ -32,7 +35,7 @@ import { Timings } from "@bedrock-oss/bedrock-boost";
 // ⚠️ PAS de db.load() ici : world.getDynamicProperty est interdit en early
 // execution (ReferenceError au chargement du script). La lecture se fait
 // au worldLoad (et en fallback au premier spawn), voir plus bas.
-const db = new JsonDatabase(createBedrockStorage(), "openmontage");
+const db = new JsonDatabase(createBedrockStorage(), "nalania");
 
 // Sauvegarde automatique toutes les 5 secondes, uniquement si nécessaire
 registerAutosave(db, 100);
@@ -210,15 +213,16 @@ world.afterEvents.playerSpawn.subscribe((event) => {
 
   applyNameTag(player.name);
 
-  player.sendMessage("§a[OpenMontage]§r Bienvenue ! Menu principal : §f/sn:menu§r — territoire : §f/sn:create");
+  // Accueil discret : une seule ligne (v17 — moins de spam au spawn).
+  player.sendMessage("§6[NaLandia]§r Bienvenue ! Menu : §f/sn:menu");
 
   // Route de la première connexion : invite au choix de classe si absent.
   if (classes.classOf(player.name) === undefined) {
     player.sendMessage("§d[Classes]§r Choisis ta route avec §f/sn:classes§r — c'est définitif !");
   }
 
-  // Diagnostic : si tu vois ce titre en jeu, le script est chargé.
-  player.onScreenDisplay.setTitle("§aOpenMontage §f✔");
+  // Le titre « ✔ » au spawn confirme que le script est chargé.
+  player.onScreenDisplay.setTitle("§6NaLandia §f✔");
 });
 
 // Le tag est rafraîchi régulièrement (nouveaux rôles, changements de prefix...)
@@ -241,8 +245,8 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     log.info(`Design UI (héros + icônes) : ${mode.toUpperCase()}`);
     player.sendMessage(
       mode === "on"
-        ? "§a[OpenMontage] Design UI activé (héros + icônes)."
-        : "§e[OpenMontage] Design UI désactivé (menus sans image — mode compatibilité).",
+        ? "§a[NaLandia] Design UI activé (icônes)."
+        : "§e[NaLandia] Design UI désactivé (menus sans image — mode compatibilité).",
     );
   }
 });

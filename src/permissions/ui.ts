@@ -10,19 +10,19 @@ export function isAdmin(playerName: string, permissions: PermissionManager): boo
   return permissions.levelOf(playerName) >= 100;
 }
 
-/** Menu principal des rôles. */
+/** Menu principal des rôles (admin). */
 export function openRolesMenu(player: Player, permissions: PermissionManager): void {
   const roles = permissions.allRoles();
 
   void openWindow(player, "Rôles", (form) => {
-    form.hero("admin");
+    form.header(`§6■ §lRôles du serveur`);
     form.label(`§7${roles.length} rôle(s). Clique pour configurer :`);
     form.divider();
     form.button(`§a■ §lCréer un rôle`, () => openCreateRoleMenu(player, permissions), undefined, "plus");
 
     for (const role of roles) {
       form.button(
-        `${role.data.color}[${role.data.name}]§r\n§7niveau ${role.data.level} · ${permissions.membersWithRole(role.data.name).length} membre(s)`,
+        `${role.data.color}[${role.data.name}]§r §7— niv. ${role.data.level} · ${permissions.membersWithRole(role.data.name).length} membre(s)`,
         () => openRoleConfigMenu(player, role, permissions),
         undefined,
         "crown",
@@ -31,7 +31,7 @@ export function openRolesMenu(player: Player, permissions: PermissionManager): v
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
 
-/** Création d'un rôle : nom + couleur + niveau (DDUI, bindings réactifs). */
+/** Création d'un rôle : nom + couleur + niveau. */
 export function openCreateRoleMenu(player: Player, permissions: PermissionManager): void {
   const name = obString("");
   const colorIndex = obNumber(0);
@@ -71,7 +71,6 @@ export function openRoleConfigMenu(
   permissions: PermissionManager,
 ): void {
   void openWindow(player, `Rôle ${role.data.color}${role.data.name}`, (form) => {
-    form.hero("role");
     form.header(`${role.data.color}■ §l${role.data.name}§r §7(niveau ${role.data.level})`);
     form.label(
       `§7Membres : §f${permissions.membersWithRole(role.data.name).length}\n§7Prefix : §f${role.data.prefix}`,
@@ -135,17 +134,21 @@ function openRoleMembersMenu(
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
 
-/** Sélecteur de couleur réutilisable (DDUI). */
+/**
+ * Sélecteur de couleur — RÉSERVÉ À L'ADMIN (couleur d'un rôle).
+ * La couleur d'un joueur vient désormais de son rôle : le choix individuel
+ * a été retiré à la demande.
+ */
 export function openColorPicker(player: Player, title: string, onPick: (colorId: string) => void): void {
   void openWindow(player, title, (form) => {
     form.label("§7Choisis une couleur :");
     for (const color of ROLE_COLORS) {
-      form.button(`${color.code}■■■ §7${color.id}`, () => onPick(color.id), undefined, "pencil");
+      form.button(`${color.code}■■■ ${color.id}`, () => onPick(color.id), undefined, "pencil");
     }
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
 
-/** Menu de saisie de prefix (DDUI). */
+/** Menu de saisie de prefix. */
 export function openPrefixMenu(player: Player, title: string, onDone: (prefix: string) => void): void {
   const prefix = obString("");
 

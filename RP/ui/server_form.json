@@ -1,5 +1,8 @@
 {
   "namespace": "server_form",
+
+  "_comment": "Reskin NaLandia — fichier à l'emplacement vanilla (ui/server_form.json = écrasement). Thème noir + ornements OR et ARGENT. CORRECTIFS CLÉS : (1) le titre du formulaire utilise sa propre définition avec une couleur OR — la couleur vanilla $title_text_color (gris 0.3) est invisible sur nos panneaux sombres ; (2) les boutons redéfinissent les variables OFFICIELLES de common_buttons.light_text_button ($default/hover/pressed_button_texture + couleurs de texte) → tuiles charbon à cadre or, SURBRILLANCE dorée au survol, texte clair lisible ; (3) les panneaux déroulants sidebar/body reçoivent un fond argenté (om_content_bg) via la variable officielle $scroll_background_image_control ; (4) structure sinon identique au vanilla (factories, bindings, collections).",
+
   "third_party_server_screen@common.base_screen": {
     "$screen_content": "server_form.main_screen_content",
     "button_mappings": [
@@ -10,12 +13,10 @@
       }
     ]
   },
+
   "main_screen_content": {
     "type": "panel",
-    "size": [
-      0,
-      0
-    ],
+    "size": [0, 0],
     "controls": [
       {
         "server_form_factory": {
@@ -28,32 +29,93 @@
       }
     ]
   },
+
+  // -------------------------------------------------------------------------
+  // Titre OR (la couleur vanilla est gris foncé → invisible sur fond noir)
+  // -------------------------------------------------------------------------
+  "om_title": {
+    "type": "label",
+    "size": ["default", 10],
+    "$title_max_size|default": ["default", 10],
+    "max_size": "$title_max_size",
+    "color": [0.98, 0.86, 0.52],
+    "text": "$text_name",
+    "layer": 4,
+    "shadow": true,
+    "property_bag": {
+      "#tts_dialog_title": "$text_name"
+    },
+    "bindings": [
+      {
+        "binding_type": "$title_text_binding_type",
+        "binding_condition": "$title_binding_condition",
+        "binding_name": "$text_name",
+        "binding_name_override": "$text_name"
+      },
+      {
+        "binding_type": "global",
+        "binding_condition": "once",
+        "binding_name": "#tts_dialog_title"
+      }
+    ]
+  },
+
+  // -------------------------------------------------------------------------
+  // Bouton OM : leviers officiels de light_text_button (textures + couleurs).
+  // Survol = cadre or vif + cœur doré (texture om_btn_hover) + texte doré.
+  // -------------------------------------------------------------------------
+  "om_text_button@common_buttons.light_text_button": {
+    "$default_button_texture": "textures/ui/om_btn",
+    "$hover_button_texture": "textures/ui/om_btn_hover",
+    "$pressed_button_texture": "textures/ui/om_btn_press",
+    "$locked_button_texture": "textures/ui/om_btn",
+    "$default_text_color": [0.90, 0.88, 0.84],
+    "$hover_text_color": [1.0, 0.90, 0.55],
+    "$pressed_text_color": [1.0, 1.0, 1.0],
+    "$locked_text_color": [0.55, 0.55, 0.58],
+    "$button_font_size": "normal"
+  },
+
+  // Image de fond des zones déroulantes (liseré ARGENT, via la variable
+  // officielle $scroll_background_image_control de common.scrolling_panel).
+  "om_pane_image": {
+    "type": "image",
+    "texture": "textures/ui/om_content_bg",
+    "nineslice_size": [8, 8, 8, 8],
+    "layer": 1
+  },
+
+  // Panneau déroulant habillé : fond argenté, barre fine discrète.
+  "om_scroll_pane@common.scrolling_panel": {
+    "$show_background": true,
+    "$scroll_background_image_control": "server_form.om_pane_image",
+    "$scroll_track_image_control": "common.empty_panel",
+    "$scroll_bar_contained": true,
+    "$scroll_bar_left_padding_size": [0, 0],
+    "$scroll_bar_right_padding_size": [0, 0],
+    "$scroll_size": [3, "100% - 4px"],
+    "$scroll_view_port_size": ["100% - 5px", "100% - 2px"],
+    "$scroll_view_port_offset": [2, 0]
+  },
+
+  // -------------------------------------------------------------------------
+  // LONG FORM (ActionForm) : sidebar à gauche, body à droite
+  // -------------------------------------------------------------------------
   "long_form@common_dialogs.main_panel_no_buttons": {
-    "$title_panel": "common_dialogs.standard_title_label",
-    "$title_size": [
-      "100% - 15px",
-      10
-    ],
-    "$title_max_size": [
-      "100% - 15px",
-      10
-    ],
-    "size": [
-      330,
-      190
-    ],
+    "$title_panel": "server_form.om_title",
+    "$title_size": ["100% - 15px", 10],
+    "$title_max_size": ["100% - 15px", 10],
+    "size": [340, 200],
     "$text_name": "#title_text",
     "$title_text_binding_type": "none",
     "$child_control": "server_form.long_form_panel",
     "layer": 2,
     "$custom_background": "server_form.om_ornate_background"
   },
+
   "long_form_panel": {
     "type": "stack_panel",
-    "size": [
-      "100%",
-      "100%"
-    ],
+    "size": ["100%", "100%"],
     "orientation": "vertical",
     "layer": 1,
     "anchor_from": "top_left",
@@ -62,33 +124,39 @@
       {
         "columns": {
           "type": "stack_panel",
-          "size": [
-            "100%",
-            "100%"
-          ],
+          "size": ["100%", "100%"],
           "orientation": "horizontal",
           "controls": [
-            {
-              "sidebar@server_form.sidebar_column": {}
-            },
-            {
-              "body@server_form.body_column": {}
-            }
+            { "sidebar@server_form.sidebar_column": {} },
+            { "body@server_form.body_column": {} }
           ]
         }
       }
     ]
   },
-  "long_form_dynamic_buttons_panel": {
+
+  "sidebar_column": {
+    "type": "panel",
+    "size": [114, "100%"],
+    "anchor_from": "top_left",
+    "anchor_to": "top_left",
+    "controls": [
+      {
+        "sidebar_scroll@server_form.om_scroll_pane": {
+          "anchor_to": "top_left",
+          "anchor_from": "top_left",
+          "size": ["100% - 4px", "100% - 4px"],
+          "offset": [2, 2],
+          "$scrolling_content": "server_form.sidebar_buttons_panel"
+        }
+      }
+    ]
+  },
+
+  "sidebar_buttons_panel": {
     "type": "stack_panel",
-    "size": [
-      "100% - 4px",
-      "100%c"
-    ],
-    "offset": [
-      2,
-      0
-    ],
+    "size": ["100% - 4px", "100%c"],
+    "offset": [2, 0],
     "orientation": "vertical",
     "anchor_from": "top_middle",
     "anchor_to": "top_middle",
@@ -109,21 +177,64 @@
       }
     ]
   },
+
+  "body_column": {
+    "type": "panel",
+    "size": ["fill", "100%"],
+    "anchor_from": "top_left",
+    "anchor_to": "top_left",
+    "controls": [
+      {
+        "body_scroll@server_form.om_scroll_pane": {
+          "anchor_to": "top_left",
+          "anchor_from": "top_left",
+          "size": ["100% - 6px", "100% - 4px"],
+          "offset": [3, 2],
+          "$scrolling_content": "server_form.body_content"
+        }
+      }
+    ]
+  },
+
+  "body_content": {
+    "type": "stack_panel",
+    "size": ["100% - 8px", "100%c"],
+    "offset": [4, 0],
+    "orientation": "vertical",
+    "anchor_from": "top_left",
+    "anchor_to": "top_left",
+    "controls": [
+      {
+        "body_label": {
+          "type": "label",
+          "color": [0.93, 0.92, 0.90],
+          "size": ["100%", "default"],
+          "anchor_from": "top_left",
+          "anchor_to": "top_left",
+          "text": "#form_text",
+          "shadow": false,
+          "bindings": [
+            {
+              "binding_name": "#form_text"
+            }
+          ]
+        }
+      }
+    ]
+  },
+
+  // -------------------------------------------------------------------------
+  // Boutons dynamiques (long form) : icône RP + tuile OM
+  // -------------------------------------------------------------------------
   "dynamic_button": {
     "type": "stack_panel",
-    "size": [
-      "100%",
-      32
-    ],
+    "size": ["100%", 34],
     "orientation": "horizontal",
     "controls": [
       {
         "panel_name": {
           "type": "panel",
-          "size": [
-            34,
-            "100%c"
-          ],
+          "size": [34, "100%c"],
           "bindings": [
             {
               "binding_type": "view",
@@ -137,15 +248,9 @@
             {
               "image": {
                 "type": "image",
-                "layer": 2,
-                "size": [
-                  32,
-                  32
-                ],
-                "offset": [
-                  0,
-                  0
-                ],
+                "layer": 3,
+                "size": [30, 30],
+                "offset": [0, 0],
                 "bindings": [
                   {
                     "binding_name": "#form_button_texture",
@@ -169,14 +274,8 @@
             },
             {
               "progress@progress.progress_loading_bars": {
-                "size": [
-                  30,
-                  4
-                ],
-                "offset": [
-                  -2,
-                  16
-                ],
+                "size": [30, 4],
+                "offset": [-2, 16],
                 "bindings": [
                   {
                     "binding_type": "view",
@@ -192,21 +291,15 @@
         }
       },
       {
-        "form_button@common_buttons.light_text_button": {
+        "form_button@server_form.om_text_button": {
           "$pressed_button_name": "button.form_button_click",
           "anchor_from": "top_left",
           "anchor_to": "top_left",
-          "size": [
-            "fill",
-            32
-          ],
+          "size": ["fill", 32],
           "$button_text": "#form_button_text",
           "$button_text_binding_type": "collection",
           "$button_text_grid_collection_name": "form_buttons",
-          "$button_text_max_size": [
-            "100%",
-            20
-          ],
+          "$button_text_max_size": ["100%", 20],
           "bindings": [
             {
               "binding_type": "collection_details",
@@ -217,6 +310,7 @@
       }
     ]
   },
+
   "dynamic_label@settings_common.option_group_spaced_label": {
     "$text": "#form_button_text",
     "$text_bindings": [
@@ -227,6 +321,7 @@
       }
     ]
   },
+
   "dynamic_header@settings_common.option_group_spaced_header": {
     "$text": "#form_button_text",
     "$text_bindings": [
@@ -237,58 +332,64 @@
       }
     ]
   },
+
+  // -------------------------------------------------------------------------
+  // CUSTOM FORM (ModalForm) : champs + bouton submit
+  // -------------------------------------------------------------------------
   "custom_form@common_dialogs.main_panel_no_buttons": {
-    "$title_panel": "common_dialogs.standard_title_label",
-    "$title_size": [
-      "100% - 15px",
-      10
-    ],
-    "$title_max_size": [
-      "100% - 15px",
-      10
-    ],
-    "size": [
-      225,
-      200
-    ],
+    "$title_panel": "server_form.om_title",
+    "$title_size": ["100% - 15px", 10],
+    "$title_max_size": ["100% - 15px", 10],
+    "size": [260, 210],
     "$text_name": "#title_text",
     "$title_text_binding_type": "none",
     "$child_control": "server_form.custom_form_panel",
     "layer": 2,
     "$custom_background": "server_form.om_ornate_background"
   },
-  "custom_form_panel@common.scrolling_panel": {
+
+  "custom_form_panel@server_form.om_scroll_pane": {
     "anchor_to": "top_left",
     "anchor_from": "top_left",
-    "$show_background": false,
-    "size": [
-      "100%",
-      "100%"
-    ],
-    "$scrolling_content": "server_form.custom_form_scrolling_content",
-    "$scroll_size": [
-      5,
-      "100% - 4px"
-    ],
-    "$scrolling_pane_size": [
-      "100% - 4px",
-      "100% - 2px"
-    ],
-    "$scrolling_pane_offset": [
-      2,
-      0
-    ],
-    "$scroll_bar_right_padding_size": [
-      0,
-      0
+    "size": ["100% - 4px", "100% - 2px"],
+    "offset": [2, 0],
+    "$scrolling_content": "server_form.custom_form_scrolling_content"
+  },
+
+  "custom_form_scrolling_content": {
+    "type": "stack_panel",
+    "size": ["100% - 4px", "100%c"],
+    "offset": [2, 0],
+    "orientation": "vertical",
+    "anchor_from": "top_left",
+    "anchor_to": "top_left",
+    "controls": [
+      {
+        "generated_form@server_form.generated_contents": {}
+      },
+      {
+        "submit_button@server_form.om_text_button": {
+          "$pressed_button_name": "button.submit_custom_form",
+          "anchor_from": "top_left",
+          "anchor_to": "top_left",
+          "size": ["100%", 32],
+          "$button_text": "#submit_text",
+          "$button_text_binding_type": "global",
+          "$button_binding_condition": "once",
+          "bindings": [
+            {
+              "binding_name": "#submit_button_visible",
+              "binding_name_override": "#visible"
+            }
+          ]
+        }
+      }
     ]
   },
+
   "generated_contents": {
     "type": "stack_panel",
-    "size": [
-      "100%",
-      "100%c"
-    ],
+    "size": ["100%", "100%c"],
     "orientation": "vertical",
     "anchor_from": "top_left",
     "anchor_to": "top_left",
@@ -314,45 +415,7 @@
       }
     ]
   },
-  "custom_form_scrolling_content": {
-    "type": "stack_panel",
-    "size": [
-      "100% - 4px",
-      "100%c"
-    ],
-    "offset": [
-      2,
-      0
-    ],
-    "orientation": "vertical",
-    "anchor_from": "top_left",
-    "anchor_to": "top_left",
-    "controls": [
-      {
-        "generated_form@server_form.generated_contents": {}
-      },
-      {
-        "submit_button@common_buttons.light_text_button": {
-          "$pressed_button_name": "button.submit_custom_form",
-          "anchor_from": "top_left",
-          "anchor_to": "top_left",
-          "size": [
-            "100%",
-            32
-          ],
-          "$button_text": "#submit_text",
-          "$button_text_binding_type": "global",
-          "$button_binding_condition": "once",
-          "bindings": [
-            {
-              "binding_name": "#submit_button_visible",
-              "binding_name_override": "#visible"
-            }
-          ]
-        }
-      }
-    ]
-  },
+
   "custom_label@settings_common.option_group_label": {
     "$text": "#custom_text",
     "$text_bindings": [
@@ -363,6 +426,7 @@
       }
     ]
   },
+
   "custom_header@settings_common.option_group_header": {
     "$text": "#custom_text",
     "$text_bindings": [
@@ -373,6 +437,7 @@
       }
     ]
   },
+
   "custom_toggle@settings_common.option_toggle": {
     "$option_label": "#custom_text",
     "$toggle_name": "custom_toggle",
@@ -394,6 +459,7 @@
       }
     ]
   },
+
   "custom_slider@settings_common.option_slider": {
     "$option_label": "#custom_slider_text",
     "$slider_name": "custom_slider",
@@ -417,6 +483,7 @@
       }
     ]
   },
+
   "custom_step_slider@server_form.custom_slider": {
     "$option_label": "#custom_slider_step_text",
     "$slider_name": "custom_slider_step",
@@ -436,12 +503,10 @@
       }
     ]
   },
+
   "custom_dropdown": {
     "type": "panel",
-    "size": [
-      "100%",
-      "100%c"
-    ],
+    "size": ["100%", "100%c"],
     "layer": 2,
     "controls": [
       {
@@ -459,10 +524,7 @@
           "$option_tooltip_collection_name": "custom_form",
           "$option_tooltip_text_binding_name": "#custom_tooltip_text",
           "$option_tooltip_area": "inside_header_panel",
-          "$dropdown_scroll_content_size": [
-            "100%",
-            "200%"
-          ],
+          "$dropdown_scroll_content_size": ["100%", "200%"],
           "$label_bindings": [
             {
               "binding_name": "#custom_text",
@@ -474,6 +536,7 @@
       }
     ]
   },
+
   "custom_dropdown_content@settings_common.option_radio_dropdown_group": {
     "$radio_buttons": [],
     "$toggle_focus_id_binding_type": "collection",
@@ -493,6 +556,7 @@
       }
     ]
   },
+
   "custom_dropdown_radio@settings_common.radio_with_label": {
     "$toggle_name": "custom_dropdown_radio_toggle",
     "$toggle_state_binding_name": "#custom_radio_toggled",
@@ -511,22 +575,17 @@
       }
     ]
   },
+
   "custom_multiselect": {
     "type": "stack_panel",
-    "size": [
-      "100%",
-      "100%c"
-    ],
+    "size": ["100%", "100%c"],
     "orientation": "vertical",
     "layer": 2,
     "controls": [
       {
         "header": {
           "type": "panel",
-          "size": [
-            "100%",
-            30
-          ],
+          "size": ["100%", 30],
           "controls": [
             {
               "toggle@settings_common.options_dropdown_toggle_control": {
@@ -548,10 +607,7 @@
       {
         "options_panel": {
           "type": "stack_panel",
-          "size": [
-            "100%",
-            "100%c"
-          ],
+          "size": ["100%", "100%c"],
           "orientation": "vertical",
           "bindings": [
             {
@@ -587,18 +643,13 @@
       }
     ]
   },
+
   "custom_multiselect_checkbox": {
     "type": "panel",
     "anchor_from": "top_left",
     "anchor_to": "top_left",
-    "size": [
-      "100%",
-      "17px"
-    ],
-    "offset": [
-      3,
-      0
-    ],
+    "size": ["100%", "17px"],
+    "offset": [3, 0],
     "controls": [
       {
         "checkbox@settings_common.checkbox_with_highlight_and_label": {
@@ -608,10 +659,7 @@
           "$toggle_grid_collection_name": "custom_multiselect",
           "$toggle_collection_details_type": "collection_details",
           "$radio_toggle_group": false,
-          "size": [
-            "100%",
-            16
-          ],
+          "size": ["100%", 16],
           "$checkbox_label_text": "#custom_multiselect_text",
           "$checkbox_label_bindings": [
             {
@@ -627,6 +675,7 @@
       }
     ]
   },
+
   "custom_input@settings_common.option_text_edit": {
     "$option_label": "#custom_text",
     "$option_place_holder_text": "#custom_placeholder_text",
@@ -651,153 +700,12 @@
       }
     ]
   },
-  "_comment": "Reskin OpenMontage — FICHIER A L EMPLEACEMENT VANILLA (ui/server_form.json = ecrasement). Structure 100% vanilla copie a l identique ; SEULE la texture de fond est substituee ($dialog_background -> om_ornate_bg, cuir sombre cadre or). Aucune autre modification : titres, boutons, widgets = vanilla pur (zero risque de rendu casse).",
+
+  // Fond orné principal : cuir sombre, cadre or + filet argent (nineslice 12px)
   "om_ornate_background": {
     "type": "image",
     "texture": "textures/ui/om_ornate_bg",
     "layer": 1,
-    "nineslice_size": [
-      12,
-      12,
-      12,
-      12
-    ]
-  },
-  "sidebar_column": {
-    "type": "panel",
-    "size": [
-      110,
-      "100%"
-    ],
-    "anchor_from": "top_left",
-    "anchor_to": "top_left",
-    "controls": [
-      {
-        "sidebar_scroll@common.scrolling_panel": {
-          "anchor_to": "top_left",
-          "anchor_from": "top_left",
-          "$show_background": false,
-          "size": [
-            "100%",
-            "100%"
-          ],
-          "$scrolling_content": "server_form.sidebar_buttons_panel",
-          "$scroll_size": [
-            5,
-            "100% - 4px"
-          ],
-          "$scrolling_pane_size": [
-            "100% - 6px",
-            "100% - 2px"
-          ],
-          "$scrolling_pane_offset": [
-            2,
-            0
-          ],
-          "$scroll_bar_right_padding_size": [
-            0,
-            0
-          ]
-        }
-      }
-    ]
-  },
-  "sidebar_buttons_panel": {
-    "type": "stack_panel",
-    "size": [
-      "100% - 6px",
-      "100%c"
-    ],
-    "offset": [
-      2,
-      0
-    ],
-    "orientation": "vertical",
-    "anchor_from": "top_middle",
-    "anchor_to": "top_middle",
-    "factory": {
-      "name": "buttons",
-      "control_ids": {
-        "button": "server_form.dynamic_button",
-        "label": "@server_form.dynamic_label",
-        "header": "@server_form.dynamic_header",
-        "divider": "@settings_common.option_group_section_divider"
-      }
-    },
-    "collection_name": "form_buttons",
-    "bindings": [
-      {
-        "binding_name": "#form_button_contents",
-        "binding_name_override": "#collection_length"
-      }
-    ]
-  },
-  "body_column": {
-    "type": "panel",
-    "size": [
-      "fill",
-      "100%"
-    ],
-    "anchor_from": "top_left",
-    "anchor_to": "top_left",
-    "controls": [
-      {
-        "body_scroll@common.scrolling_panel": {
-          "anchor_to": "top_left",
-          "anchor_from": "top_left",
-          "$show_background": false,
-          "size": [
-            "100%",
-            "100%"
-          ],
-          "$scrolling_content": "server_form.body_content",
-          "$scroll_size": [
-            5,
-            "100% - 4px"
-          ],
-          "$scrolling_pane_size": [
-            "100% - 8px",
-            "100% - 2px"
-          ],
-          "$scrolling_pane_offset": [
-            3,
-            0
-          ],
-          "$scroll_bar_right_padding_size": [
-            0,
-            0
-          ]
-        }
-      }
-    ]
-  },
-  "body_content": {
-    "type": "stack_panel",
-    "size": [
-      "100% - 8px",
-      "100%c"
-    ],
-    "offset": [
-      3,
-      0
-    ],
-    "orientation": "vertical",
-    "anchor_from": "top_left",
-    "anchor_to": "top_left",
-    "controls": [
-      {
-        "body_label": {
-          "type": "label",
-          "color": "$main_header_text_color",
-          "size": [
-            "100%",
-            "default"
-          ],
-          "anchor_from": "top_left",
-          "anchor_to": "top_left",
-          "text": "#form_text"
-        }
-      }
-    ]
+    "nineslice_size": [12, 12, 12, 12]
   }
 }

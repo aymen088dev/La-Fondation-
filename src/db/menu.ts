@@ -44,7 +44,6 @@ export async function openDbMenu(db: JsonDatabase, player: Player): Promise<void
     const stats = db.stats();
     const sections = listSections(db);
 
-    form.hero("database");
     form.header(`§a■ §lBase de données`);
     form.label(
       `§7${stats.documents} documents · ${stats.bytes} octets\n§7État : ${stats.dirty ? "§eà sauvegarder" : "§aà jour"}`,
@@ -53,7 +52,7 @@ export async function openDbMenu(db: JsonDatabase, player: Player): Promise<void
 
     for (const section of sections) {
       form.button(
-        `${collectionLabel(section)}\n§8${stats.collections[section]} doc(s)`,
+        `${collectionLabel(section)} §7— ${stats.collections[section]} doc(s)`,
         () => {
           void openSectionMenu(db, player, section);
         }, undefined, "database",

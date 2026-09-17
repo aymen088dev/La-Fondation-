@@ -4,7 +4,7 @@ import type { PermissionManager } from "./manager";
 import { vanillaOpColor } from "./perms";
 
 /**
- * Chat personnalisé OpenMontage — format :
+ * Chat personnalisé NaLandia — format :
  *   [grade] nom > message
  *
  *  - `grade` = prefix du rôle entre crochets nus (§8[ §r§6Admin §8]§r), sa couleur.

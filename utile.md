@@ -1,4 +1,4 @@
-# 🧰 utile.md — Outils GitHub pour le projet serveur OpenMontage
+# 🧰 utile.md — Outils GitHub pour le projet serveur NaLandia
 
 > Veille d'outils GitHub susceptibles de servir au projet. Étoiles indicatives (sept. 2026).
 
@@ -31,7 +31,7 @@
 
 | Outil | ⭐ | Pourquoi ça peut servir |
 |---|---|---|
-| **[EndstoneMC/endstone](https://github.com/EndstoneMC/endstone)** | 734 | Serveur Bedrock avec API plugins façon Paper — la voie « sérieuse » si OpenMontage devient un vrai serveur. Port WorldEdit dispo (BubbaXM/endstone-worldedit) |
+| **[EndstoneMC/endstone](https://github.com/EndstoneMC/endstone)** | 734 | Serveur Bedrock avec API plugins façon Paper — la voie « sérieuse » si NaLandia devient un vrai serveur. Port WorldEdit dispo (BubbaXM/endstone-worldedit) |
 | [PieMC-Dev/PieMC](https://github.com/PieMC-Dev/PieMC) | 106 | Serveur Bedrock en Python, très actif, bonne porte d'entrée si tu préfères scripter en Python |
 | [KoshakMineDEV/Lumi](https://github.com/KoshakMineDEV/Lumi) | 82 | Serveur haute perf, à surveiller |
 | [bedrock-crustaceans/chorus](https://github.com/bedrock-crustaceans/chorus) | 72 | Serveur en Rust — perf max, équipe réduite |

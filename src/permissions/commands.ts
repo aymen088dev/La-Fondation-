@@ -1,7 +1,7 @@
 import { CustomCommandStatus, CommandPermissionLevel, system, PlayerPermissionLevel } from "@minecraft/server";
 import type { CustomCommandOrigin, Player, StartupEvent } from "@minecraft/server";
 import type { PermissionManager } from "./manager";
-import { openRolesMenu, openColorPicker } from "./ui";
+import { openRolesMenu } from "./ui";
 import type { ModuleManager } from "../modules/manager";
 import type { TerritoryManager } from "../territories/manager";
 import type { SanctionsManager } from "../moderation/manager";
@@ -37,11 +37,12 @@ export function canUseAdminPanel(player: Player, permissions: PermissionManager)
  */
 export function registerAdminCommands(ctx: AdminContext): void {
   system.beforeEvents.startup.subscribe((event: StartupEvent) => {
-    // /sn:roles : personnaliser son prefix/couleur (tous les joueurs)
+    // /sn:roles : GUI des rôles (admins) — la couleur vient désormais du
+    // rôle uniquement (plus de choix de couleur par le joueur).
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:roles",
-        description: "Personnalise ton prefix et ta couleur (si tu as un rôle)",
+        description: "Gestion des rôles (admins)",
         permissionLevel: CommandPermissionLevel.Any,
         cheatsRequired: false,
       },
@@ -52,26 +53,17 @@ export function registerAdminCommands(ctx: AdminContext): void {
         }
 
         system.run(() => {
-          // Les admins ouvrent directement la GUI de gestion complète
           if (canUseAdminPanel(player, ctx.permissions)) {
             openRolesMenu(player, ctx.permissions);
             return;
           }
 
-          // Joueur lambda : personnalisation de son propre rôle
           const member = ctx.permissions.getMember(player.name);
-          if (member === undefined) {
-            player.sendMessage("§7[Rôles] Tu n'as pas de rôle. Demande à un admin !");
-            return;
-          }
-
+          const roleTag =
+            member === undefined ? "§8aucun" : ctx.permissions.nameTagFor(player.name);
           player.sendMessage(
-            `§a[Rôles] Ton rôle : ${ctx.permissions.nameTagFor(player.name)}§r§a — personnalisation...`,
+            `§e[Rôles] Ton rôle : ${roleTag}§r§e — la couleur vient de ton rôle (modifiable par un admin).`,
           );
-          openColorPicker(player, "Ta couleur de nom", (colorId) => {
-            const result = ctx.permissions.setCustomColor(player.name, colorId);
-            player.sendMessage(result.ok ? "§a[Rôles] Couleur mise à jour !" : `§c[Rôles] ${result.error}`);
-          });
         });
         return { status: CustomCommandStatus.Success };
       },
@@ -81,7 +73,7 @@ export function registerAdminCommands(ctx: AdminContext): void {
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:menu",
-        description: "Ouvre le menu principal OpenMontage",
+        description: "Ouvre le menu principal NaLandia",
         permissionLevel: CommandPermissionLevel.Any,
         cheatsRequired: false,
       },

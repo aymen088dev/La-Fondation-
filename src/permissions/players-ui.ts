@@ -2,7 +2,7 @@ import { world } from "@minecraft/server";
 import type { Player } from "@minecraft/server";
 import { ROLE_COLORS } from "./manager";
 import type { PermissionManager } from "./manager";
-import { openColorPicker, openPrefixMenu } from "./ui";
+import { openPrefixMenu } from "./ui";
 import { windowTitle, openWindow, openWindowRaw, obString } from "../ui/theme";
 import { allKnownPlayers } from "../players";
 import type { JsonDatabase } from "../db/database";
@@ -13,13 +13,12 @@ export function confirmDialog(_player: Player, _title: string, _body: string): P
 }
 
 /**
- * Menu Joueurs (admin) — DDUI, deux onglets :
- *  - 🟢 En ligne : les joueurs connectés en ce moment
- *  - 📜 Hors ligne : tout l'index DB (firstSeen, sessions), gérable pareil
+ * Menu Joueurs (admin) — deux onglets :
+ *  - En ligne : les joueurs connectés en ce moment
+ *  - Hors ligne : tout l'index DB (firstSeen, sessions), gérable pareil
  */
 export function openPlayersMenu(player: Player, permissions: PermissionManager, db?: JsonDatabase): void {
   void openWindow(player, "Joueurs", (form) => {
-    form.hero("admin");
     const online = world.getAllPlayers();
     form.header(`§b■ §lJoueurs`);
     form.label(
@@ -36,7 +35,7 @@ export function openPlayersMenu(player: Player, permissions: PermissionManager, 
       const member = permissions.getMember(target.name);
       const role = permissions.getRole(member?.data.role ?? "");
       form.button(
-        `${role?.data.color ?? "§7"}${target.name}§r\n§7${member?.data.role ?? "aucun rôle"}`,
+        `${role?.data.color ?? "§7"}${target.name}§r §7— ${member?.data.role ?? "aucun rôle"}`,
         () => openPlayerConfigMenu(player, target.name, permissions, db),
         undefined,
         "user",
@@ -61,7 +60,7 @@ export function openPlayersMenu(player: Player, permissions: PermissionManager, 
         const lastSeen = new Date(record.data.lastSeen);
         const hh = `${String(lastSeen.getHours()).padStart(2, "0")}:${String(lastSeen.getMinutes()).padStart(2, "0")}`;
         form.button(
-          `§8${record.data.name}§r\n§7${record.data.grade !== "" ? role?.data.color + record.data.grade + "§7 · " : ""}${record.data.sessions} session(s) · vu à ${hh}`,
+          `§8${record.data.name}§r §7— ${record.data.grade !== "" ? role?.data.color + record.data.grade + "§7 · " : ""}${record.data.sessions} session(s) · vu à ${hh}`,
           () => openPlayerConfigMenu(player, record.data.name, permissions, db),
           undefined,
           "history",
@@ -98,18 +97,17 @@ export function openPlayerConfigMenu(
   const roleLabel =
     member === undefined ? "§7aucun" : `${permissions.getRole(member.data.role)?.data.color ?? "§7"}${member.data.role}`;
   const prefixLabel = member?.data.customPrefix ?? "(défaut du rôle)";
-  const colorLabel = member?.data.customColor ?? "(défaut du rôle)";
   const isOnline = world.getAllPlayers().some((candidate) => candidate.name === targetName);
-  const classRecord =
+  const record =
     db !== undefined
-      ? allKnownPlayers(db).find((record) => record.data.name === targetName)
+      ? allKnownPlayers(db).find((r) => r.data.name === targetName)
       : undefined;
-  const classLabel = classRecord?.data.class ? classRecord.data.class : "§8pas encore choisie";
+  const classLabel = record?.data.class ? record.data.class : "§8pas encore choisie";
 
   void openWindow(player, targetName, (form) => {
     form.header(`§b■ §l${targetName}§r ${isOnline ? "§a●" : "§8●"}`);
     form.label(
-      `§7Rôle : ${roleLabel}\n§7Classe : §f${classLabel}\n§7Prefix perso : §f${prefixLabel}\n§7Couleur perso : §f${colorLabel}`,
+      `§7Rôle : ${roleLabel}\n§7Classe : §f${classLabel}\n§7Prefix perso : §f${prefixLabel}`,
     );
     form.divider();
     form.button(`§e■ §lAttribuer / changer de rôle`, () =>
@@ -120,12 +118,6 @@ export function openPlayerConfigMenu(
         const result = permissions.setCustomPrefix(targetName, prefix);
         player.sendMessage(result.ok ? "§a[Rôles] Prefix mis à jour." : `§c[Rôles] ${result.error}`);
       }), undefined, "tag",
-    );
-    form.button(`§e■ §lCouleur de nom personnalisée`, () =>
-      openColorPicker(player, `Couleur de ${targetName}`, (colorId) => {
-        const result = permissions.setCustomColor(targetName, colorId);
-        player.sendMessage(result.ok ? "§a[Rôles] Couleur mise à jour." : `§c[Rôles] ${result.error}`);
-      }), undefined, "pencil",
     );
     if (member !== undefined) {
       form.button(`§c■ §lRetirer tous les rôles`, () => {
@@ -153,7 +145,7 @@ function openAssignRoleMenu(
   void openWindow(player, `Rôle de ${targetName}`, (form) => {
     form.label("§7Choisis le rôle à attribuer :");
     for (const role of roles) {
-      form.button(`${role.data.color}[${role.data.name}]§r\n§7niveau ${role.data.level}`, () => {
+      form.button(`${role.data.color}[${role.data.name}]§r §7— niv. ${role.data.level}`, () => {
         const result = permissions.assignRole(targetName, role.data.name);
         player.sendMessage(
           result.ok

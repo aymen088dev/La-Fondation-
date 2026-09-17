@@ -17,7 +17,6 @@ function xpBar(xp: number, perLevel: number): string {
 /** Ouvre le menu des métiers. */
 export function openJobsMenu(player: Player, jobs: JobManager): void {
   void openWindow(player, "Métiers", (form) => {
-    form.hero("jobs");
     form.header("§6■ §lMétiers");
     form.divider();
 

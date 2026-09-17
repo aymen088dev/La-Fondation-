@@ -3,7 +3,7 @@
  * territoire (nom coloré du drapeau + propriétaire) et quand il en sort.
  *
  * Le texte passe par l'actionbar du HUD vanilla : le Resource Pack
- * OpenMontage (RP/) restyle cette zone via JSON UI pour afficher un
+ * NaLandia (RP/) restyle cette zone via JSON UI pour afficher un
  * vrai bandeau au lieu du simple texte.
  */
 

@@ -11,8 +11,7 @@ import type { TerritoryManager } from "../territories/manager";
  */
 export function openModulesMenu(player: Player, modules: ModuleManager, territories?: TerritoryManager): void {
   void openWindow(player, "Modules", (form) => {
-    form.hero("modules");
-    form.header(`§6■ §lModules`);
+    form.header(`§6■ §lModules du serveur`);
     form.label(`§7${modules.enabledCount()}/${MODULE_CATALOG.length} module(s) actif(s).`);
     form.divider();
 
@@ -22,7 +21,7 @@ export function openModulesMenu(player: Player, modules: ModuleManager, territor
     for (const info of MODULE_CATALOG) {
       const enabled = modules.isEnabled(info.id);
       form.button(
-        `${enabled ? "§a✔" : "§c✘"} §l${info.name}§r\n§7${info.description}`,
+        `${enabled ? "§a✔" : "§c✘"} §l${info.name}§r §7— ${info.description}`,
         () => {
           const next = !modules.isEnabled(info.id);
           modules.setEnabled(info.id, next);
@@ -88,7 +87,6 @@ function openWipeTerritoriesMenu(player: Player, modules: ModuleManager, territo
       `Supprimer §lTOUS§r§4 les territoires (${territories.all().length}) ?\n\n§7Action irréversible !`,
     );
     form.divider();
-    form.hero("modules");
     form.button(`§4■ §lSUPPRIMER TOUT`, () => {
       let removed = 0;
       for (const territory of territories.all()) {

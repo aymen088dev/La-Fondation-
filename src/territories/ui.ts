@@ -5,7 +5,6 @@ import {
   openWindowRaw,
   obString,
   obNumber,
-  RP_PACK_ID,
 } from "../ui/theme";
 import { TERRITORY_COLORS, getColor } from "./types";
 import type { StoredDocument } from "../db";
@@ -35,8 +34,8 @@ export function openCreateMenu(player: Player, manager: TerritoryManager): void 
       [
         `§a§l■ Revendiquer ce chunk§r`,
         ``,
-        `§ePosition : §fx=${cx}§7, §fz=${cz}`,`                        
-        §eDimension : §f${player.dimension.id}`,
+        `§ePosition : §fx=${cx}§7, §fz=${cz}`,
+        `§eDimension : §f${player.dimension.id}`,
         ``,
         `§8────────────────────`,
         `§7Le territoire protège ce chunk :`,
@@ -97,14 +96,14 @@ export function openTerritoriesMenu(player: Player, manager: TerritoryManager): 
   }
 
   void openWindow(player, "Territoires", (form) => {
-    form.hero("territories");
+    form.header(`§a■ §lTerritoires du serveur`);
     form.label(`§7${territories.length} territoire(s) revendiqué(s) :`);
     form.divider();
 
     for (const territory of territories) {
       const color = getColor(territory.data.color);
       form.button(
-        `${color.code}■ ${territory.data.name}§r\n§7par ${territory.data.owner}`,
+        `${color.code}■ ${territory.data.name}§r §7— par ${territory.data.owner}`,
         () => showTerritoryInfo(player, territory, manager),
         undefined,
         "flag",
@@ -128,7 +127,6 @@ export function showTerritoryInfo(
   const isOwner = data.ownerId === player.id || data.owner === player.name;
 
   void openWindowRaw(player, windowTitle(data.name), (form) => {
-    form.hero("territories");
     form.header(`${color.code}■ §l${data.name}`);
     form.label(
       [
@@ -154,12 +152,11 @@ export function showTerritoryInfo(
     }
 
     if (isOwner) {
-      form.spacer();
       form.button(`§6■ §lChanger le drapeau (/sn:setflag)`, () => {
         player.sendMessage(
           `§7[Territoires] Couleurs : ${TERRITORY_COLORS.map((c) => `${c.code}${c.id}`).join("§7, ")}`,
         );
-      });
+      }, undefined, "pencil");
       form.button(`§c■ §lSupprimer ce territoire`, () => {
         const ok = manager.remove(data.name, player.name);
         player.sendMessage(
@@ -174,5 +171,5 @@ export function showTerritoryInfo(
   );
 }
 
-// Ré-exports pour compat.
-export { windowTitle, RP_PACK_ID };
+// Ré-export pour compat.
+export { windowTitle };

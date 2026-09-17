@@ -1,5 +1,5 @@
 /**
- * Catalogue des permissions fines OpenMontage.
+ * Catalogue des permissions fines NaLandia.
  *
  * Chaque capability du pack a un id stable (clé de sauvegarde DB) et un
  * libellé français (affichage). Les rôles héritent d'un set par défaut

@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-"""Génère les textures UI du Resource Pack OpenMontage — SANS dépendance externe.
+"""Génère les textures UI du Resource Pack NaLandia — SANS dépendance externe.
 
 Écrit des PNG 8-bit RGBA à la main (struct + zlib depuis la stdlib).
 
+Thème NaLandia : panneaux noirs/charbon, ornements OR (accents chauds) et
+ARGENT (cadres froids), surbrillance dorée au survol des boutons.
+
 Sortie :
-  RP/textures/ui/om_hero_*.png     bannières de héros 256x48 (tête de menu)
-  RP/textures/ui/om_ic_*.png       icônes 32x32 pixel-art (boutons DDUI)
-  RP/textures/ui/om_actionbar_bg.png  fond d'actionbar (référencé par RP/ui/hud_screen.json)
+  RP/textures/ui/om_hero_*.png       bannières de héros 256x48 (tête de menu)
+  RP/textures/ui/om_ic_*.png         icônes 32x32 pixel-art (boutons)
+  RP/textures/ui/om_actionbar_bg.png fond d'actionbar (hud_screen.json)
+  RP/textures/ui/om_ornate_bg.png    grand panneau cuir sombre cadre or/argent
+  RP/textures/ui/om_content_bg.png   panneau interne de contenu (liseré argent)
+  RP/textures/ui/om_btn*.png         tuiles-boutons 3 états (surbrillance or)
   RP/pack_icon.png
 
 Usage: python3 scripts/make_ui_textures.py
@@ -17,13 +23,23 @@ from pathlib import Path
 
 RP_ROOT = Path(__file__).resolve().parent.parent / "RP"
 
-# Palette OM
+# ---------------------------------------------------------------------------
+# Palette NaLandia : noir profond, or chaud, argent froid
+# ---------------------------------------------------------------------------
+BLACK = (16, 15, 17)          # fond des panneaux (noir chaud)
+CHARCOAL = (26, 25, 28)       # fond des boutons (charbon)
+CHARCOAL_LIGHT = (36, 34, 38)  # fond des boutons au survol
+INK = (10, 10, 12)            # contours les plus sombres
+GOLD = (212, 175, 88)         # or principal (bordures, ornements)
+GOLD_LIGHT = (244, 214, 132)  # or clair (surbrillance, points lumineux)
+GOLD_DIM = (150, 120, 58)     # or assombri (ombres des ornements)
+SILVER = (176, 182, 192)      # argent principal (cadres internes, texte)
+SILVER_DIM = (110, 116, 128)  # argent assombri
+SILVER_BRIGHT = (220, 226, 236)  # argent lumineux (surbrillance argent)
+WHITE = (242, 242, 242)
 SLATE_DARK = (18, 20, 26)
 SLATE_MID = (26, 29, 39)
 SLATE_LIGHT = (38, 43, 56)
-WHITE = (242, 242, 242)
-GOLD = (222, 168, 52)
-GOLD_LIGHT = (244, 202, 96)
 GREEN = (58, 178, 102)
 AQUA = (52, 190, 196)
 CRIMSON = (202, 62, 62)
@@ -69,62 +85,71 @@ def lerp(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[in
 
 
 # ---------------------------------------------------------------------------
-# Bannières de héros 256x48 — tête graphique de chaque menu
+# Bannières de héros 256x48 — bandeau noir à ornements or/argent
 # ---------------------------------------------------------------------------
 def hero(name: str, accent: tuple[int, int, int], accent2: tuple[int, int, int]) -> None:
-    """Panneau slate dégradé, ruban accent dégradé horizontal, clef de voûte or."""
+    """Bandeau noir/charbon, filigrane accent discret, losange OR au centre."""
     w, h = 256, 48
     px: list[list[tuple[int, int, int, int]]] = []
     for y in range(h):
         row: list[tuple[int, int, int, int]] = []
         for x in range(w):
-            # Fond : dégradé vertical slate
-            base = lerp(SLATE_MID, SLATE_LIGHT, y / (h - 1) * 0.9)
-            # Ruban horizontal accent (bandeau médian) avec dégradé gauche→droite
-            if 16 <= y <= 31:
-                t = x / (w - 1)
-                ribbon = lerp(accent, accent2, t)
-                # Bords du ruban adoucis (2px de fondu)
-                edge = min(y - 16, 31 - y)
-                alpha = 255 if edge >= 2 else 200
-                row.append((*ribbon, alpha))
-                continue
-            row.append((*base, 235))
+            # Fond : dégradé vertical noir → charbon
+            base = lerp(BLACK, CHARCOAL_LIGHT, (y / (h - 1)) * 0.7)
+            # Léger vignettage horizontal (coins plus sombres)
+            edge = min(x, w - 1 - x) / (w / 2)
+            base = lerp(INK, base, min(1.0, edge * 1.6 + 0.25))
+            row.append((*base, 245))
         px.append(row)
 
-    # Lignes de cadre haut/bas (accent sombre)
+    # Filigrane accent : deux bandes très discrètes (haut/bas)
     for x in range(w):
-        px[0][x] = (*lerp(accent, SLATE_DARK, 0.45), 255)
-        px[h - 1][x] = (*lerp(accent, SLATE_DARK, 0.45), 255)
+        t = x / (w - 1)
+        fade = 1.0 - abs(t - 0.5) * 2.0  # s'estompe vers les bords
+        for y in (3, 4, h - 5, h - 6):
+            c = lerp(lerp(accent, accent2, t), BLACK, 0.55)
+            row_c = lerp(BLACK, c, 0.45 * fade + 0.1)
+            px[y][x] = (*row_c, 245)
 
-    # Clef de voûte : losange or centré (par-dessus le ruban)
+    # Filet or en haut, filet argent en bas (signature NaLandia)
+    for x in range(w):
+        px[1][x] = (*lerp(GOLD, GOLD_DIM, x / w), 255)
+        px[2][x] = (*lerp(GOLD_DIM, GOLD, x / w), 255)
+        px[h - 2][x] = (*lerp(SILVER_DIM, SILVER, x / w), 255)
+        px[h - 3][x] = (*lerp(SILVER, SILVER_DIM, x / w), 255)
+
+    # Losange OR central (signature), liseré argent
     cx, cy = w // 2, h // 2
-    for dy in range(-10, 11):
-        for dx in range(-10, 11):
+    for dy in range(-11, 12):
+        for dx in range(-11, 12):
             d = abs(dx) + abs(dy)
-            if d <= 10:
+            if d <= 11:
                 x, y = cx + dx, cy + dy
                 if 0 <= x < w and 0 <= y < h:
-                    color = GOLD if d > 5 else GOLD_LIGHT
+                    if d > 8:
+                        color = SILVER_DIM
+                    elif d > 5:
+                        color = GOLD
+                    else:
+                        color = GOLD_LIGHT
                     px[y][x] = (*color, 255)
-    # Marques latérales discrètes (tirets) sur le ruban
-    for dash_x in range(24, 101, 16):
+    # Marques latérales : tirets argent + or autour du centre
+    for dash_x in range(24, 104, 16):
         for dx in range(8):
             for dy in range(2):
                 y = cy - 1 + dy
-                px[y][dash_x + dx] = (*SLATE_DARK, 160)
-                px[y][w - dash_x - 8 + dx if False else dash_x + dx] = px[y][dash_x + dx]
-    for dash_x in range(148, 225, 16):
+                px[y][dash_x + dx] = (*SILVER, 170)
+    for dash_x in range(152, 232, 16):
         for dx in range(8):
             for dy in range(2):
                 y = cy - 1 + dy
-                px[y][dash_x + dx] = (*SLATE_DARK, 160)
+                px[y][dash_x + dx] = (*GOLD, 170)
 
     write_png(RP_ROOT / "textures" / "ui" / f"om_hero_{name}.png", w, h, px)
 
 
 # ---------------------------------------------------------------------------
-# Icônes 32x32 — tuile slate + liseré accent + glyphe blanc
+# Icônes 32x32 — tuile charbon + cadre or/argent + glyphe blanc
 # ---------------------------------------------------------------------------
 class Icon:
     def __init__(self, accent: tuple[int, int, int]):
@@ -134,27 +159,29 @@ class Icon:
             row: list[tuple[int, int, int, int]] = []
             for x in range(32):
                 if x in (0, 31) or y in (0, 31):
-                    row.append((*lerp(accent, SLATE_DARK, 0.35), 210))
+                    row.append((*INK, 220))                     # contour noir
                 elif x in (1, 30) or y in (1, 30):
-                    row.append((*SLATE_LIGHT, 235))
+                    row.append((*GOLD_DIM, 235))                # liseré or sombre
+                elif x in (2, 29) or y in (2, 29):
+                    row.append((*CHARCOAL_LIGHT, 240))          # biseau
                 else:
-                    row.append((*SLATE_MID, 235))
+                    row.append((*CHARCOAL, 240))                # fond charbon
             self.px.append(row)
 
     def set(self, x: int, y: int, color: tuple[int, int, int] = WHITE, alpha: int = 255) -> None:
-        if 1 <= x <= 30 and 1 <= y <= 30:
+        if 2 <= x <= 29 and 2 <= y <= 29:
             self.px[y][x] = (*color, alpha)
 
     def rect(self, x0: int, y0: int, x1: int, y1: int, color: tuple[int, int, int] = WHITE) -> None:
-        for y in range(max(1, y0), min(31, y1) + 1):
-            for x in range(max(1, x0), min(31, x1) + 1):
+        for y in range(max(2, y0), min(29, y1) + 1):
+            for x in range(max(2, x0), min(29, x1) + 1):
                 self.set(x, y, color)
 
     def clear(self, x0: int, y0: int, x1: int, y1: int) -> None:
         """Redessine le fond (pour découper des détails dans un glyphe)."""
-        for y in range(max(2, y0), min(30, y1) + 1):
-            for x in range(max(2, x0), min(30, x1) + 1):
-                self.set(x, y, SLATE_MID)
+        for y in range(max(2, y0), min(29, y1) + 1):
+            for x in range(max(2, x0), min(29, x1) + 1):
+                self.set(x, y, CHARCOAL)
 
     def dot(self, cx: int, cy: int, r: int, color: tuple[int, int, int] = WHITE) -> None:
         for y in range(cy - r, cy + r + 1):
@@ -185,7 +212,6 @@ class Icon:
 
 def make_icons() -> None:
     icons: list[tuple[str, tuple[int, int, int], callable]] = [
-        # (nom, accent, glyphe)
         ("flag", GREEN, lambda i: (
             i.rect(10, 6, 11, 26),                      # mât
             i.rect(12, 6, 22, 8),                       # drapeau
@@ -205,7 +231,7 @@ def make_icons() -> None:
             i.rect(14, 24, 17, 25),
             i.clear(12, 10, 19, 18),                    # creux intérieur
         )),
-        ("crown", GOLD, lambda i: (
+        ("crown", GOLD_LIGHT, lambda i: (
             i.rect(9, 19, 22, 23),                      # base
             i.rect(9, 11, 11, 19),                      # pointes
             i.rect(15, 9, 17, 19),
@@ -218,7 +244,7 @@ def make_icons() -> None:
             i.clear(12, 15, 19, 16),
             i.clear(12, 19, 17, 20),
         )),
-        ("gear", PURPLE, lambda i: (
+        ("gear", SILVER, lambda i: (
             i.ring(16, 16, 8, 3),
             i.rect(14, 5, 17, 9),                       # dents
             i.rect(14, 23, 17, 27),
@@ -285,7 +311,7 @@ def make_icons() -> None:
             i.clear(11, 7, 20, 13),                     # cran haut
             i.rect(10, 17, 21, 25),                     # étiquette
         )),
-        ("back", GOLD, lambda i: (
+        ("back", GOLD_LIGHT, lambda i: (
             i.line(23, 16, 12, 16, 2),
             i.line(12, 16, 18, 10, 2),
             i.line(12, 16, 18, 22, 2),
@@ -294,7 +320,7 @@ def make_icons() -> None:
             i.line(9, 9, 22, 22, 2),
             i.line(22, 9, 9, 22, 2),
         )),
-        ("list", GREEN, lambda i: (
+        ("list", SILVER, lambda i: (
             i.dot(10, 10, 1), i.rect(14, 9, 23, 11),
             i.dot(10, 16, 1), i.rect(14, 15, 23, 17),
             i.dot(10, 22, 1), i.rect(14, 21, 23, 23),
@@ -309,7 +335,7 @@ def make_icons() -> None:
             i.rect(9, 18, 22, 25),                      # buste
             i.clear(9, 18, 10, 19), i.clear(21, 18, 22, 19),
         )),
-        ("tag", SKY, lambda i: (
+        ("tag", SILVER_BRIGHT, lambda i: (
             i.rect(7, 12, 20, 20),                      # étiquette
             i.dot(11, 16, 2),                           # trou
             i.line(20, 16, 25, 16, 2),                  # pointe
@@ -344,187 +370,198 @@ def make_icons() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Textures conservées (déjà référencées par le RP)
+# Boutons « tuile » 3 états — charbon, cadre or, SURBRILLANCE au survol
 # ---------------------------------------------------------------------------
-NAVY = (12, 20, 54)
-NAVY_BORDER = (52, 87, 213)
-NAVY_BORDER_DARK = (24, 40, 110)
-BTN_BG = (10, 13, 24)
-BTN_BORDER = (58, 66, 88)
-BTN_BORDER_HOVER = (127, 168, 255)
-BTN_BG_HOVER = (16, 23, 40)
-BAND_BG = (8, 8, 16)
+def button_tiles() -> None:
+    """3 états pour les boutons des formulaires :
+    - om_btn        : charbon + cadre or sombre
+    - om_btn_hover  : charbon éclairci + cadre or vif + cœur doré (surbrillance)
+    - om_btn_press  : enfoncé, cadre or clair, fond plus sombre
+    Tuiles 48x48 nineslice 10px (les coins ornementaux restent dans la zone
+    de nineslice pour ne pas s'étirer)."""
+    tw = th = 48
+    ns = 10
+
+    def tile(fill: tuple[int, int, int], frame: tuple[int, int, int],
+             glow: tuple[int, int, int] | None, grain_mod: int) -> list[list[tuple[int, int, int, int]]]:
+        px: list[list[tuple[int, int, int, int]]] = []
+        for y in range(th):
+            row: list[tuple[int, int, int, int]] = []
+            for x in range(tw):
+                edge = min(x, y, tw - 1 - x, th - 1 - y)
+                if edge == 0:
+                    row.append((*INK, 255))                    # contour noir
+                elif edge in (1, 2):
+                    row.append((*frame, 255))                  # cadre or
+                elif edge == 3:
+                    row.append((*lerp(frame, fill, 0.6), 255))  # raccord
+                else:
+                    g = ((x * 5 + y * 11) % grain_mod) - grain_mod // 2
+                    row.append((max(0, fill[0] + g), max(0, fill[1] + g), max(0, fill[2] + g), 255))
+            px.append(row)
+        # Surbrillance : cœur central doré translucide (au hover uniquement)
+        if glow is not None:
+            for y in range(ns + 4, th - ns - 4):
+                for x in range(ns + 4, tw - ns - 4):
+                    dx = (x - tw / 2) / (tw / 2)
+                    dy = (y - th / 2) / (th / 2)
+                    t = max(0.0, 1.0 - (dx * dx + dy * dy) * 2.2)
+                    if t > 0:
+                        px[y][x] = (*lerp(px[y][x][:3], glow, t * 0.35), 255)
+        # Point lumineux au coin de chaque cadre (touche bijou)
+        for cx, cy, sx, sy in ((4, 4, 1, 1), (tw - 5, 4, -1, 1), (4, th - 5, 1, -1), (tw - 5, th - 5, -1, -1)):
+            px[cy][cx] = (*GOLD_LIGHT, 255)
+            px[cy + sy][cx] = (*lerp(GOLD, GOLD_DIM, 0.4), 255)
+            px[cy][cx + sx] = (*lerp(GOLD, GOLD_DIM, 0.4), 255)
+        return px
+
+    write_png(RP_ROOT / "textures" / "ui" / "om_btn.png", tw, th, tile(CHARCOAL, GOLD_DIM, None, 4))
+    write_png(RP_ROOT / "textures" / "ui" / "om_btn_hover.png", tw, th, tile(CHARCOAL_LIGHT, GOLD_LIGHT, GOLD_LIGHT, 3))
+    write_png(RP_ROOT / "textures" / "ui" / "om_btn_press.png", tw, th, tile((20, 19, 22), GOLD, None, 3))
 
 
-def panel_png(name: str, w: int, h: int, fill: tuple[int, int, int], border: tuple[int, int, int],
-              alpha: int = 255, border_alpha: int = 255, corner_cut: int = 0) -> None:
-    """Panneau nine-slice : fill uni + bordure 2px (coin extérieur 1px sombre)."""
-    px: list[list[tuple[int, int, int, int]]] = []
-    for y in range(h):
-        row: list[tuple[int, int, int, int]] = []
-        for x in range(w):
-            edge_outer = x in (0, w - 1) or y in (0, h - 1)
-            edge_inner = x in (1, 2, w - 2, w - 3) or y in (1, 2, h - 2, h - 3)
-            if edge_outer:
-                row.append((*NAVY_BORDER_DARK, border_alpha))
-            elif edge_inner:
-                row.append((*border, border_alpha))
-            else:
-                row.append((*fill, alpha))
-        px.append(row)
-    if corner_cut > 0:
-        for i in range(corner_cut):
-            for (x, y) in [(i, 0), (w - 1 - i, 0), (i, h - 1), (w - 1 - i, h - 1),
-                           (0, i), (w - 1, i), (0, h - 1 - i), (w - 1, h - 1 - i)]:
-                if 0 <= x < w and 0 <= y < h:
-                    px[y][x] = (0, 0, 0, 0)
-    write_png(RP_ROOT / "textures" / "ui" / f"{name}.png", w, h, px)
-
-
-def form_reskin_textures() -> None:
-    """Textures du reskin JSON UI des formulaires serveur (DDUI) :
-    panneau bleu nuit + boutons noirs bordés + bandeaux d'en-tête."""
-    # Fond principal des formulaires (bleu nuit, bordure bleue vive)
-    panel_png("om_dialog_bg", 64, 64, NAVY, NAVY_BORDER, alpha=252)
-    # Bandeau d'en-tête (bande noire derrière les titres de section)
-    panel_png("om_header_band", 64, 20, BAND_BG, BTN_BORDER, alpha=235)
-    # Boutons (états)
-    panel_png("om_btn", 32, 32, BTN_BG, BTN_BORDER)
-    panel_png("om_btn_hover", 32, 32, BTN_BG_HOVER, BTN_BORDER_HOVER)
-    panel_png("om_btn_press", 32, 32, (9, 12, 22), BTN_BORDER_HOVER)
-
-
+# ---------------------------------------------------------------------------
+# Panneaux principaux — grand fond orné + panneau de contenu interne
+# ---------------------------------------------------------------------------
 def ornate_textures() -> None:
-    """Textures « grand menu » (style capture : cuir sombre + ornements or) :
-    - om_ornate_bg : grand panneau principal, cadre sombre + liseré or,
-      coins ornementés, médaillon central discret ;
-    - om_tile : tuile-bouton cuir sombre à cadre or, 3 états (hover/press)."""
-
-    # ---- Panneau principal 128x128 (nineslice 12px) ----
+    # ---- Grand panneau 128x128 (nineslice 12px) : cuir sombre, cadre or/argent ----
     w = h = 128
     px: list[list[tuple[int, int, int, int]]] = []
     for y in range(h):
         row: list[tuple[int, int, int, int]] = []
         for x in range(w):
-            # Dégradé radial inversé : centre légèrement plus clair
             d = ((x - w / 2) ** 2 + (y - h / 2) ** 2) ** 0.5 / (w / 2)
-            base = lerp((46, 44, 42), (32, 30, 29), min(1.0, d))
-            # Grain cuir léger
+            base = lerp((34, 33, 35), (22, 21, 24), min(1.0, d))
             grain = ((x * 7 + y * 13) % 5) - 2
             base = (max(0, base[0] + grain), max(0, base[1] + grain), max(0, base[2] + grain))
             row.append((*base, 255))
         px.append(row)
 
-    # Cadre sombre épais (bord externe) + liseré or fin
+    # Cadre : sombre (extérieur) → OR (liseré) → argent discret (interne)
     for y in range(h):
         for x in range(w):
             edge = min(x, y, w - 1 - x, h - 1 - y)
-            if edge == 0 or edge == 1:
-                px[y][x] = (18, 17, 18, 255)          # cadre sombre
-            elif edge == 2 or edge == 3:
-                px[y][x] = (*lerp(GOLD, GOLD_LIGHT, (x + y) / (w + h)), 255)  # or
+            if edge <= 1:
+                px[y][x] = (14, 13, 15, 255)                    # cadre noir
+            elif edge <= 3:
+                px[y][x] = (*lerp(GOLD, GOLD_DIM, (x + y) / (w + h)), 255)  # or
             elif edge == 4:
-                px[y][x] = (30, 28, 26, 255)          # ombre interne
+                px[y][x] = (*lerp(SILVER_DIM, SILVER, (x + y) / (w + h)), 255)  # argent
+            elif edge == 5:
+                px[y][x] = (30, 29, 32, 255)                    # ombre interne
 
-    # Coins ornementés : arcs dorés dans les 4 coins
+    # Coins ornementés : double arc or + point argent
     for cx, cy, sx, sy in ((6, 6, 1, 1), (w - 7, 6, -1, 1), (6, h - 7, 1, -1), (w - 7, h - 7, -1, -1)):
         for i in range(9):
-            # petit arc : ligne horizontale qui remonte vers le coin
-            x = cx + sx * (8 - i)
-            y = cy + sy * 8
+            x, y = cx + sx * (8 - i), cy + sy * 8
             if 4 <= x < w - 4 and 4 <= y < h - 4:
                 px[y][x] = (*GOLD, 255)
-            # arc vertical symétrique
-            x2 = cx + sx * 8
-            y2 = cy + sy * (8 - i)
+            x2, y2 = cx + sx * 8, cy + sy * (8 - i)
             if 4 <= x2 < w - 4 and 4 <= y2 < h - 4:
                 px[y2][x2] = (*GOLD, 255)
-        # point lumineux au coin de l'arc
         xg, yg = cx + sx * 8, cy + sy * 8
         if 4 <= xg < w - 4 and 4 <= yg < h - 4:
             px[yg][xg] = (*GOLD_LIGHT, 255)
-
-    # PAS de médaillon central : avec le nineslice il serait étiré en plein
-    # milieu des menus (le fameux « carré chelou »). Le centre reste uni.
+            if 4 <= xg + sx < w - 4:
+                px[yg][xg + sx] = (*SILVER, 255)
 
     write_png(RP_ROOT / "textures" / "ui" / "om_ornate_bg.png", w, h, px)
 
-    # ---- Tuile-bouton 48x48 (nineslice 10px) : cuir sombre, cadre or, 3 états ----
-    def tile(name: str, frame: tuple[int, int, int], fill: tuple[int, int, int], inner: tuple[int, int, int]) -> None:
-        tw = th = 48
-        tpx: list[list[tuple[int, int, int, int]]] = []
-        for y in range(th):
-            trow: list[tuple[int, int, int, int]] = []
-            for x in range(tw):
-                edge = min(x, y, tw - 1 - x, th - 1 - y)
-                if edge == 0:
-                    trow.append((14, 13, 14, 255))            # contour sombre
-                elif edge == 1 or edge == 2:
-                    trow.append((*frame, 255))                 # cadre or
-                elif edge == 3:
-                    trow.append((28, 26, 25, 255))             # ombre interne
-                else:
-                    # fond cuir avec grain léger
-                    g = ((x * 5 + y * 11) % 4) - 1
-                    trow.append((max(0, fill[0] + g), max(0, fill[1] + g), max(0, fill[2] + g), 255))
-            tpx.append(trow)
-        # Coins arrondis ornementaux : arc doré interne dans chaque coin
-        for cx, cy, sx, sy in ((5, 5, 1, 1), (tw - 6, 5, -1, 1), (5, th - 6, 1, -1), (tw - 6, th - 6, -1, -1)):
-            for i in range(5):
-                x, y = cx + sx * (4 - i), cy + sy * 4
-                if 3 <= x < tw - 3 and 3 <= y < th - 3:
-                    tpx[y][x] = (*inner, 255)
-        write_png(RP_ROOT / "textures" / "ui" / f"{name}.png", tw, th, tpx)
+    # ---- Panneau de contenu 96x96 (nineslice 8px) : noir doux, liseré ARGENT ----
+    cw = ch = 96
+    cpx: list[list[tuple[int, int, int, int]]] = []
+    for y in range(ch):
+        row: list[tuple[int, int, int, int]] = []
+        for x in range(cw):
+            edge = min(x, y, cw - 1 - x, ch - 1 - y)
+            if edge == 0:
+                row.append((12, 12, 14, 255))                   # contour noir
+            elif edge in (1, 2):
+                row.append((*lerp(SILVER, SILVER_DIM, (x + y) / (cw + ch)), 255))  # argent
+            elif edge == 3:
+                row.append((34, 34, 38, 255))                   # raccord
+            else:
+                g = ((x * 3 + y * 9) % 4) - 1
+                row.append((max(0, 24 + g), max(0, 24 + g), max(0, 27 + g), 235))
+        cpx.append(row)
+    # Coins : point lumineux argent
+    for cx, cy in ((3, 3), (cw - 4, 3), (3, ch - 4), (cw - 4, ch - 4)):
+        cpx[cy][cx] = (*SILVER_BRIGHT, 255)
+    write_png(RP_ROOT / "textures" / "ui" / "om_content_bg.png", cw, ch, cpx)
 
-    # Les tuiles om_tile ont été RETIRÉES : redéfinir les boutons cassait le
-    # rendu vanilla (icônes détachées, focus rectangle or parasite). Les
-    # boutons repassent par les textures om_btn* sobres, 100% compatibles.
-    del tile  # la fonction n'est plus utilisée
+    # ---- Bandeau d'en-tête 64x20 : noir à filet or (titres de section) ----
+    bw, bh = 64, 20
+    bpx: list[list[tuple[int, int, int, int]]] = []
+    for y in range(bh):
+        row: list[tuple[int, int, int, int]] = []
+        for x in range(bw):
+            edge = min(x, y, bw - 1 - x, bh - 1 - y)
+            if edge == 0:
+                row.append((10, 10, 12, 255))
+            elif y == 1:
+                row.append((*lerp(GOLD, GOLD_DIM, x / bw), 255))   # filet or haut
+            elif y == bh - 2:
+                row.append((*lerp(SILVER_DIM, SILVER, x / bw), 255))  # filet argent bas
+            else:
+                g = ((x * 7 + y * 5) % 4) - 1
+                row.append((max(0, 14 + g), max(0, 14 + g), max(0, 16 + g), 235))
+        bpx.append(row)
+    write_png(RP_ROOT / "textures" / "ui" / "om_header_band.png", bw, bh, bpx)
 
 
 def actionbar_bg() -> None:
-    """Fond d'actionbar 128x10 : panneau sombre semi-transparent aux coins adoucis."""
+    """Fond d'actionbar 128x10 : bandeau noir semi-transparent, liseré or."""
     px: list[list[tuple[int, int, int, int]]] = []
     for y in range(10):
         row: list[tuple[int, int, int, int]] = []
         for x in range(128):
             corner = (x in (0, 127) and y in (0, 9))
-            border = (x in (1, 126) and 1 <= y <= 8) or (y in (1, 8) and 1 <= x <= 126)
+            top = (y == 1 and 2 <= x <= 125)
+            bottom = (y == 8 and 2 <= x <= 125)
+            border = (x in (1, 126) and 1 <= y <= 8) or (y in (2, 7) and 1 <= x <= 126)
             if corner:
-                row.append((16, 18, 24, 0))
+                row.append((16, 15, 17, 0))
+            elif top:
+                row.append((212, 175, 88, 130))                # filet or
+            elif bottom:
+                row.append((176, 182, 192, 110))               # filet argent
             elif border:
-                row.append((233, 233, 233, 90))
+                row.append((10, 10, 12, 170))
             else:
-                row.append((16, 18, 24, 150))
+                row.append((14, 13, 16, 165))
         px.append(row)
     write_png(RP_ROOT / "textures" / "ui" / "om_actionbar_bg.png", 128, 10, px)
 
 
 def pack_icon() -> None:
-    """Icône 64x64 : damier dégradé vert/or (OpenMontage)."""
+    """Icône 64x64 NaLandia : damier noir/or, bandeau argent, « N »."""
     px: list[list[tuple[int, int, int, int]]] = []
     for y in range(64):
         row: list[tuple[int, int, int, int]] = []
         for x in range(64):
             dark = ((x // 8) + (y // 8)) % 2 == 0
             if dark:
-                row.append((24, 92, 62, 255))
+                row.append((20, 19, 22, 255))                  # noir
             else:
-                row.append((36, 126, 84, 255))
-            if 26 <= y <= 37 and 8 <= x <= 55:
-                row.append((222, 168, 52, 255))
-            if 29 <= y <= 34 and 14 <= x <= 49 and (x + y) % 2 == 0:
-                row.append((244, 202, 96, 255))
+                row.append((30, 29, 33, 255))                  # charbon
+            if 22 <= y <= 40:
+                # Bandeau central : or dégradé
+                row.append((*lerp(GOLD, GOLD_LIGHT, x / 64), 255))
+            if 25 <= y <= 37 and 14 <= x <= 50:
+                # « N » pixel dans le bandeau
+                col_in_n = (14 <= x <= 19) or (45 <= x <= 50) or (abs((x - 14) - (37 - y) * 1.0) < 7 and 20 <= x <= 44)
+                if col_in_n:
+                    row.append((24, 22, 26, 255))
         px.append(row)
     write_png(RP_ROOT / "pack_icon.png", 64, 64, px)
 
 
 HEROES = {
-    "home": (GREEN, AQUA),
+    "home": (GOLD, AQUA),
     "territories": (GREEN, EMERALD),
-    "admin": (GOLD, AMBER),
+    "admin": (GOLD, GOLD_LIGHT),
     "mod": (CRIMSON, ORANGE),
-    "role": (SKY, STEEL),
+    "role": (SILVER, STEEL),
     "modules": (PURPLE, STEEL),
     "database": (EMERALD, AQUA),
     "classes": (PURPLE, CRIMSON),
@@ -533,11 +570,11 @@ HEROES = {
 
 
 def main() -> None:
-    print("Génération des textures UI (OpenMontage RP)...")
+    print("Génération des textures UI (Resource Pack NaLandia)...")
     for name, (a, b) in HEROES.items():
         hero(name, a, b)
     make_icons()
-    form_reskin_textures()
+    button_tiles()
     ornate_textures()
     actionbar_bg()
     pack_icon()
