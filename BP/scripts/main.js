@@ -384,19 +384,7 @@ var COLLECTION_META = {
 var SECTION_ORDER = Object.keys(COLLECTION_META);
 function collectionLabel(collection) {
   const meta = COLLECTION_META[collection];
-  const icons = {
-    players_index: "👥",
-    territories: "🚩",
-    roles: "👑",
-    members: "🎭",
-    bans: "🔨",
-    mutes: "🔇",
-    warns: "⚠️",
-    infractions: "📜",
-    modules: "🧩"
-  };
-  const icon = icons[collection] ?? "📁";
-  return meta === void 0 ? `${icon} ${collection}` : `${icon} ${meta.label}`;
+  return meta === void 0 ? collection : `§f${meta.label}`;
 }
 
 // src/territories/types.ts
@@ -621,6 +609,48 @@ import {
   ObservableNumber,
   ObservableBoolean
 } from "@minecraft/server-ui";
+var RP_PACK_ID = "OpenMontage UI";
+var OM_ICONS = {
+  flag: "flag",
+  compass: "compass",
+  shield: "shield",
+  crown: "crown",
+  scroll: "scroll",
+  gear: "gear",
+  database: "database",
+  sword: "sword",
+  ban: "ban",
+  bell: "bell",
+  warn: "warn",
+  history: "history",
+  plus: "plus",
+  check: "check",
+  trash: "trash",
+  search: "search",
+  save: "save",
+  back: "back",
+  close: "close",
+  list: "list",
+  pencil: "pencil",
+  user: "user",
+  tag: "tag",
+  online: "online"
+};
+function OM_ICON(icon) {
+  return `textures/ui/om_ic_${OM_ICONS[icon]}`;
+}
+var HEROES = {
+  home: "om_hero_home",
+  territories: "om_hero_territories",
+  admin: "om_hero_admin",
+  mod: "om_hero_mod",
+  role: "om_hero_role",
+  modules: "om_hero_modules",
+  database: "om_hero_database"
+};
+function heroPath(kind) {
+  return `textures/ui/${HEROES[kind]}`;
+}
 function windowTitle(section) {
   return `§l§aOM §r§8» §r§l${section}`;
 }
@@ -655,6 +685,14 @@ var OMForm = class {
     } catch {
     }
   }
+  /**
+   * Bannière de héros en tête de menu (image pleine largeur du RP OM).
+   * À appeler EN PREMIER : c'est l'identité graphique du menu.
+   */
+  hero(kind) {
+    this.inner.image(heroPath(kind), RP_PACK_ID, { width: 1 });
+    return this;
+  }
   header(text, options) {
     this.inner.header(uiText(text), options);
     return this;
@@ -663,14 +701,15 @@ var OMForm = class {
     this.inner.label(uiText(text), options);
     return this;
   }
-  button(label, onClick, options) {
+  button(label, onClick, options, icon) {
+    const imageDetails = icon === void 0 ? void 0 : { imagePackId: RP_PACK_ID, imageSrc: OM_ICON(icon) };
     this.inner.button(
       uiText(label),
       () => {
         closeOpenForm(this.player);
         onClick();
       },
-      options
+      imageDetails === void 0 ? options : { ...options, imageDetails }
     );
     return this;
   }
@@ -734,9 +773,10 @@ function closeOpenForm(player) {
   openForms.delete(player.id);
   current.closeIfShowing();
 }
-async function openWindow(player, section, build) {
+async function openWindow(player, section, build, hero) {
   closeOpenForm(player);
   const form = new OMForm(player, windowTitle(section));
+  if (hero !== void 0) form.hero(hero);
   build(form);
   form.closeButton();
   return form.show();
@@ -772,6 +812,7 @@ async function openDbMenu(db2, player) {
   await openWindow(player, "Base de données", (form) => {
     const stats = db2.stats();
     const sections = listSections(db2);
+    form.hero("database");
     form.header(`§a■ §lBase de données`);
     form.label(
       `§7${stats.documents} documents · ${stats.bytes} octets
@@ -784,14 +825,16 @@ async function openDbMenu(db2, player) {
 §8${stats.collections[section]} doc(s)`,
         () => {
           void openSectionMenu(db2, player, section);
-        }
+        },
+        void 0,
+        "database"
       );
     }
     form.divider();
-    form.button(`§a💾 Forcer la sauvegarde`, () => {
+    form.button(`§a■ §lForcer la sauvegarde`, () => {
       db2.save(true);
       player.sendMessage("§a[DB] Sauvegarde forcée.");
-    });
+    }, void 0, "save");
   }).catch(
     (error) => console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`)
   );
@@ -807,7 +850,7 @@ async function openSectionMenu(db2, player, section) {
       });
     }
     form.divider();
-    form.button(`§c🗑 Vider la section`, () => {
+    form.button(`§c■ §lVider la section`, () => {
       const removed = db2.clear(section);
       db2.save();
       player.sendMessage(`§c[DB] Section "${section}" vidée (${removed} document(s) supprimés).`);
@@ -856,7 +899,7 @@ async function openDocumentMenu(db2, player, section, docId) {
 ${readonlyLines.join("\n")}`);
     }
     form.divider();
-    form.button(`§a💾 Appliquer`, () => {
+    form.button(`§a■ §lAppliquer`, () => {
       const patch = {};
       for (const [key, toggle] of Object.entries(boolValues)) {
         const current = doc.data[key];
@@ -4468,6 +4511,7 @@ function openTerritoriesMenu(player, manager) {
     return;
   }
   void openWindow(player, "Territoires", (form) => {
+    form.hero("territories");
     form.label(`§7${territories2.length} territoire(s) revendiqué(s) :`);
     form.divider();
     for (const territory of territories2) {
@@ -4475,7 +4519,9 @@ function openTerritoriesMenu(player, manager) {
       form.button(
         `${color.code}■ ${territory.data.name}§r
 §7par ${territory.data.owner}`,
-        () => showTerritoryInfo(player, territory, manager)
+        () => showTerritoryInfo(player, territory, manager),
+        void 0,
+        "flag"
       );
     }
   }).catch(
@@ -4504,17 +4550,17 @@ function showTerritoryInfo(player, territory, manager) {
     form.label("§7Seuls le propriétaire et ses membres peuvent y construire, y ouvrir des conteneurs ou y combattre.");
     if (isOwner) {
       form.spacer();
-      form.button(`§6■ Changer le drapeau (/sn:setflag)`, () => {
+      form.button(`§6■ §lChanger le drapeau (/sn:setflag)`, () => {
         player.sendMessage(
           `§7[Territoires] Couleurs : ${TERRITORY_COLORS.map((c) => `${c.code}${c.id}`).join("§7, ")}`
         );
       });
-      form.button(`§c■ Supprimer ce territoire`, () => {
+      form.button(`§c■ §lSupprimer ce territoire`, () => {
         const ok = manager.remove(data.name, player.name);
         player.sendMessage(
           ok ? `§a[Territoires] ${data.name} supprimé.` : "§c[Territoires] Suppression impossible."
         );
-      });
+      }, void 0, "trash");
     }
   }).catch(
     (error) => console.warn(`[Territoires] Erreur fiche territoire : ${error instanceof Error ? error.message : String(error)}`)
@@ -5158,14 +5204,17 @@ var PermissionManager = class {
 function openRolesMenu(player, permissions2) {
   const roles = permissions2.allRoles();
   void openWindow(player, "Rôles", (form) => {
+    form.hero("admin");
     form.label(`§7${roles.length} rôle(s). Clique pour configurer :`);
     form.divider();
-    form.button(`§a■ Créer un rôle`, () => openCreateRoleMenu(player, permissions2));
+    form.button(`§a■ §lCréer un rôle`, () => openCreateRoleMenu(player, permissions2), void 0, "plus");
     for (const role of roles) {
       form.button(
         `${role.data.color}[${role.data.name}]§r
 §7niveau ${role.data.level} · ${permissions2.membersWithRole(role.data.name).length} membre(s)`,
-        () => openRoleConfigMenu(player, role, permissions2)
+        () => openRoleConfigMenu(player, role, permissions2),
+        void 0,
+        "crown"
       );
     }
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
@@ -5176,6 +5225,7 @@ function openCreateRoleMenu(player, permissions2) {
   const level = obNumber(10);
   void openWindowRaw(player, windowTitle("Créer un rôle"), (form) => {
     form.header(`§a■ §lNouveau rôle`);
+    form.divider();
     form.textField("§eNom (2-16 caractères)", name);
     form.dropdown(
       "§eCouleur",
@@ -5184,7 +5234,7 @@ function openCreateRoleMenu(player, permissions2) {
     );
     form.slider("§eNiveau hiérarchique (100 = admin max)", level, 0, 100, { step: 5 });
     form.divider();
-    form.button(`§a■ Créer le rôle`, () => {
+    form.button(`§a■ §lCréer le rôle`, () => {
       const clean = name.getData().trim();
       const color = ROLE_COLORS[colorIndex.getData()] ?? ROLE_COLORS[0];
       if (clean === "") {
@@ -5201,6 +5251,7 @@ function openCreateRoleMenu(player, permissions2) {
 }
 function openRoleConfigMenu(player, role, permissions2) {
   void openWindow(player, `Rôle ${role.data.color}${role.data.name}`, (form) => {
+    form.hero("role");
     form.header(`${role.data.color}■ §l${role.data.name}§r §7(niveau ${role.data.level})`);
     form.label(
       `§7Membres : §f${permissions2.membersWithRole(role.data.name).length}
@@ -5208,35 +5259,39 @@ function openRoleConfigMenu(player, role, permissions2) {
     );
     form.divider();
     form.button(
-      `§e■ Changer la couleur`,
+      `§e■ §lChanger la couleur`,
       () => openColorPicker(player, "Couleur du rôle", (colorId) => {
         const result = permissions2.setRoleColor(role.data.name, colorId);
         player.sendMessage(result.ok ? "§a[Rôles] Couleur mise à jour." : `§c[Rôles] ${result.error}`);
-      })
+      }),
+      void 0,
+      "pencil"
     );
     form.button(
-      `§e■ Changer le prefix`,
+      `§e■ §lChanger le prefix`,
       () => openPrefixMenu(player, `Prefix du rôle [${role.data.name}]`, (prefix) => {
         const result = permissions2.setRolePrefix(role.data.name, prefix);
         player.sendMessage(result.ok ? "§a[Rôles] Prefix mis à jour." : `§c[Rôles] ${result.error}`);
-      })
+      }),
+      void 0,
+      "tag"
     );
-    form.button(`§e■ Changer le niveau (actuel : ${role.data.level})`, () => openLevelMenu(player, role, permissions2));
-    form.button(`§b■ Voir les membres`, () => openRoleMembersMenu(player, role, permissions2));
-    form.button(`§c■ Supprimer ce rôle`, () => {
+    form.button(`§e■ §lChanger le niveau (actuel : ${role.data.level})`, () => openLevelMenu(player, role, permissions2), void 0, "list");
+    form.button(`§b■ §lVoir les membres`, () => openRoleMembersMenu(player, role, permissions2), void 0, "user");
+    form.button(`§c■ §lSupprimer ce rôle`, () => {
       const result = permissions2.deleteRole(role.data.name);
       player.sendMessage(result.ok ? "§a[Rôles] Rôle supprimé." : `§c[Rôles] ${result.error}`);
-    });
+    }, void 0, "trash");
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
 function openLevelMenu(player, role, permissions2) {
   const level = obNumber(role.data.level);
   void openWindowRaw(player, windowTitle(`Niveau de [${role.data.name}]`), (form) => {
     form.slider("§eNiveau (100 = admin max)", level, 0, 100, { step: 5 });
-    form.button(`§a■ Valider`, () => {
+    form.button(`§a■ §lValider`, () => {
       const result = permissions2.setRoleLevel(role.data.name, level.getData());
       player.sendMessage(result.ok ? "§a[Rôles] Niveau mis à jour." : `§c[Rôles] ${result.error}`);
-    });
+    }, void 0, "check");
     form.closeButton();
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -5252,7 +5307,7 @@ function openRoleMembersMenu(player, role, permissions2) {
           permissions2.removeRole(member.data.name);
           player.sendMessage(`§a[Rôles] ${member.data.name} ne fait plus partie du rôle.`);
           openRoleMembersMenu(player, role, permissions2);
-        });
+        }, void 0, "user");
       }
     }
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
@@ -5261,7 +5316,7 @@ function openColorPicker(player, title, onPick) {
   void openWindow(player, title, (form) => {
     form.label("§7Choisis une couleur :");
     for (const color of ROLE_COLORS) {
-      form.button(`${color.code}■■■ §7${color.id}`, () => onPick(color.id));
+      form.button(`${color.code}■■■ §7${color.id}`, () => onPick(color.id), void 0, "pencil");
     }
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -5269,7 +5324,7 @@ function openPrefixMenu(player, title, onDone) {
   const prefix = obString("");
   void openWindowRaw(player, windowTitle(title), (form) => {
     form.textField("§ePrefix (vide = défaut [Nom])", prefix);
-    form.button(`§a■ Valider`, () => onDone(prefix.getData()));
+    form.button(`§a■ §lValider`, () => onDone(prefix.getData()), void 0, "check");
     form.closeButton();
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -5335,6 +5390,7 @@ function allKnownPlayers(db2) {
 // src/permissions/players-ui.ts
 function openPlayersMenu(player, permissions2, db2) {
   void openWindow(player, "Joueurs", (form) => {
+    form.hero("admin");
     const online = world9.getAllPlayers();
     form.header(`§b■ §lJoueurs`);
     form.label(
@@ -5352,14 +5408,18 @@ function openPlayersMenu(player, permissions2, db2) {
       form.button(
         `${role?.data.color ?? "§7"}${target.name}§r
 §7${member?.data.role ?? "aucun rôle"}`,
-        () => openPlayerConfigMenu(player, target.name, permissions2, db2)
+        () => openPlayerConfigMenu(player, target.name, permissions2, db2),
+        void 0,
+        "user"
       );
     }
     form.divider();
     form.label(`§7§l● Hors ligne / historique§r §7(index complet)`);
     form.button(
-      `§a■ Gérer un joueur hors ligne (saisir le pseudo)`,
-      () => openPlayerLookupMenu(player, permissions2, db2)
+      `§a■ §lGérer un joueur hors ligne (saisir le pseudo)`,
+      () => openPlayerLookupMenu(player, permissions2, db2),
+      void 0,
+      "search"
     );
     if (db2 !== void 0) {
       const known = allKnownPlayers(db2).filter(
@@ -5372,7 +5432,9 @@ function openPlayersMenu(player, permissions2, db2) {
         form.button(
           `§8${record.data.name}§r
 §7${record.data.grade !== "" ? role?.data.color + record.data.grade + "§7 · " : ""}${record.data.sessions} session(s) · vu à ${hh}`,
-          () => openPlayerConfigMenu(player, record.data.name, permissions2, db2)
+          () => openPlayerConfigMenu(player, record.data.name, permissions2, db2),
+          void 0,
+          "history"
         );
       }
       if (known.length > 15) form.label(`§8… et ${known.length - 15} autres (recherche par pseudo)`);
@@ -5384,10 +5446,10 @@ function openPlayerLookupMenu(player, permissions2, db2) {
   void openWindowRaw(player, windowTitle("Gérer un joueur"), (form) => {
     form.label("§7Fonctionne même si le joueur n'est pas connecté.");
     form.textField("§ePseudo du joueur", name);
-    form.button(`§b■ Rechercher`, () => {
+    form.button(`§b■ §lRechercher`, () => {
       const target = name.getData().trim();
       if (target !== "") openPlayerConfigMenu(player, target, permissions2, db2);
-    });
+    }, void 0, "search");
     form.closeButton();
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -5404,28 +5466,34 @@ function openPlayerConfigMenu(player, targetName, permissions2, db2) {
 §7Couleur perso : §f${colorLabel}`);
     form.divider();
     form.button(
-      `§e■ Attribuer / changer de rôle`,
-      () => openAssignRoleMenu(player, targetName, permissions2, db2)
+      `§e■ §lAttribuer / changer de rôle`,
+      () => openAssignRoleMenu(player, targetName, permissions2, db2),
+      void 0,
+      "crown"
     );
     form.button(
-      `§e■ Prefix personnalisé`,
+      `§e■ §lPrefix personnalisé`,
       () => openPrefixMenu(player, `Prefix perso de ${targetName}`, (prefix) => {
         const result = permissions2.setCustomPrefix(targetName, prefix);
         player.sendMessage(result.ok ? "§a[Rôles] Prefix mis à jour." : `§c[Rôles] ${result.error}`);
-      })
+      }),
+      void 0,
+      "tag"
     );
     form.button(
-      `§e■ Couleur de nom personnalisée`,
+      `§e■ §lCouleur de nom personnalisée`,
       () => openColorPicker(player, `Couleur de ${targetName}`, (colorId) => {
         const result = permissions2.setCustomColor(targetName, colorId);
         player.sendMessage(result.ok ? "§a[Rôles] Couleur mise à jour." : `§c[Rôles] ${result.error}`);
-      })
+      }),
+      void 0,
+      "pencil"
     );
     if (member !== void 0) {
-      form.button(`§c■ Retirer tous les rôles`, () => {
+      form.button(`§c■ §lRetirer tous les rôles`, () => {
         permissions2.removeRole(targetName);
         player.sendMessage(`§a[Rôles] Rôles de ${targetName} retirés.`);
-      });
+      }, void 0, "trash");
     }
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -5444,7 +5512,7 @@ function openAssignRoleMenu(player, targetName, permissions2, db2) {
         player.sendMessage(
           result.ok ? `§a[Rôles] ${targetName} est maintenant ${role.data.color}[${role.data.name}]§r§a.` : `§c[Rôles] ${result.error}`
         );
-      });
+      }, void 0, "crown");
     }
     void db2;
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
@@ -5495,6 +5563,7 @@ var ModuleManager = class {
 // src/modules/ui.ts
 function openModulesMenu(player, modules2, territories2) {
   void openWindow(player, "Modules", (form) => {
+    form.hero("modules");
     form.header(`§6■ §lModules`);
     form.label(`§7${modules2.enabledCount()}/${MODULE_CATALOG.length} module(s) actif(s).`);
     form.divider();
@@ -5511,12 +5580,12 @@ function openModulesMenu(player, modules2, territories2) {
     }
     if (MODULE_CATALOG.some((info) => info.id === "territories")) {
       form.divider();
-      form.button(`§e■ Voir les territoires`, () => {
+      form.button(`§e■ §lVoir les territoires`, () => {
         if (territories2 !== void 0) openTerritoriesMenu(player, territories2);
-      });
-      form.button(`§c■ Supprimer TOUS les territoires`, () => {
+      }, void 0, "flag");
+      form.button(`§c■ §lSupprimer TOUS les territoires`, () => {
         if (territories2 !== void 0) openWipeTerritoriesMenu(player, modules2, territories2);
-      });
+      }, void 0, "trash");
     }
   }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -5529,6 +5598,7 @@ function openWipeTerritoriesMenu(player, modules2, territories2) {
 §7Action irréversible !`
     );
     form.divider();
+    form.hero("modules");
     form.button(`§4■ §lSUPPRIMER TOUT`, () => {
       let removed = 0;
       for (const territory of territories2.all()) {
@@ -5537,7 +5607,7 @@ function openWipeTerritoriesMenu(player, modules2, territories2) {
       player.sendMessage(`§a[Modules] ${removed} territoire(s) supprimé(s).`);
       openModulesMenu(player, modules2, territories2);
     });
-    form.button(`§a■ §lAnnuler`, () => openModulesMenu(player, modules2, territories2));
+    form.button(`§a■ §lAnnuler`, () => openModulesMenu(player, modules2, territories2), void 0, "back");
   }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
 }
 
@@ -5728,6 +5798,7 @@ function resolveTargetId(targetName) {
 function openSanctionsMenu(player, sanctions2, permissions2) {
   const stats = sanctions2.stats();
   void openWindow(player, "Modération", (form) => {
+    form.hero("mod");
     form.header(`§4■ §lModération`);
     form.label(
       `§7Bans actifs : §f${stats.bans}
@@ -5735,10 +5806,10 @@ function openSanctionsMenu(player, sanctions2, permissions2) {
 §7Warns au total : §f${stats.warns}`
     );
     form.divider();
-    form.button(`§4■ Bans actifs`, () => openBansList(player, sanctions2, permissions2));
-    form.button(`§6■ Mutes actifs`, () => openMutesList(player, sanctions2, permissions2));
-    form.button(`§e■ Sanctionner un joueur`, () => openSanctionForm(player, sanctions2));
-    form.button(`§b■ Historique d'un joueur`, () => openHistoryLookup(player, sanctions2));
+    form.button(`§4■ §lBans actifs`, () => openBansList(player, sanctions2, permissions2), void 0, "ban");
+    form.button(`§6■ §lMutes actifs`, () => openMutesList(player, sanctions2, permissions2), void 0, "bell");
+    form.button(`§e■ §lSanctionner un joueur`, () => openSanctionForm(player, sanctions2), void 0, "sword");
+    form.button(`§b■ §lHistorique d'un joueur`, () => openHistoryLookup(player, sanctions2), void 0, "history");
   }).catch(
     (error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`)
   );
@@ -5758,7 +5829,7 @@ function openBansList(player, sanctions2, permissions2) {
         const result = sanctions2.unban(ban.data.name);
         player.sendMessage(result.ok ? `§a[Modération] ${ban.data.name} débanni.` : `§c[Modération] ${result.error}`);
         openBansList(player, sanctions2, permissions2);
-      });
+      }, void 0, "ban");
     }
   }).catch(
     (error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`)
@@ -5781,7 +5852,7 @@ function openMutesList(player, sanctions2, permissions2) {
           result.ok ? `§a[Modération] ${mute.data.name} peut parler.` : `§c[Modération] ${result.error}`
         );
         openMutesList(player, sanctions2, permissions2);
-      });
+      }, void 0, "bell");
     }
   }).catch(
     (error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`)
@@ -5808,7 +5879,7 @@ function openSanctionForm(player, sanctions2) {
     form.slider("§eDurée en minutes (0 = permanent)", minutes, 0, 1440, { step: 15 });
     form.textField("§eRaison", reason);
     form.divider();
-    form.button(`§e■ Appliquer la sanction`, () => {
+    form.button(`§e■ §lAppliquer la sanction`, () => {
       const name = target.getData().trim();
       const cleanReason = reason.getData().trim() || "non spécifiée";
       if (name === "") {
@@ -5851,7 +5922,7 @@ function openHistoryLookup(player, sanctions2) {
   const target = obString("");
   void openWindowRaw(player, windowTitle("Historique"), (form) => {
     form.textField("§ePseudo du joueur", target);
-    form.button(`§b■ Voir l'historique`, () => {
+    form.button(`§b■ §lVoir l'historique`, () => {
       const name = target.getData().trim();
       if (name === "") return;
       const entries = sanctions2.historyOf(name, 15);
@@ -5882,45 +5953,55 @@ function openHubMenu(player, deps) {
   const hasRole = permissions2.getMember(player.name) !== void 0;
   const canSelfColor = permissions2.can(player.name, "chat.color", isOp) || hasRole;
   void openWindow(player, "Menu", (form) => {
-    form.header(`§aOpenMontage§r §8» §7Menu principal`);
+    form.hero("home");
+    form.header(`§a■ §lOpenMontage`);
     form.divider();
     form.label(
       hasRole ? `§7Salut §f${player.name}§7 ! Ton rôle : ${permissions2.nameTagFor(player.name)}§r` : `§7Salut §f${player.name}§7 ! Tu n'as pas encore de rôle.`
     );
     form.spacer();
     form.button(
-      `🚩 §lTerritoires§r
+      `§a■ §lTerritoires§r
 §7${canCreate ? "créer, lister, explorer" : "lister, explorer"}`,
       () => openTerritoriesMenu(player, territories2),
-      { tooltip: "Revendique et explore les territoires" }
+      { tooltip: "Revendique et explore les territoires" },
+      "flag"
     );
     if (canSelfColor) {
       form.button(
-        `🧭 §lMon rôle§r
+        `§b■ §lMon rôle§r
 §7couleur, prefix perso`,
-        () => openSelfRoleMenu(player, permissions2)
+        () => openSelfRoleMenu(player, permissions2),
+        void 0,
+        "tag"
       );
     }
     if (isMod) {
       form.button(
-        `🛡 §lModération§r
+        `§4■ §lModération§r
 §7bans, mutes, warns`,
-        () => openSanctionsMenu(player, sanctions2, permissions2)
+        () => openSanctionsMenu(player, sanctions2, permissions2),
+        void 0,
+        "shield"
       );
     }
     if (isAdmin) {
       form.header(`§6§lAdministration`);
-      form.button(`👑 §lRôles§r
-§7créer et régler les rôles`, () => openRolesMenu(player, permissions2));
+      form.button(`§6■ §lRôles§r
+§7créer et régler les rôles`, () => openRolesMenu(player, permissions2), void 0, "crown");
       form.button(
-        `📜 §lJoueurs§r
+        `§b■ §lJoueurs§r
 §7en ligne + hors ligne`,
-        () => openPlayersMenu(player, permissions2, deps.db)
+        () => openPlayersMenu(player, permissions2, deps.db),
+        void 0,
+        "user"
       );
       form.button(
-        `🔧 §lModules§r
+        `§d■ §lModules§r
 §7activer/désactiver les features`,
-        () => openModulesMenu(player, modules2, territories2)
+        () => openModulesMenu(player, modules2, territories2),
+        void 0,
+        "gear"
       );
     }
   }).catch((error) => console.warn(`[Hub] ${error instanceof Error ? error.message : String(error)}`));

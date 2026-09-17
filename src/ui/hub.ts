@@ -1,5 +1,5 @@
 import type { Player } from "@minecraft/server";
-import { windowTitle, divider, ICONS, RP_PACK_ID, openWindow } from "./theme";
+import { windowTitle, divider, RP_PACK_ID, openWindow } from "./theme";
 import { openTerritoriesMenu } from "../territories/ui";
 import type { TerritoryManager } from "../territories/manager";
 import { openRolesMenu, openColorPicker } from "../permissions/ui";
@@ -38,7 +38,8 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
   const canSelfColor = permissions.can(player.name, "chat.color", isOp) || hasRole;
 
   void openWindow(player, "Menu", (form) => {
-    form.header(`§aOpenMontage§r §8» §7Menu principal`);
+    form.hero("home");
+    form.header(`§a■ §lOpenMontage`);
     form.divider();
 
     // Bandeau d'identité : le rôle du joueur, coloré.
@@ -51,32 +52,41 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
 
     // Entrées joueur.
     form.button(
-      `🚩 §lTerritoires§r\n§7${canCreate ? "créer, lister, explorer" : "lister, explorer"}`,
+      `§a■ §lTerritoires§r\n§7${canCreate ? "créer, lister, explorer" : "lister, explorer"}`,
       () => openTerritoriesMenu(player, territories),
       { tooltip: "Revendique et explore les territoires" },
+      "flag",
     );
     if (canSelfColor) {
-      form.button(`🧭 §lMon rôle§r\n§7couleur, prefix perso`, () =>
+      form.button(`§b■ §lMon rôle§r\n§7couleur, prefix perso`, () =>
         openSelfRoleMenu(player, permissions),
+        undefined,
+        "tag",
       );
     }
 
     // Entrées modération.
     if (isMod) {
-      form.button(`🛡 §lModération§r\n§7bans, mutes, warns`, () =>
+      form.button(`§4■ §lModération§r\n§7bans, mutes, warns`, () =>
         openSanctionsMenu(player, sanctions, permissions),
+        undefined,
+        "shield",
       );
     }
 
     // Entrées admin.
     if (isAdmin) {
       form.header(`§6§lAdministration`);
-      form.button(`👑 §lRôles§r\n§7créer et régler les rôles`, () => openRolesMenu(player, permissions));
-      form.button(`📜 §lJoueurs§r\n§7en ligne + hors ligne`, () =>
+      form.button(`§6■ §lRôles§r\n§7créer et régler les rôles`, () => openRolesMenu(player, permissions), undefined, "crown");
+      form.button(`§b■ §lJoueurs§r\n§7en ligne + hors ligne`, () =>
         openPlayersMenu(player, permissions, deps.db),
+        undefined,
+        "user",
       );
-      form.button(`🔧 §lModules§r\n§7activer/désactiver les features`, () =>
+      form.button(`§d■ §lModules§r\n§7activer/désactiver les features`, () =>
         openModulesMenu(player, modules, territories),
+        undefined,
+        "gear",
       );
     }
   }).catch((error: unknown) => console.warn(`[Hub] ${error instanceof Error ? error.message : String(error)}`));
@@ -97,5 +107,5 @@ function openSelfRoleMenu(player: Player, permissions: PermissionManager): void 
   });
 }
 
-// Ré-exporte windowTitle/divider/ICONS pour compat avec les anciens imports.
-export { windowTitle, divider, ICONS, RP_PACK_ID };
+// Ré-exporte windowTitle/divider pour compat avec les anciens imports.
+export { windowTitle, divider, RP_PACK_ID };

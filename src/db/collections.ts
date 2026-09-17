@@ -41,20 +41,8 @@ export const COLLECTION_META: Record<string, { label: string; hint: string }> = 
 /** Ordre d'affichage des sections connues (les inconnues suivent). */
 export const SECTION_ORDER = Object.keys(COLLECTION_META);
 
-/** Libellé lisible d'une collection (avec icône émoji). */
+/** Libellé lisible d'une collection (marqueur de section, icône portée par le bouton DDUI). */
 export function collectionLabel(collection: string): string {
   const meta = COLLECTION_META[collection];
-  const icons: Record<string, string> = {
-    players_index: "👥",
-    territories: "🚩",
-    roles: "👑",
-    members: "🎭",
-    bans: "🔨",
-    mutes: "🔇",
-    warns: "⚠️",
-    infractions: "📜",
-    modules: "🧩",
-  };
-  const icon = icons[collection] ?? "📁";
-  return meta === undefined ? `${icon} ${collection}` : `${icon} ${meta.label}`;
+  return meta === undefined ? collection : `§f${meta.label}`;
 }

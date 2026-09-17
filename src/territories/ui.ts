@@ -2,7 +2,6 @@ import type { Player } from "@minecraft/server";
 import {
   windowTitle,
   divider,
-  ICONS,
   RP_PACK_ID,
   openWindow,
   openWindowRaw,
@@ -78,6 +77,7 @@ export function openTerritoriesMenu(player: Player, manager: TerritoryManager): 
   }
 
   void openWindow(player, "Territoires", (form) => {
+    form.hero("territories");
     form.label(`§7${territories.length} territoire(s) revendiqué(s) :`);
     form.divider();
 
@@ -86,6 +86,8 @@ export function openTerritoriesMenu(player: Player, manager: TerritoryManager): 
       form.button(
         `${color.code}■ ${territory.data.name}§r\n§7par ${territory.data.owner}`,
         () => showTerritoryInfo(player, territory, manager),
+        undefined,
+        "flag",
       );
     }
   }).catch((error: unknown) =>
@@ -122,19 +124,19 @@ export function showTerritoryInfo(
 
     if (isOwner) {
       form.spacer();
-      form.button(`§6■ Changer le drapeau (/sn:setflag)`, () => {
+      form.button(`§6■ §lChanger le drapeau (/sn:setflag)`, () => {
         player.sendMessage(
           `§7[Territoires] Couleurs : ${TERRITORY_COLORS.map((c) => `${c.code}${c.id}`).join("§7, ")}`,
         );
       });
-      form.button(`§c■ Supprimer ce territoire`, () => {
+      form.button(`§c■ §lSupprimer ce territoire`, () => {
         const ok = manager.remove(data.name, player.name);
         player.sendMessage(
           ok
             ? `§a[Territoires] ${data.name} supprimé.`
             : "§c[Territoires] Suppression impossible.",
         );
-      });
+      }, undefined, "trash");
     }
   }).catch((error: unknown) =>
     console.warn(`[Territoires] Erreur fiche territoire : ${error instanceof Error ? error.message : String(error)}`),
@@ -142,4 +144,4 @@ export function showTerritoryInfo(
 }
 
 // Ré-exports pour compat.
-export { windowTitle, divider, ICONS, RP_PACK_ID };
+export { windowTitle, divider, RP_PACK_ID };

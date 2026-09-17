@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v7** — base « propre » consolidée : chat ×3 (subscribe en double), imports dynamiques, confirmation vanilla résiduelle.
+> Dernière mise à jour : **v8** — refonte design des menus : bannières de héros RP en tête + icônes 32×32 sur les boutons, plus aucune texture placeholder.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -88,7 +88,7 @@
   - **Méthode des packs établis** (vérifiée sur Canopy et OriginsPE) : redéclarer un élément vanilla **par son nom exact** dans un `ui/*.json` référencé par `_ui_defs.json` — le moteur fusionne par nom. Pas de copie des 118 Ko, pas de patch par recherche-remplace (la texture ciblée apparaissait 5 fois → mauvaise occurrence patchée = « aucune UI visible »)
   - Généré par `scripts/build_rp_hud.py` (extraction automatique du vanilla + retouches + validation)
 - [x] Script reproductible **`scripts/build_rp_hud.py`** : retélécharge le vanilla, applique les patchs, valide — à relancer après chaque mise à jour Minecraft
-- [x] Textures placeholder (temporaires) générées sans dépendance par **`scripts/make_placeholder_pngs.py`** : 10 bandeaux colorés + fond d'actionbar + pack_icon — à remplacer plus tard par de vrais visuels (mêmes noms de fichiers)
+- [x] Textures UI générées sans dépendance par **`scripts/make_ui_textures.py`** (`bun run textures`) : bannières de héros, icônes pixel-art des menus, fond d'actionbar, pack_icon
 - [x] Resource Pack séparé (manifest resources + pack_icon), à activer **en plus** du BP dans le monde
 
 ---
@@ -103,6 +103,14 @@
 ---
 
 ---
+
+## 🎨 Refonte design des menus (v8)
+- [x] **Zéro texture placeholder restante** : les 10 bandeaux `om_banner_*` (déjà inutilisés) sont supprimés ; `scripts/make_placeholder_pngs.py` remplacé par **`scripts/make_ui_textures.py`** (`bun run textures`)
+- [x] **Bannières de héros 256×48** (7 variantes : home, territories, admin, mod, role, modules, database) — panneaux slate dégradé à ruban accent et clef de voûte or, affichées **pleine largeur en tête de chaque menu principal** via `OMForm.hero()` (image DDUI du RP OpenMontage)
+- [x] **24 icônes 32×32 pixel-art** (flag, crown, shield, sword, ban, bell, warn, history, trash, save, search, user, tag, gear…) — tuiles slate à liseré accent, passées aux boutons via **`imageDetails`** (API DDUI bêta) : chaque bouton porte désormais son icône
+- [x] **Icônes dans NOTRE pack** : fin des chemins vanilla dont l'existence dépendait du client (les « icônes non chargées » historiques) — tout vient de `OpenMontage UI`
+- [x] Émojis remplacés par les codes couleur normés (`§a■`, `§4■`…) — rendu propre et cohérent, icône à gauche du label
+- [x] Habillage appliqué aux **7 familles de menus** : hub, territoires, rôles (+couleur/prefix/niveau/membres), joueurs (config + assignation), modération (bans/mutes/sanction/historique), modules (+confirmation), DB (sections + documents)
 
 ## 🔍 Revue « base propre » (v7)
 - [x] **Chat triplé en jeu** : `registerChat` était appelé 2× dans worldLoad (bloc dupliqué) + 1× par le fallback sans garde partagée → chaque message émis **3 fois** et `registerEnforcement` (éjection des bannis) enregistré **2×**. Corrigé par une garde unique `registerChatOnce()` partagée entre worldLoad et fallback

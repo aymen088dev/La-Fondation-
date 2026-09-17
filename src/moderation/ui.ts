@@ -1,6 +1,6 @@
 import { world } from "@minecraft/server";
 import type { Player } from "@minecraft/server";
-import { windowTitle, ICONS, openWindow, openWindowRaw, obString, obNumber } from "../ui/theme";
+import { windowTitle, openWindow, openWindowRaw, obString, obNumber } from "../ui/theme";
 import type { SanctionsManager } from "./manager";
 import { formatDuration } from "./manager";
 import { kickPlayer } from "./enforcement";
@@ -23,15 +23,16 @@ export function openSanctionsMenu(player: Player, sanctions: SanctionsManager, p
   const stats = sanctions.stats();
 
   void openWindow(player, "Modération", (form) => {
+    form.hero("mod");
     form.header(`§4■ §lModération`);
     form.label(
       `§7Bans actifs : §f${stats.bans}\n§7Mutes actifs : §f${stats.mutes}\n§7Warns au total : §f${stats.warns}`,
     );
     form.divider();
-    form.button(`§4■ Bans actifs`, () => openBansList(player, sanctions, permissions));
-    form.button(`§6■ Mutes actifs`, () => openMutesList(player, sanctions, permissions));
-    form.button(`§e■ Sanctionner un joueur`, () => openSanctionForm(player, sanctions));
-    form.button(`§b■ Historique d'un joueur`, () => openHistoryLookup(player, sanctions));
+    form.button(`§4■ §lBans actifs`, () => openBansList(player, sanctions, permissions), undefined, "ban");
+    form.button(`§6■ §lMutes actifs`, () => openMutesList(player, sanctions, permissions), undefined, "bell");
+    form.button(`§e■ §lSanctionner un joueur`, () => openSanctionForm(player, sanctions), undefined, "sword");
+    form.button(`§b■ §lHistorique d'un joueur`, () => openHistoryLookup(player, sanctions), undefined, "history");
   }).catch((error: unknown) =>
     console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`),
   );
@@ -56,7 +57,7 @@ function openBansList(player: Player, sanctions: SanctionsManager, permissions: 
         const result = sanctions.unban(ban.data.name);
         player.sendMessage(result.ok ? `§a[Modération] ${ban.data.name} débanni.` : `§c[Modération] ${result.error}`);
         openBansList(player, sanctions, permissions);
-      });
+      }, undefined, "ban");
     }
   }).catch((error: unknown) =>
     console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`),
@@ -84,7 +85,7 @@ function openMutesList(player: Player, sanctions: SanctionsManager, permissions:
           result.ok ? `§a[Modération] ${mute.data.name} peut parler.` : `§c[Modération] ${result.error}`,
         );
         openMutesList(player, sanctions, permissions);
-      });
+      }, undefined, "bell");
     }
   }).catch((error: unknown) =>
     console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`),
@@ -114,7 +115,7 @@ function openSanctionForm(player: Player, sanctions: SanctionsManager): void {
     form.slider("§eDurée en minutes (0 = permanent)", minutes, 0, 1440, { step: 15 });
     form.textField("§eRaison", reason);
     form.divider();
-    form.button(`§e■ Appliquer la sanction`, () => {
+    form.button(`§e■ §lAppliquer la sanction`, () => {
       const name = target.getData().trim();
       const cleanReason = reason.getData().trim() || "non spécifiée";
       if (name === "") {
@@ -165,7 +166,7 @@ function openHistoryLookup(player: Player, sanctions: SanctionsManager): void {
 
   void openWindowRaw(player, windowTitle("Historique"), (form) => {
     form.textField("§ePseudo du joueur", target);
-    form.button(`§b■ Voir l'historique`, () => {
+    form.button(`§b■ §lVoir l'historique`, () => {
       const name = target.getData().trim();
       if (name === "") return;
 
@@ -186,6 +187,3 @@ function openHistoryLookup(player: Player, sanctions: SanctionsManager): void {
     console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`),
   );
 }
-
-// Ré-export pour compat.
-export { ICONS };

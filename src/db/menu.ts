@@ -8,7 +8,7 @@
  */
 
 import type { Player } from "@minecraft/server";
-import { windowTitle, ICONS, openWindow, openWindowRaw, obString, obBool } from "../ui/theme";
+import { windowTitle, openWindow, openWindowRaw, obString, obBool } from "../ui/theme";
 import { collectionLabel, SECTION_ORDER } from "./collections";
 import type { JsonDatabase, StoredDocument } from "./index";
 
@@ -43,6 +43,7 @@ export async function openDbMenu(db: JsonDatabase, player: Player): Promise<void
     const stats = db.stats();
     const sections = listSections(db);
 
+    form.hero("database");
     form.header(`§a■ §lBase de données`);
     form.label(
       `§7${stats.documents} documents · ${stats.bytes} octets\n§7État : ${stats.dirty ? "§eà sauvegarder" : "§aà jour"}`,
@@ -54,15 +55,15 @@ export async function openDbMenu(db: JsonDatabase, player: Player): Promise<void
         `${collectionLabel(section)}\n§8${stats.collections[section]} doc(s)`,
         () => {
           void openSectionMenu(db, player, section);
-        },
+        }, undefined, "database",
       );
     }
 
     form.divider();
-    form.button(`§a💾 Forcer la sauvegarde`, () => {
+    form.button(`§a■ §lForcer la sauvegarde`, () => {
       db.save(true);
       player.sendMessage("§a[DB] Sauvegarde forcée.");
-    });
+    }, undefined, "save");
   }).catch((error: unknown) =>
     console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`),
   );
@@ -83,7 +84,7 @@ async function openSectionMenu(db: JsonDatabase, player: Player, section: string
     }
 
     form.divider();
-    form.button(`§c🗑 Vider la section`, () => {
+    form.button(`§c■ §lVider la section`, () => {
       const removed = db.clear(section);
       db.save();
       player.sendMessage(`§c[DB] Section "${section}" vidée (${removed} document(s) supprimés).`);
@@ -148,7 +149,7 @@ async function openDocumentMenu(
     }
 
     form.divider();
-    form.button(`§a💾 Appliquer`, () => {
+    form.button(`§a■ §lAppliquer`, () => {
       // NOTE : les textes saisis ne sont pas relisibles depuis l'Observable
       // après fermeture dans cette bêta (le binding est initialisé avec la
       // valeur d'origine) : seuls les toggles sont appliqués de façon fiable.
@@ -201,6 +202,3 @@ function listSections(db: JsonDatabase): string[] {
     return ia - ib;
   });
 }
-
-// Ré-export pour compat.
-export { ICONS };

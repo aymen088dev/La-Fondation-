@@ -44,69 +44,73 @@ export const THEME = {
   muted: "§7",
 } as const;
 
-/** Icônes vanilla vérifiées (chemins resource pack, sans .png). */
-export const ICONS = {
-  // --- items (textures/items/*.png vérifiés) ---
-  sword: "textures/items/diamond_sword",
-  book: "textures/items/book_normal",
-  bookWritable: "textures/items/book_writable",
-  compass: "textures/items/compass_item",
-  map: "textures/items/map_filled",
-  emerald: "textures/items/emerald",
-  diamond: "textures/items/diamond",
-  goldIngot: "textures/items/gold_ingot",
-  ironIngot: "textures/items/iron_ingot",
-  clock: "textures/items/clock_item",
-  door: "textures/items/crimson_door",
-  sign: "textures/items/sign_acacia",
-  helmet: "textures/items/iron_helmet",
-  chainHelmet: "textures/items/chainmail_helmet",
-  pickaxe: "textures/items/iron_pickaxe",
-  nameTag: "textures/items/name_tag",
-  paper: "textures/items/paper",
-  arrow: "textures/items/arrow",
-  shears: "textures/items/shears",
-  bannerPattern: "textures/items/banner_pattern",
-  campfire: "textures/items/campfire",
-  // --- ui (textures/ui/*.png vérifiés) ---
-  banner: "textures/ui/banners_dark",
-  iconSetting: "textures/ui/icon_setting",
-  iconImport: "textures/ui/icon_import",
-  iconTrash: "textures/ui/icon_trash",
-  iconNew: "textures/ui/icon_new",
-  iconTimer: "textures/ui/icon_timer",
-  iconMap: "textures/ui/icon_map",
-  iconMail: "textures/ui/icon_mail",
-  iconLock: "textures/ui/icon_lock",
-  iconMultiplayer: "textures/ui/icon_multiplayer",
-  iconSteve: "textures/ui/icon_steve",
-  iconCrafting: "textures/ui/icon_crafting",
-  check: "textures/ui/check",
-  boxExit: "textures/ui/box_exit",
-  downloadBackup: "textures/ui/download_backup",
-  autoSave: "textures/ui/auto_save",
-  freeDownload: "textures/ui/free_download",
-  bell: "textures/ui/icon_bell",
-  armor: "textures/ui/icon_armor",
-  random: "textures/ui/icon_random",
-  expand: "textures/ui/icon_expand",
-  // --- alias sémantiques (mêmes textures vérifiées) ---
-  barrier: "textures/blocks/barrier",
-  crown: "textures/items/iron_helmet",
-  shield: "textures/ui/icon_armor",
-  flag: "textures/ui/banners_dark",
-  lock: "textures/ui/icon_lock",
-  plus: "textures/ui/icon_new",
-  wrench: "textures/items/shears",
-  anvil: "textures/blocks/anvil_base",
-  save: "textures/ui/download_backup",
-  trash: "textures/ui/icon_trash",
-  danger: "textures/ui/box_exit",
+/**
+ * Icônes OM (RP OpenMontage, tuiles 32x32 pixel-art générées par
+ * scripts/make_ui_textures.py). Utilisées comme imageDetails des boutons
+ * DDUI — dans NOTRE pack donc toujours chargées (plus de chemins vanilla
+ * dont l'existence dépendait du client).
+ */
+const OM_ICONS = {
+  flag: "flag",
+  compass: "compass",
+  shield: "shield",
+  crown: "crown",
+  scroll: "scroll",
+  gear: "gear",
+  database: "database",
+  sword: "sword",
+  ban: "ban",
+  bell: "bell",
+  warn: "warn",
+  history: "history",
+  plus: "plus",
+  check: "check",
+  trash: "trash",
+  search: "search",
+  save: "save",
+  back: "back",
+  close: "close",
+  list: "list",
+  pencil: "pencil",
+  user: "user",
+  tag: "tag",
+  online: "online",
 } as const;
 
+export type UIIcon = keyof typeof OM_ICONS;
+
+/** Chemin RP d'une icône OM (tuile 32x32). */
+export function OM_ICON(icon: UIIcon): string {
+  return `textures/ui/om_ic_${OM_ICONS[icon]}`;
+}
+
+/** Alias de compat : les menus historiques importent ICONS. */
+export const ICONS = OM_ICONS;
+
 /**
- * Fond de panneau custom (RP OpenMontage, généré par make_placeholder_pngs).
- * Affichable via CustomForm.image() avec RP_PACK_ID.
+ * Bannières de héros (RP OpenMontage, 256x48 — panneaux slate à ruban
+ * accent et clef de voûte or, générées par make_ui_textures.py).
+ * Affichées en tête des menus principaux via OMForm.hero().
+ */
+const HEROES = {
+  home: "om_hero_home",
+  territories: "om_hero_territories",
+  admin: "om_hero_admin",
+  mod: "om_hero_mod",
+  role: "om_hero_role",
+  modules: "om_hero_modules",
+  database: "om_hero_database",
+} as const;
+
+export type HeroKind = keyof typeof HEROES;
+
+/** Chemin RP d'une bannière de héros. */
+function heroPath(kind: HeroKind): string {
+  return `textures/ui/${HEROES[kind]}`;
+}
+
+/**
+ * Fond d'actionbar custom (RP OpenMontage, référencé par RP/ui/hud_screen.json).
  */
 export const OM_PANEL_TEXTURE = "textures/ui/om_actionbar_bg";
 
@@ -186,6 +190,15 @@ export class OMForm {
     }
   }
 
+  /**
+   * Bannière de héros en tête de menu (image pleine largeur du RP OM).
+   * À appeler EN PREMIER : c'est l'identité graphique du menu.
+   */
+  hero(kind: HeroKind): OMForm {
+    this.inner.image(heroPath(kind), RP_PACK_ID, { width: 1 });
+    return this;
+  }
+
   header(text: string, options?: Omit<TextOptions, "tooltip">): OMForm {
     this.inner.header(uiText(text), options);
     return this;
@@ -200,7 +213,10 @@ export class OMForm {
     label: string,
     onClick: () => void,
     options?: ButtonOptions,
+    /** Icône OM affichée à côté du label (imageDetails du RP OpenMontage). */
+    icon?: UIIcon,
   ): OMForm {
+    const imageDetails = icon === undefined ? undefined : { imagePackId: RP_PACK_ID, imageSrc: OM_ICON(icon) };
     this.inner.button(
       uiText(label),
       () => {
@@ -210,7 +226,7 @@ export class OMForm {
         closeOpenForm(this.player);
         onClick();
       },
-      options,
+      imageDetails === undefined ? options : { ...options, imageDetails },
     );
     return this;
   }
@@ -327,9 +343,12 @@ export async function openWindow(
   player: Player,
   section: string,
   build: (form: OMForm) => void,
+  /** Bannière de héros affichée en tête (identité graphique). */
+  hero?: HeroKind,
 ): Promise<DataDrivenScreenClosedReason> {
   closeOpenForm(player);
   const form = new OMForm(player, windowTitle(section));
+  if (hero !== undefined) form.hero(hero);
   build(form);
   form.closeButton();
   return form.show();
