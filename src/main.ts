@@ -10,6 +10,8 @@ import {
   registerModerationCommands,
   registerEnforcement,
 } from "./moderation";
+import { ClassManager } from "./classes";
+import { JobManager } from "./jobs";
 import { trackPlayerJoin } from "./players";
 import { log, logDb } from "./lib/log";
 import { setUiDesign, RP_PACK_ID } from "./ui/theme";
@@ -42,10 +44,12 @@ const permissions = new PermissionManager(db);
 const modules = new ModuleManager(db);
 const territories = new TerritoryManager(db);
 const sanctions = new SanctionsManager(db);
+const classes = new ClassManager(db);
+const jobs = new JobManager(db);
 
 // Les commandes /sn:* doivent être enregistrées au plus tôt (early execution)
 registerCommands(territories, db, modules, permissions);
-registerAdminCommands({ permissions, modules, territories, sanctions, db });
+registerAdminCommands({ permissions, modules, territories, sanctions, db, classes, jobs });
 registerModerationCommands({ sanctions, permissions, db });
 
 let protectionRegistered = false;
@@ -86,6 +90,8 @@ world.afterEvents.worldLoad.subscribe(() => {
   modules.markLoaded();
   territories.markLoaded();
   sanctions.markLoaded();
+  classes.markLoaded();
+  jobs.markLoaded();
 
   // Rôles par défaut ([Joueur], [Modo]) puis bootstrap admin :
   // le premier opérateur vanilla devient Admin si aucun admin n'existe
@@ -141,6 +147,8 @@ system.runInterval(() => {
     modules.markLoaded();
     territories.markLoaded();
     sanctions.markLoaded();
+    classes.markLoaded();
+    jobs.markLoaded();
 
     permissions.bootstrapDefaultRoles();
     if (!permissions.hasAdmin()) {
@@ -197,6 +205,11 @@ world.afterEvents.playerSpawn.subscribe((event) => {
   applyNameTag(player.name);
 
   player.sendMessage("§a[OpenMontage]§r Bienvenue ! Menu principal : §f/sn:menu§r — territoire : §f/sn:create");
+
+  // Route de la première connexion : invite au choix de classe si absent.
+  if (classes.classOf(player.name) === undefined) {
+    player.sendMessage("§d[Classes]§r Choisis ta route avec §f/sn:classes§r — c'est définitif !");
+  }
 
   // Diagnostic : si tu vois ce titre en jeu, le script est chargé.
   player.onScreenDisplay.setTitle("§aOpenMontage §f✔");

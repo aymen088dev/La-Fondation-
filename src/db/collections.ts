@@ -24,6 +24,10 @@ export const WARNS_COLLECTION = "warns";
 export const INFRACTIONS_COLLECTION = "infractions";
 /** État des modules (feature flags). */
 export const MODULES_COLLECTION = "modules";
+/** Choix de classe des joueurs (id = pseudo, choix définitif). */
+export const CLASSES_COLLECTION = "classes";
+/** Métiers exercés (un document par joueur × métier). */
+export const JOBS_COLLECTION = "jobs";
 
 /** Métadonnées d'affichage des collections (menu /sn:db). */
 export const COLLECTION_META: Record<string, { label: string; hint: string }> = {
@@ -36,6 +40,8 @@ export const COLLECTION_META: Record<string, { label: string; hint: string }> = 
   warns: { label: "Avertissements", hint: "compteur d'avertissements" },
   infractions: { label: "Journal", hint: "historique de toutes les actions de modération" },
   modules: { label: "Modules", hint: "activation des fonctionnalités" },
+  classes: { label: "Classes", hint: "route choisie par le joueur (définitive) + XP" },
+  jobs: { label: "Métiers", hint: "métiers exercés et leur progression" },
 };
 
 /** Ordre d'affichage des sections connues (les inconnues suivent). */

@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v10.1** — la vraie cause des « menus non custom » corrigée (`imagePackId` = UUID du RP + chemins `.png`), et finition du moteur : show différé de 2 ticks + fallback automatique sans images si un écran échoue à s'afficher.
+> Dernière mise à jour : **v11** — nouveau module **Classes** (route choisie à la première connexion via /sn:classes, choix définitif, XP/niveaux) + base des **Métiers** (/sn:jobs, catalogue vide, fondations prêtes). Textures héros + icônes ajoutées, packs en 1.3.0.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -29,7 +29,7 @@
 - [x] TypeScript strict compilé en **un seul bundle** `BP/scripts/main.js` (esbuild) — c'est normal qu'il n'y ait qu'un .js dans BP/scripts
 - [x] Manifest BP en TypeScript-compat (API **`@minecraft/server` 2.11.0-beta** = Minecraft **1.26.50**, expérimentation Beta APIs requise)
 - [x] **Lib `@bedrock-oss/bedrock-boost` intégrée** (v2.2.0, org Bedrock-OSS, à jour) : `Logger` par module (niveaux filtrables **en jeu** : `/scriptevent log:level <0-5>`, `/scriptevent log:filter <tags>`), `Timings` (mesure du chargement monde), `ColorJSON` (JSON colorisé dans `/sn:db show`). Vec3/cache/schedulers disponibles pour la suite
-- [x] 33/33 tests unitaires (bun test) : DB, migrations v1→v3, chunks, territoires, sanctions, permissions fines
+- [x] **43/43 tests unitaires** (bun test) : DB, migrations v1→v3, chunks, territoires, sanctions, permissions fines, classes, métiers
 
 ---
 
@@ -101,6 +101,15 @@
 - ⚠️ Rappel : après toute modif TS, `bun run build` puis re-copier `BP/` sur le serveur
 
 ---
+
+## ⚔️ Module Classes & Métiers (v11) — `src/classes/` + `src/jobs/`
+- [x] **Classes — la route du joueur** : `/sn:classes` ouvre UN menu à deux états — sans classe : catalogue cliquable (Guerrier, Mage, Archer) avec **confirmation** (le choix est **DÉFINITIF**) ; avec classe : **progression** (niveau, barre d'XP ASCII, XP total). Le menu « change » tout seul après le choix, comme demandé
+- [x] **XP/niveaux de classe** : paliers de 100 XP (`classLevel`, `classProgress`) — l'API `addXp` est prête à être branchée sur les events du jeu (mine, cut, kill)
+- [x] **Réinitialisation admin** : bouton dédié dans le menu (admins seulement) → le joueur peut re-choisir
+- [x] **Métiers — la base, catalogue VIDE** (comme demandé) : `/sn:jobs` affiche les métiers exercés (XP/niveau) et annonce le catalogue à venir (bûcheron, mineur…). Fondations complètes : stockage multi-métiers par joueur, XP par métier (paliers de 50), collection `jobs`
+- [x] **Intégration complète** : collections DB `classes`/`jobs` + meta menu DB, managers markLoaded (worldLoad + fallback), commandes `/sn:classes` + `/sn:jobs`, entrées dans le hub (badge « choisis ta route » tant que pas de classe), **invite au premier spawn** (« Choisis ta route avec /sn:classes — c'est définitif ! »)
+- [x] **Textures** : héros `om_hero_classes` (violet→rouge) et `om_hero_jobs` (or→orange), icônes `axe`, `pickaxe`, `hammer` — packs bumpés en **1.3.0**
+- [x] **10 tests dédiés** (choix définitif, XP refusée sans classe, reset admin, persistance mutations en place, paliers de niveaux)
 
 ---
 

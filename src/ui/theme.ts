@@ -84,6 +84,9 @@ const OM_ICONS = {
   user: "user",
   tag: "tag",
   online: "online",
+  axe: "axe",
+  pickaxe: "pickaxe",
+  hammer: "hammer",
 } as const;
 
 export type UIIcon = keyof typeof OM_ICONS;
@@ -109,6 +112,8 @@ const HEROES = {
   role: "om_hero_role",
   modules: "om_hero_modules",
   database: "om_hero_database",
+  classes: "om_hero_classes",
+  jobs: "om_hero_jobs",
 } as const;
 
 export type HeroKind = keyof typeof HEROES;

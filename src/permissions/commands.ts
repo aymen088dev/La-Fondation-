@@ -10,6 +10,10 @@ import type { TerritoryManager } from "../territories/manager";
 import type { SanctionsManager } from "../moderation/manager";
 import type { JsonDatabase } from "../db/database";
 import { openHubMenu } from "../ui/hub";
+import { openClassesMenu } from "../classes/ui";
+import type { ClassManager } from "../classes/manager";
+import { openJobsMenu } from "../jobs/ui";
+import type { JobManager } from "../jobs/manager";
 
 interface AdminContext {
   permissions: PermissionManager;
@@ -18,6 +22,10 @@ interface AdminContext {
   sanctions: SanctionsManager;
   /** Index joueurs (menu Joueurs → onglet hors ligne). */
   db?: JsonDatabase;
+  /** Module Classes (route de la première connexion). */
+  classes?: ClassManager;
+  /** Module Métiers (catalogue à venir). */
+  jobs?: JobManager;
 }
 
 /** Le joueur est-il autorisé à ouvrir la GUI d'admin ? (rôle >= 100 OU opérateur vanilla) */
@@ -126,6 +134,56 @@ export function registerAdminCommands(ctx: AdminContext): void {
           }).catch((error: unknown) =>
             console.warn(`[Admin] ${error instanceof Error ? error.message : String(error)}`),
           );
+        });
+        return { status: CustomCommandStatus.Success };
+      },
+    );
+    // /sn:classes : route du joueur (choix définitif → progression)
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:classes",
+        description: "Choisis ta classe (définitif) et suis ta progression",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false,
+      },
+      (origin: CustomCommandOrigin) => {
+        const player = origin.sourceEntity as Player | undefined;
+        if (player === undefined || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+
+        system.run(() => {
+          if (ctx.classes === undefined) {
+            player.sendMessage("§c[Classes] Module indisponible.");
+            return;
+          }
+          const isAdmin = canUseAdminPanel(player, ctx.permissions);
+          openClassesMenu(player, ctx.classes, isAdmin);
+        });
+        return { status: CustomCommandStatus.Success };
+      },
+    );
+
+    // /sn:jobs : métiers (base prête, catalogue à venir)
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:jobs",
+        description: "Voir tes métiers et leur progression",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false,
+      },
+      (origin: CustomCommandOrigin) => {
+        const player = origin.sourceEntity as Player | undefined;
+        if (player === undefined || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+
+        system.run(() => {
+          if (ctx.jobs === undefined) {
+            player.sendMessage("§c[Métiers] Module indisponible.");
+            return;
+          }
+          openJobsMenu(player, ctx.jobs);
         });
         return { status: CustomCommandStatus.Success };
       },

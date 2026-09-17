@@ -370,6 +370,8 @@ var MUTES_COLLECTION = "mutes";
 var WARNS_COLLECTION = "warns";
 var INFRACTIONS_COLLECTION = "infractions";
 var MODULES_COLLECTION = "modules";
+var CLASSES_COLLECTION = "classes";
+var JOBS_COLLECTION = "jobs";
 var COLLECTION_META = {
   players_index: { label: "Joueurs", hint: "sessions, grade, première/dernière connexion" },
   territories: { label: "Territoires", hint: "chunks, drapeau, membres" },
@@ -379,7 +381,9 @@ var COLLECTION_META = {
   mutes: { label: "Mutes", hint: "sanctions de chat actives" },
   warns: { label: "Avertissements", hint: "compteur d'avertissements" },
   infractions: { label: "Journal", hint: "historique de toutes les actions de modération" },
-  modules: { label: "Modules", hint: "activation des fonctionnalités" }
+  modules: { label: "Modules", hint: "activation des fonctionnalités" },
+  classes: { label: "Classes", hint: "route choisie par le joueur (définitive) + XP" },
+  jobs: { label: "Métiers", hint: "métiers exercés et leur progression" }
 };
 var SECTION_ORDER = Object.keys(COLLECTION_META);
 function collectionLabel(collection) {
@@ -4164,7 +4168,10 @@ var OM_ICONS = {
   pencil: "pencil",
   user: "user",
   tag: "tag",
-  online: "online"
+  online: "online",
+  axe: "axe",
+  pickaxe: "pickaxe",
+  hammer: "hammer"
 };
 function OM_ICON(icon) {
   return `textures/ui/om_ic_${OM_ICONS[icon]}.png`;
@@ -4176,7 +4183,9 @@ var HEROES = {
   mod: "om_hero_mod",
   role: "om_hero_role",
   modules: "om_hero_modules",
-  database: "om_hero_database"
+  database: "om_hero_database",
+  classes: "om_hero_classes",
+  jobs: "om_hero_jobs"
 };
 function heroPath(kind) {
   return `textures/ui/${HEROES[kind]}.png`;
@@ -5987,9 +5996,238 @@ function openHistoryLookup(player, sanctions2) {
   );
 }
 
+// src/classes/manager.ts
+var CLASS_CATALOG = [
+  {
+    id: "guerrier",
+    name: "Guerrier",
+    color: "§c",
+    icon: "sword",
+    description: "Route du combat au corps à corps"
+  },
+  {
+    id: "mage",
+    name: "Mage",
+    color: "§5",
+    icon: "compass",
+    description: "Route de la magie et des potions"
+  },
+  {
+    id: "archer",
+    name: "Archer",
+    color: "§a",
+    icon: "tag",
+    description: "Route de la précision et de la distance"
+  }
+];
+var XP_PER_LEVEL = 100;
+function classLevel(xp) {
+  return Math.floor(xp / XP_PER_LEVEL) + 1;
+}
+function classProgress(xp) {
+  return xp % XP_PER_LEVEL;
+}
+var ClassManager = class {
+  constructor(db2) {
+    this.db = db2;
+  }
+  /** Passe à true après le chargement DB (worldLoad). */
+  loaded = false;
+  markLoaded() {
+    this.loaded = true;
+  }
+  /** La sélection de classe du joueur, si elle existe. */
+  selectionOf(playerName) {
+    return this.db.findOne(CLASSES_COLLECTION, playerName);
+  }
+  /** La classe du joueur, si choisie. */
+  classOf(playerName) {
+    return this.selectionOf(playerName)?.data;
+  }
+  /**
+   * Choix de classe (définitif). Renvoie ok:false si le joueur a déjà
+   * une classe ou si l'id est inconnu.
+   */
+  selectClass(playerName, classId) {
+    if (this.selectionOf(playerName) !== void 0) {
+      return { ok: false, error: "Tu as déjà choisi ta classe (choix définitif)." };
+    }
+    const info = CLASS_CATALOG.find((candidate) => candidate.id === classId);
+    if (info === void 0) return { ok: false, error: "Classe inconnue." };
+    const doc = this.db.insert(CLASSES_COLLECTION, {
+      classId: info.id,
+      xp: 0,
+      chosenAt: Date.now()
+    }, playerName);
+    return { ok: true, value: doc.data };
+  }
+  /** Ajoute de l'XP de classe (progression). Renvoie false si pas de classe. */
+  addXp(playerName, amount) {
+    const doc = this.selectionOf(playerName);
+    if (doc === void 0 || amount <= 0) return false;
+    doc.data.xp += amount;
+    doc.updatedAt = Date.now();
+    this.db.markDirty();
+    return true;
+  }
+  /** Réinitialisation admin : le joueur pourra re-choisir. */
+  clearClass(playerName) {
+    return this.db.delete(CLASSES_COLLECTION, playerName);
+  }
+  /** Nombre total de choix par classe (stats admin /sn:db). */
+  countsByClass() {
+    const counts = {};
+    for (const doc of this.db.find(CLASSES_COLLECTION)) {
+      counts[doc.data.classId] = (counts[doc.data.classId] ?? 0) + 1;
+    }
+    return counts;
+  }
+};
+
+// src/classes/ui.ts
+function xpBar(xp, perLevel) {
+  const filled = Math.floor(xp / perLevel * 10);
+  return `§a${"█".repeat(filled)}§8${"░".repeat(10 - filled)}§r`;
+}
+function openClassesMenu(player, classes2, isAdmin = false) {
+  void openWindow(player, "Classes", (form) => {
+    form.hero("classes");
+    form.header("§d■ §lClasses");
+    form.divider();
+    const selection = classes2.classOf(player.name);
+    if (selection === void 0) {
+      form.label("§7Choisis ta §lroute§r§7. Ce choix est §lDÉFINITIF§r§7 :\nil déterminera ta progression sur le serveur.");
+      form.spacer();
+      for (const info2 of CLASS_CATALOG) {
+        form.button(
+          `${info2.color}■ §l${info2.name}§r
+§7${info2.description}`,
+          () => confirmClassChoice(player, classes2, info2.id, info2.name, info2.color),
+          void 0,
+          info2.icon
+        );
+      }
+      return;
+    }
+    const info = CLASS_CATALOG.find((candidate) => candidate.id === selection.classId);
+    const level = classLevel(selection.xp);
+    const progress = classProgress(selection.xp);
+    const name = info?.name ?? selection.classId;
+    const color = info?.color ?? "§f";
+    form.label(
+      `${color}■ §l${name}§r
+
+§7Niveau : §f${level}
+§7Progression : ${xpBar(progress, XP_PER_LEVEL)}
+§7XP : §f${progress}§7/§f${XP_PER_LEVEL} §8(total : ${selection.xp})`
+    );
+    form.divider();
+    form.label("§8Le catalogue et les bonus de classe seront complétés prochainement.");
+    if (isAdmin) {
+      form.button("§c■ Réinitialiser (admin)\n§7le joueur pourra re-choisir", () => {
+        if (classes2.clearClass(player.name)) {
+          player.sendMessage("§a[Classes] Classe réinitialisée — tu peux re-choisir.");
+        }
+        openClassesMenu(player, classes2, isAdmin);
+      }, void 0, "trash");
+    }
+  }).catch((error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`));
+}
+function confirmClassChoice(player, classes2, classId, className, color) {
+  void openWindowRaw(player, windowTitle("Confirmer la classe"), (form) => {
+    form.header(`${color}⚠ §lChoix définitif`);
+    form.label(
+      `Tu choisis la classe ${color}§l${className}§r§f ?
+
+§7Ce choix est §lpermanent§r§7 : il faudra
+qu'un admin te réinitialise pour changer.`
+    );
+    form.divider();
+    form.button("§a■ §lConfirmer mon choix", () => {
+      const result = classes2.selectClass(player.name, classId);
+      player.sendMessage(
+        result.ok ? `§a[Classes] Bienvenue dans la voie ${color}§l${className}§r§a ! Ta progression commence maintenant.` : `§c[Classes] ${result.error}`
+      );
+    }, void 0, "check");
+    form.button("§7■ §lRevenir au choix", () => openClassesMenu(player, classes2), void 0, "back");
+  }).catch((error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`));
+}
+
+// src/jobs/manager.ts
+var JOB_XP_PER_LEVEL = 50;
+function jobLevel(xp) {
+  return Math.floor(xp / JOB_XP_PER_LEVEL) + 1;
+}
+var JobManager = class {
+  constructor(db2) {
+    this.db = db2;
+  }
+  /** Passe à true après le chargement DB (worldLoad). */
+  loaded = false;
+  markLoaded() {
+    this.loaded = true;
+  }
+  /** Les métiers exercés par le joueur (vide = aucun). */
+  jobsOf(playerName) {
+    return this.db.find(JOBS_COLLECTION, (doc) => doc.data.playerName === playerName).map((doc) => doc.data);
+  }
+  /** Exerce-t-il déjà ce métier ? */
+  hasJob(playerName, jobId) {
+    return this.jobDoc(playerName, jobId) !== void 0;
+  }
+  /** Document DB d'un métier précis (usage interne). */
+  jobDoc(playerName, jobId) {
+    return this.db.find(JOBS_COLLECTION, (doc) => doc.data.playerName === playerName && doc.data.jobId === jobId).at(0);
+  }
+  /** Ajoute de l'XP à un métier exercé. Renvoie false si le métier n'est pas pris. */
+  addXp(playerName, jobId, amount) {
+    const doc = this.jobDoc(playerName, jobId);
+    if (doc === void 0 || amount <= 0) return false;
+    doc.data.xp += amount;
+    doc.updatedAt = Date.now();
+    this.db.markDirty();
+    return true;
+  }
+  /** Abandonne un métier (libère la place pour le futur catalogue). */
+  quitJob(playerName, jobId) {
+    const doc = this.jobDoc(playerName, jobId);
+    if (doc === void 0) return false;
+    return this.db.delete(JOBS_COLLECTION, doc.id);
+  }
+};
+
+// src/jobs/ui.ts
+function xpBar2(xp, perLevel) {
+  const filled = Math.floor(xp / perLevel * 10);
+  return `§a${"█".repeat(filled)}§8${"░".repeat(10 - filled)}§r`;
+}
+function openJobsMenu(player, jobs2) {
+  void openWindow(player, "Métiers", (form) => {
+    form.hero("jobs");
+    form.header("§6■ §lMétiers");
+    form.divider();
+    const mine = jobs2.jobsOf(player.name);
+    if (mine.length > 0) {
+      form.label("§7Tes métiers :");
+      for (const job of mine) {
+        const level = jobLevel(job.xp);
+        const progress = job.xp % 50;
+        form.label(
+          `§e■ §f${job.jobId} §7— niveau §f${level}
+${xpBar2(progress, 50)} §8(${progress}/50 XP)`
+        );
+      }
+      form.divider();
+    }
+    form.label(
+      "§7Aucun métier n'est encore disponible.\n§8Le catalogue (bûcheron, mineur…) sera ajouté prochainement — les fondations sont prêtes."
+    );
+  }).catch((error) => console.warn(`[Jobs] ${error instanceof Error ? error.message : String(error)}`));
+}
+
 // src/ui/hub.ts
 function openHubMenu(player, deps) {
-  const { permissions: permissions2, modules: modules2, territories: territories2, sanctions: sanctions2 } = deps;
+  const { permissions: permissions2, modules: modules2, territories: territories2, sanctions: sanctions2, classes: classes2, jobs: jobs2 } = deps;
   const isOp = player.playerPermissionLevel >= 2;
   const isAdmin = canUseAdminPanel(player, permissions2);
   const isMod = permissions2.can(player.name, "mod.panel", isOp);
@@ -6019,6 +6257,21 @@ function openHubMenu(player, deps) {
         void 0,
         "tag"
       );
+    }
+    if (classes2 !== void 0) {
+      const chosen = classes2.classOf(player.name);
+      form.button(
+        chosen === void 0 ? `§d■ §lClasses§r
+§7choisis ta route (définitif !)` : `§d■ §lMa classe§r
+§7voir ta progression`,
+        () => openClassesMenu(player, classes2, isAdmin),
+        { tooltip: chosen === void 0 ? "Choix définitif à la première connexion" : "Niveau, XP, progression" },
+        chosen === void 0 ? "plus" : "compass"
+      );
+    }
+    if (jobs2 !== void 0) {
+      form.button(`§6■ §lMétiers§r
+§7bûcheron, mineur… (à venir)`, () => openJobsMenu(player, jobs2), void 0, "axe");
     }
     if (isMod) {
       form.button(
@@ -6157,6 +6410,51 @@ function registerAdminCommands(ctx) {
           }).catch(
             (error) => console.warn(`[Admin] ${error instanceof Error ? error.message : String(error)}`)
           );
+        });
+        return { status: CustomCommandStatus2.Success };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:classes",
+        description: "Choisis ta classe (définitif) et suis ta progression",
+        permissionLevel: CommandPermissionLevel2.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
+        }
+        system12.run(() => {
+          if (ctx.classes === void 0) {
+            player.sendMessage("§c[Classes] Module indisponible.");
+            return;
+          }
+          const isAdmin = canUseAdminPanel(player, ctx.permissions);
+          openClassesMenu(player, ctx.classes, isAdmin);
+        });
+        return { status: CustomCommandStatus2.Success };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:jobs",
+        description: "Voir tes métiers et leur progression",
+        permissionLevel: CommandPermissionLevel2.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
+        }
+        system12.run(() => {
+          if (ctx.jobs === void 0) {
+            player.sendMessage("§c[Métiers] Module indisponible.");
+            return;
+          }
+          openJobsMenu(player, ctx.jobs);
         });
         return { status: CustomCommandStatus2.Success };
       }
@@ -6432,8 +6730,10 @@ var permissions = new PermissionManager(db);
 var modules = new ModuleManager(db);
 var territories = new TerritoryManager(db);
 var sanctions = new SanctionsManager(db);
+var classes = new ClassManager(db);
+var jobs = new JobManager(db);
 registerCommands(territories, db, modules, permissions);
-registerAdminCommands({ permissions, modules, territories, sanctions, db });
+registerAdminCommands({ permissions, modules, territories, sanctions, db, classes, jobs });
 registerModerationCommands({ sanctions, permissions, db });
 var protectionRegistered = false;
 var chatRegistered = false;
@@ -6461,6 +6761,8 @@ world14.afterEvents.worldLoad.subscribe(() => {
   modules.markLoaded();
   territories.markLoaded();
   sanctions.markLoaded();
+  classes.markLoaded();
+  jobs.markLoaded();
   permissions.bootstrapDefaultRoles();
   if (!permissions.hasAdmin()) {
     const operator = world14.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
@@ -6498,6 +6800,8 @@ system15.runInterval(() => {
     modules.markLoaded();
     territories.markLoaded();
     sanctions.markLoaded();
+    classes.markLoaded();
+    jobs.markLoaded();
     permissions.bootstrapDefaultRoles();
     if (!permissions.hasAdmin()) {
       const operator = world14.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
@@ -6538,6 +6842,9 @@ world14.afterEvents.playerSpawn.subscribe((event) => {
   }
   applyNameTag(player.name);
   player.sendMessage("§a[OpenMontage]§r Bienvenue ! Menu principal : §f/sn:menu§r — territoire : §f/sn:create");
+  if (classes.classOf(player.name) === void 0) {
+    player.sendMessage("§d[Classes]§r Choisis ta route avec §f/sn:classes§r — c'est définitif !");
+  }
   player.onScreenDisplay.setTitle("§aOpenMontage §f✔");
 });
 system15.runInterval(() => {

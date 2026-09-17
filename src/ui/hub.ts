@@ -10,6 +10,10 @@ import { openModulesMenu } from "../modules/ui";
 import type { ModuleManager } from "../modules/manager";
 import { openSanctionsMenu } from "../moderation/ui";
 import type { SanctionsManager } from "../moderation/manager";
+import { openClassesMenu } from "../classes/ui";
+import type { ClassManager } from "../classes/manager";
+import { openJobsMenu } from "../jobs/ui";
+import type { JobManager } from "../jobs/manager";
 import type { JsonDatabase } from "../db/database";
 
 export interface HubDeps {
@@ -19,6 +23,10 @@ export interface HubDeps {
   sanctions: SanctionsManager;
   /** Index joueurs (onglet hors ligne du menu Joueurs). */
   db?: JsonDatabase;
+  /** Module Classes (route du joueur). */
+  classes?: ClassManager;
+  /** Module Métiers (base prête, catalogue à venir). */
+  jobs?: JobManager;
 }
 
 /**
@@ -28,7 +36,7 @@ export interface HubDeps {
  * les personnes autorisées.
  */
 export function openHubMenu(player: Player, deps: HubDeps): void {
-  const { permissions, modules, territories, sanctions } = deps;
+  const { permissions, modules, territories, sanctions, classes, jobs } = deps;
 
   const isOp = player.playerPermissionLevel >= 2;
   const isAdmin = canUseAdminPanel(player, permissions);
@@ -63,6 +71,22 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
         undefined,
         "tag",
       );
+    }
+
+    // Classes & métiers (progression du joueur).
+    if (classes !== undefined) {
+      const chosen = classes.classOf(player.name);
+      form.button(
+        chosen === undefined
+          ? `§d■ §lClasses§r\n§7choisis ta route (définitif !)`
+          : `§d■ §lMa classe§r\n§7voir ta progression`,
+        () => openClassesMenu(player, classes, isAdmin),
+        { tooltip: chosen === undefined ? "Choix définitif à la première connexion" : "Niveau, XP, progression" },
+        chosen === undefined ? "plus" : "compass",
+      );
+    }
+    if (jobs !== undefined) {
+      form.button(`§6■ §lMétiers§r\n§7bûcheron, mineur… (à venir)`, () => openJobsMenu(player, jobs), undefined, "axe");
     }
 
     // Entrées modération.

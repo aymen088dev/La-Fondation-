@@ -318,6 +318,23 @@ def make_icons() -> None:
             i.dot(16, 16, 8),
             i.clear(13, 13, 19, 19),
         )),
+        ("axe", AMBER, lambda i: (
+            i.line(21, 7, 10, 25, 2),                    # manche
+            i.rect(13, 5, 22, 8),                        # tête
+            i.rect(11, 7, 17, 13),
+            i.clear(13, 9, 15, 11),
+        )),
+        ("pickaxe", SKY, lambda i: (
+            i.line(21, 7, 10, 25, 2),                    # manche
+            i.line(7, 12, 25, 5, 2),                     # arche
+            i.line(7, 12, 8, 16, 1),
+            i.line(25, 5, 22, 9, 1),
+        )),
+        ("hammer", STEEL, lambda i: (
+            i.line(21, 7, 11, 24, 2),                    # manche
+            i.rect(10, 5, 20, 11),                       # masse
+            i.clear(14, 7, 16, 9),
+        )),
     ]
 
     for name, accent, glyph in icons:
@@ -374,6 +391,8 @@ HEROES = {
     "role": (SKY, STEEL),
     "modules": (PURPLE, STEEL),
     "database": (EMERALD, AQUA),
+    "classes": (PURPLE, CRIMSON),
+    "jobs": (GOLD, ORANGE),
 }
 
 
