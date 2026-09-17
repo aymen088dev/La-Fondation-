@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v13** — **migration du moteur UI : DDUI (CustomForm bêta) abandonné** au profit des formulaires **vanilla stables** (ActionFormData + ModalFormData : codes § et multi-lignes rendus, switchs/sliders natifs) + reskin JSON UI réécrit avec l'arbre `common_dialogs` décodé depuis le vanilla complet (ZtechNetwork/MCBVanillaResourcePack). Packs en 1.5.0.
+> Dernière mise à jour : **v13.1** — fix `/sn:create` (le verrou de mode du moteur refusait le mélange légitime header/label + textField — `ModalFormData` supporte nativement header/label/divider/submitButton, le moteur route maintenant correctement : dernier bouton = submit) + reskin recentré sur l'héritage vanilla réel. Packs en 1.5.1.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -101,6 +101,11 @@
 - ⚠️ Rappel : après toute modif TS, `bun run build` puis re-copier `BP/` sur le serveur
 
 ---
+
+## 🔧 Fix routage moteur + reskin héritage vanilla (v13.1)
+- [x] **`/sn:create` réparé (la vraie cause, merci le message en jeu)** : `OMForm: textField() impossible après un bouton/label (ce menu est en mode ActionForm)` — le verrou de mode v13.0 était **trop strict** : il refusait le mélange header/label + textField, or **`ModalFormData` supporte nativement `header()`, `label()`, `divider()` et `submitButton()`** (vérifié dans l'API 2.3.0). Le moteur ne verrouille plus le mode sur les éléments neutres : `button()` → mode actions, `textField/toggle/slider/dropdown()` → mode fields, header/label/divider acceptés partout. En mode fields, le **dernier bouton devient le submit natif** (son callback part à la validation) — exactement le schéma de /sn:create
+- [x] **Reskin recentré** : `custom_form`/`long_form` héritent de `common_dialogs.main_panel_no_buttons` (fichier vanilla **réel** `ui_template_dialogs.json`, confirmé chargé par le `_ui_defs.json` officiel du jeu) avec `$custom_background` = notre fond bleu nuit + `submit_button`/`form_button` sur `common_buttons.light_text_button` (vanilla réel aussi) — structure fidèle du vanilla, widgets 100% natifs
+- [x] Packs bumpés **1.5.0 → 1.5.1** (BP header/module/dépendance, RP header/module, `serveur/*.json`)
 
 ## 🔁 Migration moteur UI vanilla + reskin common_dialogs (v13)
 - [x] **DDUI (CustomForm bêta) abandonné définitivement** : trop capricieux (observable `clientWritable`, boutons mono-ligne sans codes §, écrans perdus). Les menus passent sur **ActionFormData** (boutons + icônes RP + labels multi-lignes + codes § rendus nativement) et **ModalFormData** (champs : texte, switchs, sliders, dropdowns — la « vraie » saisie)

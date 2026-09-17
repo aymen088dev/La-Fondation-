@@ -1,16 +1,22 @@
 /**
  * Thème graphique commun à toutes les GUI OpenMontage.
  *
- * MOTEUR (v13) : formulaires VANILLA stables de @minecraft/server-ui :
+ * MOTEUR (v13.1) : formulaires VANILLA stables de @minecraft/server-ui :
  * - ActionFormData : menus à boutons (icônes du RP, labels multi-lignes,
  *   codes § rendus nativement) ;
  * - ModalFormData : formulaires à champs (switchs, sliders, dropdowns,
- *   champs texte — la vraie saisie).
+ *   champs texte) — avec header/label/divider/submitButton natifs.
  *
- * Le DDUI (CustomForm bêta) est ABANDONNÉ : observable clientWritable capricieux,
- * boutons mono-ligne sans codes §, écrans qui plantaient en silence. Les forms
- * vanilla sont rendues par notre reskin JSON UI (RP/ui/om_server_form.json) :
- * même habillage bleu nuit, sans les bugs.
+ * ROUTAGE (le point qui a cassé /sn:create en v13.0) : un form vanilla est
+ * SOIT une liste de boutons, SOIT un formulaire de champs. Les éléments
+ * NEUTRES (header, label, divider) sont légaux des deux côtés — ils ne
+ * verrouillent PLUS le mode. Le mode est fixé par le premier élément fort :
+ * button() → mode actions ; textField/toggle/slider/dropdown() → mode fields.
+ * En mode fields, le DERNIER bouton devient le bouton submit natif
+ * (son callback part à la validation) — c'est le schéma de /sn:create.
+ *
+ * Le DDUI (CustomForm bêta) est ABANDONNÉ. Les forms vanilla sont rendues
+ * par notre reskin JSON UI (RP/ui/server_form.json) : habillage bleu nuit.
  */
 
 import { logMod } from "../lib/log";
@@ -107,15 +113,6 @@ function heroPath(kind: HeroKind): string {
  * Interrupteur du design image (héros + icônes) : /scriptevent sn:ui off|on.
  */
 let uiDesignEnabled = true;
-
-function disableUiDesign(reason: string): void {
-  if (!uiDesignEnabled) return;
-  uiDesignEnabled = false;
-  logMod.warn(
-    `Images désactivées automatiquement (${reason}) — menus sans image pour rester fonctionnels. /scriptevent sn:ui on pour réactiver.`,
-  );
-}
-void disableUiDesign;
 
 /** Active/désactive le design image (héros + icônes). */
 export function setUiDesign(enabled: boolean): void {
@@ -245,27 +242,29 @@ export interface TextFieldOptions {
   defaultValue?: string;
 }
 
-interface ActionEntry {
-  kind: "button" | "label" | "header" | "divider" | "image";
-  text: string;
-  icon?: string;
-  onClick?: () => void;
-}
+/**
+ * Éléments d'un menu OM. Neutres (header/label/divider) : légaux dans les
+ * deux modes. Forts : button (actions / submit) et field (ModalForm).
+ */
+type FormElement =
+  | { kind: "header" | "label" | "divider"; text: string }
+  | { kind: "image"; texture: string }
+  | { kind: "button"; text: string; icon?: string; onClick: () => void }
+  | {
+      kind: "field";
+      build: (form: ModalFormData) => void;
+      read: (response: ModalFormResponse, index: number) => void;
+    };
 
 /**
- * Moteur OM : un seul wrappre pour les deux types de formulaires vanilla.
- * - mode "actions" (ActionFormData) : boutons cliquables à callbacks directs ;
- * - mode "fields" (ModalFormData) : champs (texte, toggle, slider, dropdown),
- *   validés par un bouton submit unique.
- * Le mode est déterminé par le premier élément ajouté.
+ * Moteur OM : un seul wrapper pour les deux types de formulaires vanilla.
+ * Voir l'en-tête du fichier pour les règles de routage (v13.1).
  */
 export class OMForm {
   private readonly player: Player;
   private readonly titleText: string;
   private mode: "actions" | "fields" | "unset" = "unset";
-  private readonly actions: ActionEntry[] = [];
-  private readonly fieldBuilders: ((form: ModalFormData) => void)[] = [];
-  private fieldReaders: ((response: ModalFormResponse) => void)[] = [];
+  private readonly elements: FormElement[] = [];
   private readonly heroKind?: HeroKind;
 
   constructor(player: Player, title: string, hero?: HeroKind) {
@@ -283,11 +282,25 @@ export class OMForm {
     this.mode = "actions";
   }
 
-  private assertFields(method: string): void {
+  /**
+   * Bascule en mode champs. Les boutons/images posés AVANT le premier champ
+   * ne sont pas reproductibles dans un ModalForm : ils sont retirés (avec
+   * avertissement) — le DERNIER bouton d'un menu fields devient le submit.
+   */
+  private enterFields(): void {
     if (this.mode === "actions") {
-      throw new Error(
-        `OMForm : ${method}() impossible après un bouton/label (ce menu est en mode ActionForm).`,
+      const kept = this.elements.filter(
+        (el) => el.kind !== "button" && el.kind !== "image",
       );
+      const dropped =
+        this.elements.length - kept.length;
+      if (dropped > 0) {
+        logMod.warn(
+          `Menu « ${this.titleText} » : ${dropped} bouton(s)/image(s) posé(s) avant le premier champ ignorés (ModalForm).`,
+        );
+      }
+      this.elements.length = 0;
+      this.elements.push(...kept);
     }
     this.mode = "fields";
   }
@@ -295,20 +308,17 @@ export class OMForm {
   /** Bannière de héros en tête de menu (image du RP OM dans le body). */
   hero(kind: HeroKind): OMForm {
     if (!uiDesignEnabled) return this;
-    if (this.mode === "unset") this.mode = "actions";
-    this.actions.push({ kind: "image", text: heroPath(kind) });
+    this.elements.push({ kind: "image", texture: heroPath(kind) });
     return this;
   }
 
   header(text: string): OMForm {
-    this.assertActions("header");
-    this.actions.push({ kind: "header", text });
+    this.elements.push({ kind: "header", text });
     return this;
   }
 
   label(text: string): OMForm {
-    if (this.mode === "unset") this.mode = "actions";
-    this.actions.push({ kind: "label", text });
+    this.elements.push({ kind: "label", text });
     return this;
   }
 
@@ -318,31 +328,35 @@ export class OMForm {
     _options?: ButtonOptions,
     icon?: UIIcon,
   ): OMForm {
-    this.assertActions("button");
     const flat = label.replace(/\s*\n\s*/g, "\n").trim();
-    this.actions.push({
+    const wrapped = (): void => {
+      try {
+        onClick();
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        logMod.warn(`Action du menu « ${this.titleText} » échouée : ${message}`);
+        this.player.sendMessage(
+          `§c[OM] L'action du menu « ${this.titleText} » a échoué : §f${message}`,
+        );
+      }
+    };
+    if (this.mode === "fields") {
+      // Bouton après un champ : devient le bouton submit natif (le dernier gagne).
+      this.elements.push({ kind: "button", text: flat, onClick: wrapped });
+      return this;
+    }
+    this.assertActions("button");
+    this.elements.push({
       kind: "button",
       text: flat,
       icon: icon !== undefined && uiDesignEnabled ? OM_ICON(icon) : undefined,
-      onClick: () => {
-        try {
-          onClick();
-        } catch (error: unknown) {
-          const message = error instanceof Error ? error.message : String(error);
-          logMod.warn(`Action du menu « ${this.titleText} » échouée : ${message}`);
-          this.player.sendMessage(
-            `§c[OM] L'action du menu « ${this.titleText} » a échoué : §f${message}`,
-          );
-        }
-      },
+      onClick: wrapped,
     });
     return this;
   }
 
   divider(): OMForm {
-    if (this.mode === "unset") this.mode = "actions";
-    if (this.mode === "actions") this.actions.push({ kind: "divider", text: "" });
-    else this.fieldBuilders.push((form) => form.divider());
+    this.elements.push({ kind: "divider", text: "" });
     return this;
   }
 
@@ -351,28 +365,29 @@ export class OMForm {
   }
 
   toggle(label: string, initial: boolean): OMForm {
-    this.assertFields("toggle");
-    this.fieldBuilders.push((form) => form.toggle(label, { defaultValue: initial }));
+    this.enterFields();
+    this.elements.push({
+      kind: "field",
+      build: (form) => form.toggle(label, { defaultValue: initial }),
+      read: (response, index) => {
+        void response.formValues?.[index];
+      },
+    });
     return this;
   }
 
   /** Toggle avec observable (compat menus DDUI). */
   toggleOb(label: string, observable: ObservableBoolean): OMForm {
-    this.assertFields("toggle");
-    this.fieldBuilders.push((form) => form.toggle(label, { defaultValue: observable.getData() }));
-    this.fieldOrder.push({ kind: "toggle", ref: observable });
-    this.fieldReaders.push((response) => {
-      const index = this.fieldIndexOf("toggle", observable);
-      const raw = response.formValues?.[index];
-      if (typeof raw === "boolean") observable.setData(raw);
+    this.enterFields();
+    this.elements.push({
+      kind: "field",
+      build: (form) => form.toggle(label, { defaultValue: observable.getData() }),
+      read: (response, index) => {
+        const raw = response.formValues?.[index];
+        if (typeof raw === "boolean") observable.setData(raw);
+      },
     });
     return this;
-  }
-
-  private fieldOrder: { kind: string; ref: unknown }[] = [];
-
-  private fieldIndexOf(kind: string, ref: unknown): number {
-    return this.fieldOrder.findIndex((entry) => entry.kind === kind && entry.ref === ref);
   }
 
   slider(
@@ -382,52 +397,52 @@ export class OMForm {
     max: number,
     options?: SliderOptions,
   ): OMForm {
-    this.assertFields("slider");
+    this.enterFields();
     const current = Math.min(Math.max(observable.getData(), min), max);
-    this.fieldBuilders.push((form) =>
-      form.slider(label, min, max, { valueStep: options?.step ?? 1, defaultValue: current }),
-    );
-    this.fieldOrder.push({ kind: "slider", ref: observable });
-    this.fieldReaders.push((response) => {
-      const index = this.fieldIndexOf("slider", observable);
-      const raw = response.formValues?.[index];
-      if (typeof raw === "number") observable.setData(raw);
+    this.elements.push({
+      kind: "field",
+      build: (form) =>
+        form.slider(label, min, max, { valueStep: options?.step ?? 1, defaultValue: current }),
+      read: (response, index) => {
+        const raw = response.formValues?.[index];
+        if (typeof raw === "number") observable.setData(raw);
+      },
     });
     return this;
   }
 
   dropdown(label: string, observable: ObservableNumber, items: (DropdownItemData | string)[]): OMForm {
-    this.assertFields("dropdown");
+    this.enterFields();
     const labels = items.map((item, index) =>
       typeof item === "string" ? item : item.label || `Option ${index + 1}`,
     );
-    this.fieldBuilders.push((form) =>
-      form.dropdown(label, labels, { defaultValueIndex: observable.getData() }),
-    );
-    this.fieldOrder.push({ kind: "dropdown", ref: observable });
-    this.fieldReaders.push((response) => {
-      const index = this.fieldIndexOf("dropdown", observable);
-      const raw = response.formValues?.[index];
-      if (typeof raw === "number") observable.setData(raw);
+    this.elements.push({
+      kind: "field",
+      build: (form) =>
+        form.dropdown(label, labels, { defaultValueIndex: observable.getData() }),
+      read: (response, index) => {
+        const raw = response.formValues?.[index];
+        if (typeof raw === "number") observable.setData(raw);
+      },
     });
     return this;
   }
 
   textField(label: string, observable: ObservableString, options?: TextFieldOptions): OMForm {
-    this.assertFields("textField");
-    this.fieldBuilders.push((form) =>
-      form.textField(label, options?.placeholder ?? "…", { defaultValue: observable.getData() }),
-    );
-    this.fieldOrder.push({ kind: "textField", ref: observable });
-    this.fieldReaders.push((response) => {
-      const index = this.fieldIndexOf("textField", observable);
-      const raw = response.formValues?.[index];
-      if (typeof raw === "string") observable.setData(raw);
+    this.enterFields();
+    this.elements.push({
+      kind: "field",
+      build: (form) =>
+        form.textField(label, options?.placeholder ?? "…", { defaultValue: observable.getData() }),
+      read: (response, index) => {
+        const raw = response.formValues?.[index];
+        if (typeof raw === "string") observable.setData(raw);
+      },
     });
     return this;
   }
 
-  /** Compat DDUI : bouton fermer (l'ActionForm a sa croix native). */
+  /** Compat DDUI : bouton fermer (les forms vanilla ont leur croix native). */
   closeButton(): OMForm {
     return this;
   }
@@ -442,7 +457,9 @@ export class OMForm {
         void this.doShow().then(resolve, (error: unknown) => {
           const message = error instanceof Error ? error.message : String(error);
           logMod.warn(`Menu « ${this.titleText} » : ${message}`);
-          this.player.sendMessage(`§c[OM] Le menu « ${this.titleText} » n'a pas pu s'afficher : §f${message}`);
+          this.player.sendMessage(
+            `§c[OM] Le menu « ${this.titleText} » n'a pas pu s'afficher : §f${message}`,
+          );
           resolve("ServerClosed");
         });
       }, 2);
@@ -450,16 +467,67 @@ export class OMForm {
   }
 
   private async doShow(): Promise<DataDrivenScreenClosedReason> {
-    if (this.mode === "fields") {
-      const form = new ModalFormData().title(this.titleText);
-      for (const build of this.fieldBuilders) build(form);
-      const response = await form.show(this.player);
-      if (response.canceled) return "UserClosed";
-      for (const read of this.fieldReaders) read(response);
-      return "UserClosed";
+    if (this.mode === "fields") return this.showFields();
+    return this.showActions();
+  }
+
+  /** Mode champs : ModalFormData (header/label/divider natifs + submit). */
+  private async showFields(): Promise<DataDrivenScreenClosedReason> {
+    const form = new ModalFormData().title(this.titleText);
+
+    // Le DERNIER bouton posé est le submit ; les intermédiaires sont ignorés.
+    const lastButtonIndex = this.elements.reduce(
+      (last, el, index) => (el.kind === "button" ? index : last),
+      -1,
+    );
+    let submitAction: (() => void) | undefined;
+
+    for (const [index, el] of this.elements.entries()) {
+      switch (el.kind) {
+        case "header":
+          form.header(el.text);
+          break;
+        case "label":
+          form.label(el.text);
+          break;
+        case "divider":
+          form.divider();
+          break;
+        case "image":
+          break; // pas d'images dans un ModalForm
+        case "button":
+          if (index === lastButtonIndex) {
+            form.submitButton(el.text);
+            submitAction = el.onClick;
+          } else {
+            logMod.warn(
+              `Menu « ${this.titleText} » : bouton intermédiaire ignoré (un seul submit possible).`,
+            );
+          }
+          break;
+        case "field":
+          el.build(form);
+          break;
+      }
     }
 
-    // Mode actions (défaut) : ActionFormData.
+    const response = await form.show(this.player);
+    if (response.canceled) return "UserClosed";
+
+    // Second passage : lecture des valeurs (indices comptés ci-dessus).
+    let readIndex = 0;
+    for (const el of this.elements) {
+      if (el.kind === "field") {
+        el.read(response, readIndex);
+        readIndex += 1;
+      }
+    }
+    submitAction?.();
+    return "UserClosed";
+  }
+
+  /** Mode actions : ActionFormData (boutons à callbacks, icônes, body §). */
+  private async showActions(): Promise<DataDrivenScreenClosedReason> {
     const form = new ActionFormData().title(this.titleText);
     const bodyLines: string[] = [];
     const clickHandlers: (() => void)[] = [];
@@ -471,21 +539,20 @@ export class OMForm {
       });
     }
 
-    for (const action of this.actions) {
+    for (const action of this.elements) {
       if (action.kind === "image") {
-        form.button("", action.text);
+        form.button("", action.texture);
         clickHandlers.push(() => {
           /* bannière sans action */
         });
       } else if (action.kind === "button") {
         form.button(action.text, action.icon);
-        const handler = action.onClick;
-        clickHandlers.push(() => handler?.());
+        clickHandlers.push(action.onClick);
       } else if (action.kind === "header") {
         bodyLines.push(`§l${action.text}§r`);
       } else if (action.kind === "divider") {
         bodyLines.push("§8─────────────────────");
-      } else {
+      } else if (action.kind === "label") {
         bodyLines.push(action.text);
       }
     }
