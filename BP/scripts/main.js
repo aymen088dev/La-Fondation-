@@ -609,7 +609,7 @@ import {
   ObservableNumber,
   ObservableBoolean
 } from "@minecraft/server-ui";
-var RP_PACK_ID = "OpenMontage UI";
+var RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
 var OM_ICONS = {
   flag: "flag",
   compass: "compass",
@@ -637,7 +637,7 @@ var OM_ICONS = {
   online: "online"
 };
 function OM_ICON(icon) {
-  return `textures/ui/om_ic_${OM_ICONS[icon]}`;
+  return `textures/ui/om_ic_${OM_ICONS[icon]}.png`;
 }
 var HEROES = {
   home: "om_hero_home",
@@ -649,7 +649,7 @@ var HEROES = {
   database: "om_hero_database"
 };
 function heroPath(kind) {
-  return `textures/ui/${HEROES[kind]}`;
+  return `textures/ui/${HEROES[kind]}.png`;
 }
 var uiDesignEnabled = true;
 function setUiDesign(enabled) {
@@ -6464,6 +6464,7 @@ world14.afterEvents.worldLoad.subscribe(() => {
   log3.info(
     `worldLoad OK en ~${Math.round(Timings.lastTime)} ms : ${stats.documents} documents, ${stats.bytes} octets. Modules actifs : ${modules.enabledCount()}.`
   );
+  log3.info(`UI images : pack_id=${RP_PACK_ID} (doit matcher l'UUID du RP actif).`);
 });
 var worldReady = false;
 system14.runInterval(() => {

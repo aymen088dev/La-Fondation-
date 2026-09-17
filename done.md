@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v9** — correctifs « menus non changés / non ouverts » : bump de version des packs (cache Bedrock), design image fail-safe + toggle `/sn:ui`, veille API UI Bedrock dans utile.md.
+> Dernière mise à jour : **v10** — la vraie cause des « menus non custom » trouvée : `imagePackId` attend l'**UUID** du RP (pas son nom) et les chemins d'images doivent porter l'extension `.png`. Correctifs + bump 1.2.0 + diagnostic worldLoad.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -104,6 +104,13 @@
 
 ---
 
+## 🔧 Correctifs UI (v10) — la vraie cause : mauvais identifiant de pack
+- [x] **`imagePackId` = UUID, pas le nom** : l'API DDUI attend l'**identifiant** du pack — en Bedrock c'est son **UUID** (le `pack_id` de world_resource_packs.json). On passait `"OpenMontage UI"` (le nom d'affichage) → ne matchait aucun pack → **toutes les images des menus étaient silencieusement ignorées** alors même que le RP était correctement chargé. C'était LA cause du « menus toujours basiques »
+- [x] **Extension `.png` requise** : la doc dit « chemin relatif vers un fichier image » → les chemins `om_hero_*` / `om_ic_*` incluent désormais `.png` (les textures sont bien des fichiers .png du RP)
+- [x] **Bump 1.1.0 → 1.2.0** (BP, RP + modules, `serveur/world_*_packs.json`) — indispensable pour que le cache Bedrock recharge les packs avec le bundle corrigé
+- [x] **Diagnostic worldLoad** : le log affiche maintenant `UI images : pack_id=<UUID>` — si les images manquent en jeu, on vérifie en une ligne que ce pack_id correspond bien au RP actif du client
+- [x] Typecheck + 33/33 tests + bundle recompilé (vérifié : UUID et chemins .png embarqués)
+
 ## 🔧 Correctifs UI (v9) — « menus non changés / certains ne s'ouvrent pas »
 - [x] **Cause racine du « menus inchangés »** : Bedrock met les packs en **cache par uuid+version** — nos manifest étaient restés en 1.0.0, donc le jeu rechargait l'ancien RP (sans héros/icônes). **BP + RP passés en 1.1.0** et `serveur/world_*_packs.json` mis en cohérence ; règle documentée : toute modif de pack = version +1
 - [x] **Cause du « certains menus ne s'ouvrent pas »** : les images DDUI (héros + `imageDetails`) référencent des textures que l'ancien RP caché ne contient pas → écrans qui plantent. Double protection :
@@ -163,4 +170,5 @@
 11. **Bans jamais appliqués au join** : `sanctions.markLoaded()` manquant au worldLoad → `registerEnforcement` se croyait désactivé. Corrigé (+ fallback chat/enforcement).
 12. **Kick qui échouait pour un non-op** : kick exécuté côté serveur (`dimension.runCommand`) au lieu de la perspective du joueur.
 13. **Chat ×3 / bans éjectés 2×** : `registerChat` souscrit sans garde interne ; l'appeler N fois = N traitements par message. Garde unique `registerChatOnce()` (worldLoad + fallback partagent le même flag).
-13. **sendMessage en read-only** : messages de protection planifiés au tick suivant via `system.run` (écriture interdite dans les before-events).
+14. **sendMessage en read-only** : messages de protection planifiés au tick suivant via `system.run` (écriture interdite dans les before-events).
+15. **Images des menus invisibles (RP pourtant chargé)** : `imagePackId` du DDUI reçoit l'**UUID** du pack (pas son nom) et les chemins portent `.png` — l'ancien code passait le nom du pack, ignoré silencieusement par le moteur.

@@ -12,7 +12,7 @@ import {
 } from "./moderation";
 import { trackPlayerJoin } from "./players";
 import { log, logDb } from "./lib/log";
-import { setUiDesign } from "./ui/theme";
+import { setUiDesign, RP_PACK_ID } from "./ui/theme";
 import { Timings } from "@bedrock-oss/bedrock-boost";
 /**
  * OpenMontage — point d'entrée du behavior pack (TypeScript).
@@ -123,6 +123,10 @@ world.afterEvents.worldLoad.subscribe(() => {
   log.info(
     `worldLoad OK en ~${Math.round(Timings.lastTime)} ms : ${stats.documents} documents, ${stats.bytes} octets. Modules actifs : ${modules.enabledCount()}.`,
   );
+  // Diagnostic UI : si les héros/icônes n'apparaissent pas en jeu, la
+  // première chose à vérifier est que ce pack_id (UUID) correspond bien à
+  // l'UUID du RP chargé par le client (voir aussi world_resource_packs.json).
+  log.info(`UI images : pack_id=${RP_PACK_ID} (doit matcher l'UUID du RP actif).`);
 });
 
 // Fallback : si worldLoad n'arrive pas (ou arrive après un join), on active au 1er spawn

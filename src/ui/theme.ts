@@ -28,9 +28,16 @@ import type {
   ToggleOptions,
 } from "@minecraft/server-ui";
 
-/** Identifiant du Resource Pack OpenMontage (header.name de RP/manifest.json).
- *  Utilisé par CustomForm.image(src, pack) de l'API DDUI (bêta). */
-export const RP_PACK_ID = "OpenMontage UI";
+/**
+ * Identifiant du Resource Pack OpenMontage pour l'API DDUI (bêta).
+ *
+ * ⚠️ `imagePackId` attend l'IDENTIFIANT du pack = son UUID (le même `pack_id`
+ * que dans world_resource_packs.json), PAS son nom d'affichage. Passer le
+ * nom ne matche aucun pack : les images sont silencieusement ignorées et
+ * les menus s'affichent sans aucune texture (cause du bug "menus non
+ * custom alors que le RP est chargé").
+ */
+export const RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
 
 /** Palette du thème. */
 export const THEME = {
@@ -79,9 +86,9 @@ const OM_ICONS = {
 
 export type UIIcon = keyof typeof OM_ICONS;
 
-/** Chemin RP d'une icône OM (tuile 32x32). */
+/** Chemin RP d'une icône OM (tuile 32x32, extension requise par le DDUI). */
 export function OM_ICON(icon: UIIcon): string {
-  return `textures/ui/om_ic_${OM_ICONS[icon]}`;
+  return `textures/ui/om_ic_${OM_ICONS[icon]}.png`;
 }
 
 /** Alias de compat : les menus historiques importent ICONS. */
@@ -104,9 +111,9 @@ const HEROES = {
 
 export type HeroKind = keyof typeof HEROES;
 
-/** Chemin RP d'une bannière de héros. */
+/** Chemin RP d'une bannière de héros (extension requise par le DDUI). */
 function heroPath(kind: HeroKind): string {
-  return `textures/ui/${HEROES[kind]}`;
+  return `textures/ui/${HEROES[kind]}.png`;
 }
 
 /**
