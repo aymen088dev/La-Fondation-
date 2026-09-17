@@ -18,14 +18,12 @@ export function openRolesMenu(player: Player, permissions: PermissionManager): v
     form.header(`§6■ §lRôles du serveur`);
     form.label(`§7${roles.length} rôle(s). Clique pour configurer :`);
     form.divider();
-    form.button(`§a■ §lCréer un rôle`, () => openCreateRoleMenu(player, permissions), undefined, "plus");
+    form.button(`§a■ §lCréer un rôle`, () => openCreateRoleMenu(player, permissions));
 
     for (const role of roles) {
       form.button(
         `${role.data.color}[${role.data.name}]§r §7— niv. ${role.data.level} · ${permissions.membersWithRole(role.data.name).length} membre(s)`,
         () => openRoleConfigMenu(player, role, permissions),
-        undefined,
-        "crown",
       );
     }
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
@@ -80,20 +78,20 @@ export function openRoleConfigMenu(
       openColorPicker(player, "Couleur du rôle", (colorId) => {
         const result = permissions.setRoleColor(role.data.name, colorId);
         player.sendMessage(result.ok ? "§a[Rôles] Couleur mise à jour." : `§c[Rôles] ${result.error}`);
-      }), undefined, "pencil",
+      }),
     );
     form.button(`§e■ §lChanger le prefix`, () =>
       openPrefixMenu(player, `Prefix du rôle [${role.data.name}]`, (prefix) => {
         const result = permissions.setRolePrefix(role.data.name, prefix);
         player.sendMessage(result.ok ? "§a[Rôles] Prefix mis à jour." : `§c[Rôles] ${result.error}`);
-      }), undefined, "tag",
+      }),
     );
-    form.button(`§e■ §lChanger le niveau (actuel : ${role.data.level})`, () => openLevelMenu(player, role, permissions), undefined, "list");
-    form.button(`§b■ §lVoir les membres`, () => openRoleMembersMenu(player, role, permissions), undefined, "user");
+    form.button(`§e■ §lChanger le niveau (actuel : ${role.data.level})`, () => openLevelMenu(player, role, permissions));
+    form.button(`§b■ §lVoir les membres`, () => openRoleMembersMenu(player, role, permissions));
     form.button(`§c■ §lSupprimer ce rôle`, () => {
       const result = permissions.deleteRole(role.data.name);
       player.sendMessage(result.ok ? "§a[Rôles] Rôle supprimé." : `§c[Rôles] ${result.error}`);
-    }, undefined, "trash");
+    });
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
 
@@ -106,7 +104,7 @@ function openLevelMenu(player: Player, role: StoredDocument<RoleData>, permissio
     form.button(`§a■ §lValider`, () => {
       const result = permissions.setRoleLevel(role.data.name, level.getData());
       player.sendMessage(result.ok ? "§a[Rôles] Niveau mis à jour." : `§c[Rôles] ${result.error}`);
-    }, undefined, "check");
+    });
     form.closeButton();
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -128,7 +126,7 @@ function openRoleMembersMenu(
           permissions.removeRole(member.data.name);
           player.sendMessage(`§a[Rôles] ${member.data.name} ne fait plus partie du rôle.`);
           openRoleMembersMenu(player, role, permissions);
-        }, undefined, "user");
+        });
       }
     }
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
@@ -143,7 +141,7 @@ export function openColorPicker(player: Player, title: string, onPick: (colorId:
   void openWindow(player, title, (form) => {
     form.label("§7Choisis une couleur :");
     for (const color of ROLE_COLORS) {
-      form.button(`${color.code}■■■ ${color.id}`, () => onPick(color.id), undefined, "pencil");
+      form.button(`${color.code}■■■ ${color.id}`, () => onPick(color.id));
     }
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -154,7 +152,7 @@ export function openPrefixMenu(player: Player, title: string, onDone: (prefix: s
 
   void openWindowRaw(player, windowTitle(title), (form) => {
     form.textField("§ePrefix (vide = défaut [Nom])", prefix);
-    form.button(`§a■ §lValider`, () => onDone(prefix.getData()), undefined, "check");
+    form.button(`§a■ §lValider`, () => onDone(prefix.getData()));
     form.closeButton();
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }

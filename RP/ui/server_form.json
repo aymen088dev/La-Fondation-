@@ -1,7 +1,7 @@
 {
   "namespace": "server_form",
 
-  "_comment": "Reskin NaLandia — fichier à l'emplacement vanilla (ui/server_form.json = écrasement). Thème noir + ornements OR et ARGENT. CORRECTIFS CLÉS : (1) le titre du formulaire utilise sa propre définition avec une couleur OR — la couleur vanilla $title_text_color (gris 0.3) est invisible sur nos panneaux sombres ; (2) les boutons redéfinissent les variables OFFICIELLES de common_buttons.light_text_button ($default/hover/pressed_button_texture + couleurs de texte) → tuiles charbon à cadre or, SURBRILLANCE dorée au survol, texte clair lisible ; (3) les panneaux déroulants sidebar/body reçoivent un fond argenté (om_content_bg) via la variable officielle $scroll_background_image_control ; (4) structure sinon identique au vanilla (factories, bindings, collections).",
+  "_comment": "Reskin NaLandia — fichier à l'emplacement vanilla (ui/server_form.json = écrasement). Thème noir + ornements OR et ARGENT. v17.1 : (1) le titre passe en OR via la variable $title_text_color — c'est ELLE que lit standard_title_label (instancié en profondeur par common_dialogs.title_label) : la propager au point d'héritage suffit, le $title_panel de l'ancienne version n'était pas consommé par main_panel_no_buttons (titre gris) ; (2) les boutons redéfinissent les variables OFFICIELLES de common_buttons.light_text_button ($default/hover/pressed_button_texture + couleurs de texte + $button_image nineslice) → tuiles charbon à cadre or, SURBRILLANCE dorée marquée au survol, texte clair lisible ; (3) les panneaux déroulants sidebar/body reçoivent un fond argenté (om_content_bg) via la variable officielle $scroll_background_image_control ; (4) les icônes des boutons sont retirées (« brouillon ») : dynamic_button = tuile pleine largeur ; (5) structure sinon identique au vanilla (factories, bindings, collections).",
 
   "third_party_server_screen@common.base_screen": {
     "$screen_content": "server_form.main_screen_content",
@@ -31,33 +31,19 @@
   },
 
   // -------------------------------------------------------------------------
-  // Titre OR (la couleur vanilla est gris foncé → invisible sur fond noir)
+  // Titre OR — méthode vanilla : standard_title_label (instancié par
+  // common_dialogs.title_label à l'intérieur de main_panel_no_buttons) lit
+  // sa couleur dans $title_text_color. On la propage au point d'héritage
+  // (long_form / custom_form) : variable visible dans toute la
+  // sous-arborescence = titre doré.
   // -------------------------------------------------------------------------
-  "om_title": {
-    "type": "label",
-    "size": ["default", 10],
-    "$title_max_size|default": ["default", 10],
-    "max_size": "$title_max_size",
-    "color": [0.98, 0.86, 0.52],
-    "text": "$text_name",
-    "layer": 4,
-    "shadow": true,
-    "property_bag": {
-      "#tts_dialog_title": "$text_name"
-    },
-    "bindings": [
-      {
-        "binding_type": "$title_text_binding_type",
-        "binding_condition": "$title_binding_condition",
-        "binding_name": "$text_name",
-        "binding_name_override": "$text_name"
-      },
-      {
-        "binding_type": "global",
-        "binding_condition": "once",
-        "binding_name": "#tts_dialog_title"
-      }
-    ]
+  // Image de bouton AVEC nineslice : la tuile 48x48 garde des bords or
+  // uniformes quel que soit l'étirement du bouton (pleine largeur de colonne).
+  "om_btn_image": {
+    "type": "image",
+    "layer": 1,
+    "texture": "$new_ui_button_texture",
+    "nineslice_size": [10, 10, 10, 10]
   },
 
   // -------------------------------------------------------------------------
@@ -69,6 +55,7 @@
     "$hover_button_texture": "textures/ui/om_btn_hover",
     "$pressed_button_texture": "textures/ui/om_btn_press",
     "$locked_button_texture": "textures/ui/om_btn",
+    "$button_image": "server_form.om_btn_image",
     "$default_text_color": [0.90, 0.88, 0.84],
     "$hover_text_color": [1.0, 0.90, 0.55],
     "$pressed_text_color": [1.0, 1.0, 1.0],
@@ -102,7 +89,7 @@
   // LONG FORM (ActionForm) : sidebar à gauche, body à droite
   // -------------------------------------------------------------------------
   "long_form@common_dialogs.main_panel_no_buttons": {
-    "$title_panel": "server_form.om_title",
+    "$title_text_color": [0.98, 0.86, 0.52],
     "$title_size": ["100% - 15px", 10],
     "$title_max_size": ["100% - 15px", 10],
     "size": [340, 200],
@@ -224,89 +211,22 @@
   },
 
   // -------------------------------------------------------------------------
-  // Boutons dynamiques (long form) : icône RP + tuile OM
+  // Boutons dynamiques (long form) : une seule tuile pleine largeur
+  // (v17.1 : icônes retirées — « ça fait brouillon »)
   // -------------------------------------------------------------------------
-  "dynamic_button": {
-    "type": "stack_panel",
-    "size": ["100%", 34],
-    "orientation": "horizontal",
-    "controls": [
+  "dynamic_button@server_form.om_text_button": {
+    "$pressed_button_name": "button.form_button_click",
+    "anchor_from": "top_left",
+    "anchor_to": "top_left",
+    "size": ["100%", 32],
+    "$button_text": "#form_button_text",
+    "$button_text_binding_type": "collection",
+    "$button_text_grid_collection_name": "form_buttons",
+    "$button_text_max_size": ["100%", 20],
+    "bindings": [
       {
-        "panel_name": {
-          "type": "panel",
-          "size": [34, "100%c"],
-          "bindings": [
-            {
-              "binding_type": "view",
-              "source_control_name": "image",
-              "resolve_sibling_scope": true,
-              "source_property_name": "(not (#texture = ''))",
-              "target_property_name": "#visible"
-            }
-          ],
-          "controls": [
-            {
-              "image": {
-                "type": "image",
-                "layer": 3,
-                "size": [30, 30],
-                "offset": [0, 0],
-                "bindings": [
-                  {
-                    "binding_name": "#form_button_texture",
-                    "binding_name_override": "#texture",
-                    "binding_type": "collection",
-                    "binding_collection_name": "form_buttons"
-                  },
-                  {
-                    "binding_name": "#form_button_texture_file_system",
-                    "binding_name_override": "#texture_file_system",
-                    "binding_type": "collection",
-                    "binding_collection_name": "form_buttons"
-                  },
-                  {
-                    "binding_type": "view",
-                    "source_property_name": "(not ((#texture = '') or (#texture = 'loading')))",
-                    "target_property_name": "#visible"
-                  }
-                ]
-              }
-            },
-            {
-              "progress@progress.progress_loading_bars": {
-                "size": [30, 4],
-                "offset": [-2, 16],
-                "bindings": [
-                  {
-                    "binding_type": "view",
-                    "source_control_name": "image",
-                    "resolve_sibling_scope": true,
-                    "source_property_name": "(#texture = 'loading')",
-                    "target_property_name": "#visible"
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      },
-      {
-        "form_button@server_form.om_text_button": {
-          "$pressed_button_name": "button.form_button_click",
-          "anchor_from": "top_left",
-          "anchor_to": "top_left",
-          "size": ["fill", 32],
-          "$button_text": "#form_button_text",
-          "$button_text_binding_type": "collection",
-          "$button_text_grid_collection_name": "form_buttons",
-          "$button_text_max_size": ["100%", 20],
-          "bindings": [
-            {
-              "binding_type": "collection_details",
-              "binding_collection_name": "form_buttons"
-            }
-          ]
-        }
+        "binding_type": "collection_details",
+        "binding_collection_name": "form_buttons"
       }
     ]
   },
@@ -322,9 +242,16 @@
     ]
   },
 
-  "dynamic_header@settings_common.option_group_spaced_header": {
-    "$text": "#form_button_text",
-    "$text_bindings": [
+  // Titre de section (long form) : label OR à liseré — même pattern de
+  // binding que body_label (prouvé) au lieu du header vanilla gris.
+  "dynamic_header": {
+    "type": "label",
+    "color": [0.98, 0.86, 0.52],
+    "size": ["100% - 8px", "default"],
+    "offset": [4, 2],
+    "layer": 3,
+    "text": "#form_button_text",
+    "bindings": [
       {
         "binding_name": "#form_button_text",
         "binding_type": "collection",
@@ -337,7 +264,7 @@
   // CUSTOM FORM (ModalForm) : champs + bouton submit
   // -------------------------------------------------------------------------
   "custom_form@common_dialogs.main_panel_no_buttons": {
-    "$title_panel": "server_form.om_title",
+    "$title_text_color": [0.98, 0.86, 0.52],
     "$title_size": ["100% - 15px", 10],
     "$title_max_size": ["100% - 15px", 10],
     "size": [260, 210],
@@ -427,9 +354,15 @@
     ]
   },
 
-  "custom_header@settings_common.option_group_header": {
-    "$text": "#custom_text",
-    "$text_bindings": [
+  // Titre de section (custom form / ModalForm) : OR, même pattern.
+  "custom_header": {
+    "type": "label",
+    "color": [0.98, 0.86, 0.52],
+    "size": ["100% - 8px", "default"],
+    "offset": [4, 2],
+    "layer": 3,
+    "text": "#custom_text",
+    "bindings": [
       {
         "binding_name": "#custom_text",
         "binding_type": "collection",

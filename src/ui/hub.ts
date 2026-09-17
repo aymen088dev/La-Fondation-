@@ -59,7 +59,7 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
     // ---- Panneau de droite : accueil ----
     form.body(
       [
-        `§6§l■ NaLandia§r`,
+        `§6§lNaLandia§r`,
         ``,
         `§7Bienvenue, §f${player.name}§7 !`,
         `§7Ton rôle : ${roleTag}§r`,
@@ -75,18 +75,17 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
       ].join("\n"),
     );
 
-    // ---- Sidebar (colonne de gauche) ----
-    form.header(`§6§l≡ Navigation`);
-
-    form.button(`§6■ Territoires`, () => openTerritoriesMenu(player, territories), undefined, "flag");
-    form.button(`§e■ Mes infos`, () => openMyInfoMenu(player, deps), undefined, "user");
+    // ---- Sidebar (colonne de gauche) — v17.1 : plus de bandeau « Navigation »
+    // (redondant) ni de puces décoratives ; les icônes sont retirées. ----
+    form.button(`§6Territoires`, () => openTerritoriesMenu(player, territories));
+    form.button(`§eMes infos`, () => openMyInfoMenu(player, deps));
 
     if (isMod) {
       form.divider();
-      form.button(`§4■ Modération`, () => openSanctionsMenu(player, sanctions, permissions), undefined, "shield");
+      form.button(`§4Modération`, () => openSanctionsMenu(player, sanctions, permissions));
     }
     if (isAdmin) {
-      form.button(`§6■ Admin`, () => openAdminMenu(player, deps), undefined, "crown");
+      form.button(`§6Admin`, () => openAdminMenu(player, deps));
     }
   }).catch((error: unknown) => console.warn(`[Hub] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -112,7 +111,7 @@ export function openMyInfoMenu(player: Player, deps: HubDeps): void {
   void openWindow(player, "Mes infos", (form) => {
     form.body(
       [
-        `§b§l■ ${player.name}§r`,
+        `§b§l${player.name}§r`,
         ``,
         `§eRôle : ${roleLabel}`,
         `§eClasse : ${selection !== undefined ? `§d${selection.classId}§r §7(niv. ${Math.floor(selection.xp / 100) + 1})` : "§8non choisie"}`,
@@ -128,18 +127,18 @@ export function openMyInfoMenu(player: Player, deps: HubDeps): void {
       ].join("\n"),
     );
 
-    form.header(`§e§l≡ Actions`);
+    form.header(`§e§lActions`);
 
-    form.button(`§d■ Ma classe`, () => {
+    form.button(`§dMa classe`, () => {
       if (classes !== undefined) openClassesMenu(player, classes, false);
-    }, undefined, "compass");
+    });
     if (jobs !== undefined) {
-      form.button(`§6■ Métiers`, () => openJobsMenu(player, jobs), undefined, "axe");
+      form.button(`§6Métiers`, () => openJobsMenu(player, jobs));
     }
     if (myTerritory !== undefined) {
-      form.button(`§a■ Mon territoire`, () => showTerritoryInfo(player, myTerritory, territories), undefined, "flag");
+      form.button(`§aMon territoire`, () => showTerritoryInfo(player, myTerritory, territories));
     } else {
-      form.button(`§a■ Créer un territoire`, () => openCreateMenu(player, territories), undefined, "plus");
+      form.button(`§aCréer un territoire`, () => openCreateMenu(player, territories));
     }
   }).catch((error: unknown) => console.warn(`[Mes infos] ${error instanceof Error ? error.message : String(error)}`));
 }

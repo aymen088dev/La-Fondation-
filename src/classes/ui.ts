@@ -70,7 +70,7 @@ export function openClassesMenu(player: Player, classes: ClassManager, isAdmin =
           player.sendMessage("§a[Classes] Classe réinitialisée — tu peux re-choisir.");
         }
         openClassesMenu(player, classes, isAdmin);
-      }, undefined, "trash");
+      });
     }
   }).catch((error: unknown) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -96,7 +96,7 @@ function confirmClassChoice(
           ? `§a[Classes] Bienvenue dans la voie ${color}§l${className}§r§a ! Ta progression commence maintenant.`
           : `§c[Classes] ${result.error}`,
       );
-    }, undefined, "check");
-    form.button("§7■ §lRevenir au choix", () => openClassesMenu(player, classes), undefined, "back");
+    });
+    form.button("§7■ §lRevenir au choix", () => openClassesMenu(player, classes));
   }).catch((error: unknown) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`));
 }

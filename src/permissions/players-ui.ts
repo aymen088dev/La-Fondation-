@@ -37,8 +37,6 @@ export function openPlayersMenu(player: Player, permissions: PermissionManager, 
       form.button(
         `${role?.data.color ?? "§7"}${target.name}§r §7— ${member?.data.role ?? "aucun rôle"}`,
         () => openPlayerConfigMenu(player, target.name, permissions, db),
-        undefined,
-        "user",
       );
     }
 
@@ -48,8 +46,6 @@ export function openPlayersMenu(player: Player, permissions: PermissionManager, 
     form.label(`§7§l● Hors ligne / historique§r §7(index complet)`);
     form.button(`§a■ §lGérer un joueur hors ligne (saisir le pseudo)`, () =>
       openPlayerLookupMenu(player, permissions, db),
-      undefined,
-      "search",
     );
     if (db !== undefined) {
       const known = allKnownPlayers(db).filter(
@@ -62,8 +58,6 @@ export function openPlayersMenu(player: Player, permissions: PermissionManager, 
         form.button(
           `§8${record.data.name}§r §7— ${record.data.grade !== "" ? role?.data.color + record.data.grade + "§7 · " : ""}${record.data.sessions} session(s) · vu à ${hh}`,
           () => openPlayerConfigMenu(player, record.data.name, permissions, db),
-          undefined,
-          "history",
         );
       }
       if (known.length > 15) form.label(`§8… et ${known.length - 15} autres (recherche par pseudo)`);
@@ -81,7 +75,7 @@ export function openPlayerLookupMenu(player: Player, permissions: PermissionMana
     form.button(`§b■ §lRechercher`, () => {
       const target = name.getData().trim();
       if (target !== "") openPlayerConfigMenu(player, target, permissions, db);
-    }, undefined, "search");
+    });
     form.closeButton();
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -111,19 +105,19 @@ export function openPlayerConfigMenu(
     );
     form.divider();
     form.button(`§e■ §lAttribuer / changer de rôle`, () =>
-      openAssignRoleMenu(player, targetName, permissions, db), undefined, "crown",
+      openAssignRoleMenu(player, targetName, permissions, db),
     );
     form.button(`§e■ §lPrefix personnalisé`, () =>
       openPrefixMenu(player, `Prefix perso de ${targetName}`, (prefix) => {
         const result = permissions.setCustomPrefix(targetName, prefix);
         player.sendMessage(result.ok ? "§a[Rôles] Prefix mis à jour." : `§c[Rôles] ${result.error}`);
-      }), undefined, "tag",
+      }),
     );
     if (member !== undefined) {
       form.button(`§c■ §lRetirer tous les rôles`, () => {
         permissions.removeRole(targetName);
         player.sendMessage(`§a[Rôles] Rôles de ${targetName} retirés.`);
-      }, undefined, "trash");
+      });
     }
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -152,7 +146,7 @@ function openAssignRoleMenu(
             ? `§a[Rôles] ${targetName} est maintenant ${role.data.color}[${role.data.name}]§r§a.`
             : `§c[Rôles] ${result.error}`,
         );
-      }, undefined, "crown");
+      });
     }
     void db;
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));

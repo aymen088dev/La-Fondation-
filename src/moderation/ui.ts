@@ -28,10 +28,10 @@ export function openSanctionsMenu(player: Player, sanctions: SanctionsManager, p
       `§7Bans actifs : §f${stats.bans}\n§7Mutes actifs : §f${stats.mutes}\n§7Warns au total : §f${stats.warns}`,
     );
     form.divider();
-    form.button(`§4■ §lBans actifs`, () => openBansList(player, sanctions, permissions), undefined, "ban");
-    form.button(`§6■ §lMutes actifs`, () => openMutesList(player, sanctions, permissions), undefined, "bell");
-    form.button(`§e■ §lSanctionner un joueur`, () => openSanctionForm(player, sanctions), undefined, "sword");
-    form.button(`§b■ §lHistorique d'un joueur`, () => openHistoryLookup(player, sanctions), undefined, "history");
+    form.button(`§4■ §lBans actifs`, () => openBansList(player, sanctions, permissions));
+    form.button(`§6■ §lMutes actifs`, () => openMutesList(player, sanctions, permissions));
+    form.button(`§e■ §lSanctionner un joueur`, () => openSanctionForm(player, sanctions));
+    form.button(`§b■ §lHistorique d'un joueur`, () => openHistoryLookup(player, sanctions));
   }).catch((error: unknown) =>
     console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`),
   );
@@ -56,7 +56,7 @@ function openBansList(player: Player, sanctions: SanctionsManager, permissions: 
         const result = sanctions.unban(ban.data.name);
         player.sendMessage(result.ok ? `§a[Modération] ${ban.data.name} débanni.` : `§c[Modération] ${result.error}`);
         openBansList(player, sanctions, permissions);
-      }, undefined, "ban");
+      });
     }
   }).catch((error: unknown) =>
     console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`),
@@ -84,7 +84,7 @@ function openMutesList(player: Player, sanctions: SanctionsManager, permissions:
           result.ok ? `§a[Modération] ${mute.data.name} peut parler.` : `§c[Modération] ${result.error}`,
         );
         openMutesList(player, sanctions, permissions);
-      }, undefined, "bell");
+      });
     }
   }).catch((error: unknown) =>
     console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`),

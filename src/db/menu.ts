@@ -55,15 +55,15 @@ export async function openDbMenu(db: JsonDatabase, player: Player): Promise<void
         `${collectionLabel(section)} §7— ${stats.collections[section]} doc(s)`,
         () => {
           void openSectionMenu(db, player, section);
-        }, undefined, "database",
+        },
       );
     }
 
     form.divider();
     form.button(`§a■ §lForcer la sauvegarde`, () => {
       db.save(true);
-      player.sendMessage("§a[DB] Sauvegarde forcée.");
-    }, undefined, "save");
+      // v17.1 : plus aucun retour DB dans le chat (console uniquement).
+    });
   }).catch((error: unknown) =>
     console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`),
   );
@@ -85,9 +85,10 @@ async function openSectionMenu(db: JsonDatabase, player: Player, section: string
 
     form.divider();
     form.button(`§c■ §lVider la section`, () => {
-      const removed = db.clear(section);
+      db.clear(section);
       db.save();
-      player.sendMessage(`§c[DB] Section "${section}" vidée (${removed} document(s) supprimés).`);
+      // Retour silencieux (console) — plus de message DB dans le chat.
+      console.warn(`[DB] Section "${section}" vidée par ${player.name}.`);
     });
   }).catch((error: unknown) =>
     console.warn(`[DB] Erreur section : ${error instanceof Error ? error.message : String(error)}`),
@@ -106,7 +107,8 @@ async function openDocumentMenu(
 ): Promise<void> {
   const doc = db.findOne<Record<string, unknown>>(section, docId);
   if (doc === undefined) {
-    player.sendMessage("§c[DB] Document introuvable (déjà supprimé ?).");
+    // Silencieux côté chat : les retours techniques restent en console.
+    console.warn(`[DB] Document ${docId} introuvable (déjà supprimé ?).`);
     return;
   }
 
@@ -164,9 +166,9 @@ async function openDocumentMenu(
       if (Object.keys(patch).length > 0) {
         db.update(section, docId, patch);
         db.save();
-        player.sendMessage(`§a[DB] "${docId}" mis à jour (${Object.keys(patch).length} champ(s)).`);
+        console.warn(`[DB] "${docId}" mis à jour (${Object.keys(patch).length} champ(s)).`);
       } else {
-        player.sendMessage("§7[DB] Aucun changement (seuls les interrupteurs sont éditables).");
+        console.warn(`[DB] "${docId}" : aucun changement (seuls les interrupteurs sont éditables).`);
       }
     });
     form.closeButton();

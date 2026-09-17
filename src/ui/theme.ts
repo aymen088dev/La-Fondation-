@@ -44,65 +44,18 @@ export const THEME = {
 } as const;
 
 /**
- * Icônes OM (RP NaLandia, tuiles 32x32 pixel-art générées par
- * scripts/make_ui_textures.py) — passées aux boutons ActionFormData.
+ * Identifiants d'icônes historiques (compat des appelants) — v17.1 : les
+ * icônes image ont été RETIRÉES des boutons (« ça fait brouillon ») ; le
+ * 4e paramètre de button() reste accepté mais ignoré.
  */
-const OM_ICONS = {
-  flag: "flag",
-  compass: "compass",
-  shield: "shield",
-  crown: "crown",
-  gear: "gear",
-  database: "database",
-  sword: "sword",
-  ban: "ban",
-  bell: "bell",
-  warn: "warn",
-  history: "history",
-  plus: "plus",
-  check: "check",
-  trash: "trash",
-  search: "search",
-  save: "save",
-  back: "back",
-  close: "close",
-  list: "list",
-  pencil: "pencil",
-  user: "user",
-  tag: "tag",
-  online: "online",
-  axe: "axe",
-  pickaxe: "pickaxe",
-  hammer: "hammer",
-} as const;
-
-export type UIIcon = keyof typeof OM_ICONS;
-
-/** Chemin RP d'une icône OM (tuile 32x32). */
-export function OM_ICON(icon: UIIcon): string {
-  return `textures/ui/om_ic_${OM_ICONS[icon]}.png`;
-}
-
-/** Alias de compat : les menus historiques importent ICONS. */
-export const ICONS = OM_ICONS;
+export type UIIcon = string;
 
 /**
- * Bannières de héros (RP NaLandia, 256x48) affichées en tête des menus
- * principaux comme image dans le body.
+ * Bannières de héros — DÉSACTIVÉES (v14 puis v17.1) : plus aucune image
+ * n'est affichée au-dessus des menus. Type conservé pour la compat des
+ * signatures (openWindow/openWindowRaw acceptent un dernier arg ignoré).
  */
-const HEROES = {
-  home: "om_hero_home",
-  territories: "om_hero_territories",
-  admin: "om_hero_admin",
-  mod: "om_hero_mod",
-  role: "om_hero_role",
-  modules: "om_hero_modules",
-  database: "om_hero_database",
-  classes: "om_hero_classes",
-  jobs: "om_hero_jobs",
-} as const;
-
-export type HeroKind = keyof typeof HEROES;
+export type HeroKind = string;
 
 /**
  * Interrupteur du design image (héros + icônes) : /scriptevent sn:ui off|on.
@@ -126,6 +79,16 @@ export function isUiDesignEnabled(): boolean {
  * conservé uniquement pour la compat des menus existants (invisible).
  */
 export const UI_TITLE_TAG = "";
+
+/**
+ * Sanitiseur de texte (v17.1) : retire les puces décoratives ■ et ≡ —
+ * elles rendent en carrés colorés abscons dans les menus — et les
+ * marqueurs internes §h. Appliqué à TOUS les textes de menus au niveau
+ * moteur : les appelants n'ont rien à changer.
+ */
+function plain(text: string): string {
+  return text.replace(/§h/g, "").replace(/[■≡]\s?/g, "").trim();
+}
 
 /** Construit un titre de fenêtre normalisé : "NaLandia » <title>" (or/gris). */
 export function windowTitle(section: string): string {
@@ -333,9 +296,8 @@ export class OMForm {
       this.elements.push({ kind: "header", text });
       return this;
     }
-    // Bandeau graphique om_header_band (filet or/argent, texture du RP)
-    // autour du libellé — rendu par le JSON UI via le marqueur §h…§h.
-    this.elements.push({ kind: "header", text: `§h${text}§h` });
+    // Bandeau de section (rendu en or/ gras par le JSON UI via le marqueur §h…§h).
+    this.elements.push({ kind: "header", text: `§h${plain(text)}§h` });
     return this;
   }
 
@@ -346,12 +308,12 @@ export class OMForm {
    * boutons/headers/labels vont dans la colonne de gauche (sidebar).
    */
   body(text: string): OMForm {
-    this.elements.push({ kind: "body", text });
+    this.elements.push({ kind: "body", text: plain(text) });
     return this;
   }
 
   label(text: string): OMForm {
-    this.elements.push({ kind: "label", text });
+    this.elements.push({ kind: "label", text: plain(text) });
     return this;
   }
 
@@ -359,15 +321,17 @@ export class OMForm {
     label: string,
     onClick: () => void,
     _options?: ButtonOptions,
-    icon?: UIIcon,
+    _icon?: UIIcon,
   ): OMForm {
     /*
      * FIX « texte des boutons invisible » (v17) : le template vanilla
      * l'impose — « Per design buttons are single line text only ». Un \n
      * dans le label écrase le rendu du label (bouton vide). On aplatit
      * donc tout label en UNE ligne (retours → espace-insécable « — »).
+     * v17.1 : les icônes sont retirées (« ça fait brouillon ») — le 4e
+     * paramètre reste accepté (compat des appelants) mais ignoré.
      */
-    const flat = label.replace(/\s*\n\s*/g, "  —  ").trim();
+    const flat = plain(label).replace(/\s*\n\s*/g, "  —  ").trim();
     const wrapped = (): void => {
       try {
         onClick();
@@ -385,12 +349,7 @@ export class OMForm {
       return this;
     }
     this.assertActions("button");
-    this.elements.push({
-      kind: "button",
-      text: flat,
-      icon: icon !== undefined && uiDesignEnabled ? OM_ICON(icon) : undefined,
-      onClick: wrapped,
-    });
+    this.elements.push({ kind: "button", text: flat, onClick: wrapped });
     return this;
   }
 
@@ -518,7 +477,6 @@ export class OMForm {
   /** Mode champs : ModalFormData (header/label/divider natifs + submit). */
   private async showFields(): Promise<DataDrivenScreenClosedReason> {
     const form = new ModalFormData().title(this.titleText);
-
     // Le DERNIER bouton posé est le submit ; les intermédiaires sont ignorés.
     const lastButtonIndex = this.elements.reduce(
       (last, el, index) => (el.kind === "button" ? index : last),
@@ -529,13 +487,18 @@ export class OMForm {
     for (const [index, el] of this.elements.entries()) {
       switch (el.kind) {
         case "header":
-          form.header(el.text);
+          form.header(plain(el.text));
           break;
         case "label":
           form.label(el.text);
           break;
         case "divider":
           form.divider();
+          break;
+        case "body":
+          // v17.1 : le texte d'intro (ex : infos du chunk de /sn:create)
+          // était silencieusement ignoré en mode champs → rendu en label.
+          form.label(el.text);
           break;
         case "image":
           break; // pas d'images dans un ModalForm
@@ -560,46 +523,36 @@ export class OMForm {
 
     /*
      * Lecture des valeurs. Le nombre d'entrées de formValues peut différer du
-     * nombre de champs posés (des runtimes comptent aussi les éléments
-     * non-interactifs — c'était la cause du bug « nom entre 3 et 24 » :
-     * le nom d'un territoire de 8 caractères était lu à un index décalé,
-     * donc vide). On essaie d'abord l'appariement par position, puis on
-     * retombe sur un appariement par type : chaque champ lit la première
-     * entrée encore libre de son type (string/number/boolean).
+     * nombre de champs posés ET l'ordre n'est pas garanti (des runtimes
+     * comptent aussi les éléments non-interactifs — c'était la cause du bug
+     * « nom entre 3 et 24 » : le nom était lu à un index décalé, l'entrée y
+     * était un nombre, donc JAMAIS enregistrée → champ vide). Stratégie :
+     * chaque champ ne prend une entrée positionnelle que si son TYPE
+     * correspond ; sinon il repart dans la pioche par type (première entrée
+     * libre du bon type).
      */
     const values = response.formValues ?? [];
     const fieldEls = this.elements.filter((el): el is Extract<FormElement, { kind: "field" }> => el.kind === "field");
-    if (values.length === fieldEls.length) {
-      for (const [index, el] of fieldEls.entries()) el.read(response, index);
-    } else {
-      const taken = new Array<boolean>(values.length).fill(false);
-      const take = (index: number): unknown => {
-        if (index >= 0 && index < values.length && !taken[index]) {
-          taken[index] = true;
-          return values[index];
-        }
-        return undefined;
-      };
-      const pick = (kind: "string" | "number" | "boolean"): unknown => {
-        for (const [index, value] of values.entries()) {
-          if (!taken[index] && typeof value === kind) return take(index);
-        }
-        return undefined;
-      };
-      // Position d'abord (chaque champ essaie son index), puis par type.
-      const pending: Extract<FormElement, { kind: "field" }>[] = [];
-      for (const [index, el] of fieldEls.entries()) {
-        const raw = take(index);
-        if (raw === undefined) {
-          pending.push(el);
-        } else {
-          el.read({ ...response, formValues: [raw] } as ModalFormResponse, 0);
-        }
+    const taken = new Array<boolean>(values.length).fill(false);
+    const pending: Extract<FormElement, { kind: "field" }>[] = [];
+    // Passe 1 : position, uniquement si le type correspond.
+    for (const [index, el] of fieldEls.entries()) {
+      const raw = index < values.length ? values[index] : undefined;
+      if (raw !== undefined && raw !== null && typeof raw === fieldKind(el)) {
+        taken[index] = true;
+        el.read({ ...response, formValues: [raw] } as ModalFormResponse, 0);
+      } else {
+        pending.push(el);
       }
-      for (const el of pending) {
-        const raw = pick(fieldKind(el));
-        if (raw !== undefined) {
-          el.read({ ...response, formValues: [raw] } as ModalFormResponse, 0);
+    }
+    // Passe 2 : les champs restants piochent la première entrée libre de leur type.
+    for (const el of pending) {
+      const kind = fieldKind(el);
+      for (const [index, value] of values.entries()) {
+        if (!taken[index] && value !== null && typeof value === kind) {
+          taken[index] = true;
+          el.read({ ...response, formValues: [value] } as ModalFormResponse, 0);
+          break;
         }
       }
     }
@@ -620,9 +573,9 @@ export class OMForm {
         form.button(action.text, action.icon);
         clickHandlers.push(action.onClick);
       } else if (action.kind === "header") {
-        // Bandeau doré (§h…§h → traité par le JSON UI ; § sans effet en
-        // ActionForm : on garcit simplement le texte).
-        const clean = action.text.replace(/§h/g, "");
+        // Bandeau de section (§h…§h → géré par le JSON UI ; en ActionForm on
+        // garcit simplement le texte).
+        const clean = plain(action.text);
         bodyLines.push(`§l${clean}§r`);
       } else if (action.kind === "divider") {
         bodyLines.push("§8─────────────────────");

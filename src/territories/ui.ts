@@ -29,10 +29,10 @@ export function openCreateMenu(player: Player, manager: TerritoryManager): void 
   const cz = Math.floor(player.location.z);
 
   void openWindowRaw(player, windowTitle("Créer un territoire"), (form) => {
-    // ---- Panneau de droite : infos du chunk ----
+    // ---- Infos du chunk (rendues en tête du formulaire par le moteur) ----
     form.body(
       [
-        `§a§l■ Revendiquer ce chunk§r`,
+        `§a§lRevendiquer ce chunk§r`,
         ``,
         `§ePosition : §fx=${cx}§7, §fz=${cz}`,
         `§eDimension : §f${player.dimension.id}`,
@@ -51,15 +51,15 @@ export function openCreateMenu(player: Player, manager: TerritoryManager): void 
       ].join("\n"),
     );
 
-    // ---- Sidebar : le formulaire ----
-    form.header(`§a§l≡ Nouveau territoire`);
+    // ---- Formulaire ----
+    form.header(`§a§lNouveau territoire`);
     form.textField("§eNom du territoire", name, { placeholder: "3-24 caractères" });
     form.dropdown(
       "§eCouleur du drapeau",
       colorIndex,
       TERRITORY_COLORS.map((c, value) => ({ label: `${c.code}■ ${c.id}`, value })),
     );
-    form.button(`§a■ Revendiquer ce chunk !`, () => {
+    form.button(`§a§lRevendiquer ce chunk !`, () => {
       const cleanName = name.getData().trim().replace(/\s+/g, " ");
       const chosen = TERRITORY_COLORS[colorIndex.getData()] ?? TERRITORY_COLORS[0];
 
@@ -80,7 +80,7 @@ export function openCreateMenu(player: Player, manager: TerritoryManager): void 
       player.sendMessage(
         `§a[Territoires] Territoire §r${chosen?.code}■ ${result.territory.data.name} §r§acrée ! Ce chunk est sous ta bannière.`,
       );
-    }, undefined, "flag");
+    });
   }).catch((error: unknown) =>
     console.warn(`[Territoires] Erreur menu création : ${error instanceof Error ? error.message : String(error)}`),
   );
@@ -96,7 +96,7 @@ export function openTerritoriesMenu(player: Player, manager: TerritoryManager): 
   }
 
   void openWindow(player, "Territoires", (form) => {
-    form.header(`§a■ §lTerritoires du serveur`);
+    form.header(`§a§lTerritoires du serveur`);
     form.label(`§7${territories.length} territoire(s) revendiqué(s) :`);
     form.divider();
 
@@ -105,8 +105,6 @@ export function openTerritoriesMenu(player: Player, manager: TerritoryManager): 
       form.button(
         `${color.code}■ ${territory.data.name}§r §7— par ${territory.data.owner}`,
         () => showTerritoryInfo(player, territory, manager),
-        undefined,
-        "flag",
       );
     }
   }).catch((error: unknown) =>
@@ -127,7 +125,7 @@ export function showTerritoryInfo(
   const isOwner = data.ownerId === player.id || data.owner === player.name;
 
   void openWindowRaw(player, windowTitle(data.name), (form) => {
-    form.header(`${color.code}■ §l${data.name}`);
+    form.header(`${color.code}§l${data.name}`);
     form.label(
       [
         `§ePropriétaire : §f${data.owner}${isOwner ? " §a(toi)" : ""}`,
@@ -152,19 +150,19 @@ export function showTerritoryInfo(
     }
 
     if (isOwner) {
-      form.button(`§6■ §lChanger le drapeau (/sn:setflag)`, () => {
+      form.button(`§6§lChanger le drapeau (/sn:setflag)`, () => {
         player.sendMessage(
           `§7[Territoires] Couleurs : ${TERRITORY_COLORS.map((c) => `${c.code}${c.id}`).join("§7, ")}`,
         );
-      }, undefined, "pencil");
-      form.button(`§c■ §lSupprimer ce territoire`, () => {
+      });
+      form.button(`§c§lSupprimer ce territoire`, () => {
         const ok = manager.remove(data.name, player.name);
         player.sendMessage(
           ok
             ? `§a[Territoires] ${data.name} supprimé.`
             : "§c[Territoires] Suppression impossible.",
         );
-      }, undefined, "trash");
+      });
     }
   }).catch((error: unknown) =>
     console.warn(`[Territoires] Erreur fiche territoire : ${error instanceof Error ? error.message : String(error)}`),

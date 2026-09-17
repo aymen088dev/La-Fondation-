@@ -51,16 +51,16 @@ export function openAdminMenu(player: Player, deps: HubDeps): void {
     // ---- Sidebar ----
     form.header(`§6§l≡ Gestion`);
 
-    form.button(`§6■ Rôles`, () => openRolesMenu(player, permissions), undefined, "crown");
-    form.button(`§b■ Joueurs`, () => openPlayersMenu(player, permissions, db), undefined, "user");
-    form.button(`§d■ Modules`, () => openModulesMenu(player, modules, territories), undefined, "gear");
+    form.button(`§6■ Rôles`, () => openRolesMenu(player, permissions));
+    form.button(`§b■ Joueurs`, () => openPlayersMenu(player, permissions, db));
+    form.button(`§d■ Modules`, () => openModulesMenu(player, modules, territories));
     if (db !== undefined) {
       form.button(`§a■ Base de données`, () => {
         void openDbMenu(db, player);
-      }, undefined, "database");
+      });
     }
     if (classes !== undefined) {
-      form.button(`§d■ Classes (reset admin)`, () => openClassesMenu(player, classes, true), undefined, "compass");
+      form.button(`§d■ Classes (reset admin)`, () => openClassesMenu(player, classes, true));
     }
   }).catch((error: unknown) => console.warn(`[Admin] ${error instanceof Error ? error.message : String(error)}`));
 }

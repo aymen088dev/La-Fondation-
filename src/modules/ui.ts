@@ -38,10 +38,10 @@ export function openModulesMenu(player: Player, modules: ModuleManager, territor
       form.divider();
       form.button(`§e■ §lVoir les territoires`, () => {
         if (territories !== undefined) openTerritoriesMenu(player, territories);
-      }, undefined, "flag");
+      });
       form.button(`§c■ §lSupprimer TOUS les territoires`, () => {
         if (territories !== undefined) openWipeTerritoriesMenu(player, modules, territories);
-      }, undefined, "trash");
+      });
     }
   }).catch((error: unknown) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -95,6 +95,6 @@ function openWipeTerritoriesMenu(player: Player, modules: ModuleManager, territo
       player.sendMessage(`§a[Modules] ${removed} territoire(s) supprimé(s).`);
       openModulesMenu(player, modules, territories);
     });
-    form.button(`§a■ §lAnnuler`, () => openModulesMenu(player, modules, territories), undefined, "back");
+    form.button(`§a■ §lAnnuler`, () => openModulesMenu(player, modules, territories));
   }).catch((error: unknown) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
 }
