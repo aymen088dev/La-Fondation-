@@ -3,11 +3,9 @@ import { windowTitle, RP_PACK_ID, openWindow } from "./theme";
 import { openTerritoriesMenu, showTerritoryInfo } from "../territories/ui";
 import type { TerritoryManager } from "../territories/manager";
 import { chunkKeyFromPosition } from "../territories/manager";
-import { openRolesMenu, openColorPicker } from "../permissions/ui";
-import { openPlayersMenu } from "../permissions/players-ui";
+import { openColorPicker } from "../permissions/ui";
 import type { PermissionManager } from "../permissions/manager";
 import { canUseAdminPanel } from "../permissions/commands";
-import { openModulesMenu } from "../modules/ui";
 import type { ModuleManager } from "../modules/manager";
 import { openSanctionsMenu } from "../moderation/ui";
 import type { SanctionsManager } from "../moderation/manager";
@@ -37,7 +35,7 @@ export interface HubDeps {
  * les personnes autorisées.
  */
 export function openHubMenu(player: Player, deps: HubDeps): void {
-  const { permissions, modules, territories, sanctions, classes, jobs } = deps;
+  const { permissions, territories, sanctions, classes, jobs } = deps;
 
   const isOp = player.playerPermissionLevel >= 2;
   const isAdmin = canUseAdminPanel(player, permissions);
@@ -101,7 +99,7 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
       form.button(`§6■ §lMétiers§r\n§7bûcheron, mineur… (à venir)`, () => openJobsMenu(player, jobs), undefined, "axe");
     }
 
-    // ---- Section Gestion (modération + admin) ----
+    // ---- Section Gestion (modération uniquement — l'admin vit dans /sn:admin) ----
     if (isMod) {
       form.header(`§4§lGestion`);
       form.button(`§4■ §lModération§r\n§7bans, mutes, warns`, () =>
@@ -111,18 +109,8 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
       );
     }
     if (isAdmin) {
-      if (!isMod) form.header(`§6§lGestion`);
-      form.button(`§6■ §lRôles§r\n§7créer et régler les rôles`, () => openRolesMenu(player, permissions), undefined, "crown");
-      form.button(`§b■ §lJoueurs§r\n§7en ligne + hors ligne`, () =>
-        openPlayersMenu(player, permissions, deps.db),
-        undefined,
-        "user",
-      );
-      form.button(`§d■ §lModules§r\n§7activer/désactiver les features`, () =>
-        openModulesMenu(player, modules, territories),
-        undefined,
-        "gear",
-      );
+      form.divider();
+      form.label("§8Panneau complet : §f/sn:admin§8 (rôles, joueurs, modules).");
     }
   }).catch((error: unknown) => console.warn(`[Hub] ${error instanceof Error ? error.message : String(error)}`));
 }

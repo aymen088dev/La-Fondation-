@@ -4171,20 +4171,6 @@ var OM_ICONS = {
 function OM_ICON(icon) {
   return `textures/ui/om_ic_${OM_ICONS[icon]}.png`;
 }
-var HEROES = {
-  home: "om_hero_home",
-  territories: "om_hero_territories",
-  admin: "om_hero_admin",
-  mod: "om_hero_mod",
-  role: "om_hero_role",
-  modules: "om_hero_modules",
-  database: "om_hero_database",
-  classes: "om_hero_classes",
-  jobs: "om_hero_jobs"
-};
-function heroPath(kind) {
-  return `textures/ui/${HEROES[kind]}.png`;
-}
 var uiDesignEnabled = true;
 function setUiDesign(enabled) {
   uiDesignEnabled = enabled;
@@ -4264,11 +4250,9 @@ var OMForm = class {
   titleText;
   mode = "unset";
   elements = [];
-  heroKind;
-  constructor(player, title, hero) {
+  constructor(player, title, _hero) {
     this.player = player;
     this.titleText = title.replace(/§./g, "").trim();
-    this.heroKind = hero;
   }
   assertActions(method) {
     if (this.mode === "fields") {
@@ -4299,10 +4283,13 @@ var OMForm = class {
     }
     this.mode = "fields";
   }
-  /** Bannière de héros en tête de menu (image du RP OM dans le body). */
-  hero(kind) {
-    if (!uiDesignEnabled) return this;
-    this.elements.push({ kind: "image", texture: heroPath(kind) });
+  /**
+   * Bannière de héros — DÉSACTIVÉE (v14) : les images en tête de menu
+   * produisaient des artifacts (barre de chargement bloquée, bande étirée).
+   * Le style visuel vient du fond orné du RP JSON UI. Méthode conservée
+   * (no-op) pour ne pas casser les 10 menus appelants.
+   */
+  hero(_kind) {
     return this;
   }
   header(text) {
@@ -4523,16 +4510,8 @@ var OMForm = class {
     const form = new ActionFormData().title(this.titleText);
     const bodyLines = [];
     const clickHandlers = [];
-    if (this.heroKind !== void 0 && uiDesignEnabled) {
-      form.button("", heroPath(this.heroKind));
-      clickHandlers.push(() => {
-      });
-    }
     for (const action of this.elements) {
       if (action.kind === "image") {
-        form.button("", action.texture);
-        clickHandlers.push(() => {
-        });
       } else if (action.kind === "button") {
         form.button(action.text, action.icon);
         clickHandlers.push(action.onClick);
@@ -6475,7 +6454,7 @@ ${xpBar2(progress, 50)} §8(${progress}/50 XP)`
 
 // src/ui/hub.ts
 function openHubMenu(player, deps) {
-  const { permissions: permissions2, modules: modules2, territories: territories2, sanctions: sanctions2, classes: classes2, jobs: jobs2 } = deps;
+  const { permissions: permissions2, territories: territories2, sanctions: sanctions2, classes: classes2, jobs: jobs2 } = deps;
   const isOp = player.playerPermissionLevel >= 2;
   const isAdmin = canUseAdminPanel(player, permissions2);
   const isMod = permissions2.can(player.name, "mod.panel", isOp);
@@ -6544,23 +6523,8 @@ function openHubMenu(player, deps) {
       );
     }
     if (isAdmin) {
-      if (!isMod) form.header(`§6§lGestion`);
-      form.button(`§6■ §lRôles§r
-§7créer et régler les rôles`, () => openRolesMenu(player, permissions2), void 0, "crown");
-      form.button(
-        `§b■ §lJoueurs§r
-§7en ligne + hors ligne`,
-        () => openPlayersMenu(player, permissions2, deps.db),
-        void 0,
-        "user"
-      );
-      form.button(
-        `§d■ §lModules§r
-§7activer/désactiver les features`,
-        () => openModulesMenu(player, modules2, territories2),
-        void 0,
-        "gear"
-      );
+      form.divider();
+      form.label("§8Panneau complet : §f/sn:admin§8 (rôles, joueurs, modules).");
     }
   }).catch((error) => console.warn(`[Hub] ${error instanceof Error ? error.message : String(error)}`));
 }

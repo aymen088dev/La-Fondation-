@@ -104,11 +104,6 @@ const HEROES = {
 
 export type HeroKind = keyof typeof HEROES;
 
-/** Chemin RP d'une bannière de héros. */
-function heroPath(kind: HeroKind): string {
-  return `textures/ui/${HEROES[kind]}.png`;
-}
-
 /**
  * Interrupteur du design image (héros + icônes) : /scriptevent sn:ui off|on.
  */
@@ -282,12 +277,10 @@ export class OMForm {
   private readonly titleText: string;
   private mode: "actions" | "fields" | "unset" = "unset";
   private readonly elements: FormElement[] = [];
-  private readonly heroKind?: HeroKind;
 
-  constructor(player: Player, title: string, hero?: HeroKind) {
+  constructor(player: Player, title: string, _hero?: HeroKind) {
     this.player = player;
     this.titleText = title.replace(/§./g, "").trim();
-    this.heroKind = hero;
   }
 
   private assertActions(method: string): void {
@@ -322,10 +315,13 @@ export class OMForm {
     this.mode = "fields";
   }
 
-  /** Bannière de héros en tête de menu (image du RP OM dans le body). */
-  hero(kind: HeroKind): OMForm {
-    if (!uiDesignEnabled) return this;
-    this.elements.push({ kind: "image", texture: heroPath(kind) });
+  /**
+   * Bannière de héros — DÉSACTIVÉE (v14) : les images en tête de menu
+   * produisaient des artifacts (barre de chargement bloquée, bande étirée).
+   * Le style visuel vient du fond orné du RP JSON UI. Méthode conservée
+   * (no-op) pour ne pas casser les 10 menus appelants.
+   */
+  hero(_kind: HeroKind): OMForm {
     return this;
   }
 
@@ -591,19 +587,9 @@ export class OMForm {
     const bodyLines: string[] = [];
     const clickHandlers: (() => void)[] = [];
 
-    if (this.heroKind !== undefined && uiDesignEnabled) {
-      form.button("", heroPath(this.heroKind));
-      clickHandlers.push(() => {
-        /* la bannière est cliquable mais sans action */
-      });
-    }
-
     for (const action of this.elements) {
       if (action.kind === "image") {
-        form.button("", action.texture);
-        clickHandlers.push(() => {
-          /* bannière sans action */
-        });
+        // Images désactivées (artifacts) : ignorées.
       } else if (action.kind === "button") {
         form.button(action.text, action.icon);
         clickHandlers.push(action.onClick);

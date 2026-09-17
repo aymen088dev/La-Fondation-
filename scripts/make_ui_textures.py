@@ -444,14 +444,8 @@ def ornate_textures() -> None:
         if 4 <= xg < w - 4 and 4 <= yg < h - 4:
             px[yg][xg] = (*GOLD_LIGHT, 255)
 
-    # Médaillon central discret (losange or pâle)
-    cx = cy = w // 2
-    for dy in range(-7, 8):
-        for dx in range(-7, 8):
-            dist = abs(dx) + abs(dy)
-            if dist <= 7:
-                shade = GOLD if dist > 4 else GOLD_LIGHT
-                px[cy + dy][cx + dx] = (*shade, 110)  # semi-transparent sur le cuir
+    # PAS de médaillon central : avec le nineslice il serait étiré en plein
+    # milieu des menus (le fameux « carré chelou »). Le centre reste uni.
 
     write_png(RP_ROOT / "textures" / "ui" / "om_ornate_bg.png", w, h, px)
 
@@ -482,9 +476,10 @@ def ornate_textures() -> None:
                     tpx[y][x] = (*inner, 255)
         write_png(RP_ROOT / "textures" / "ui" / f"{name}.png", tw, th, tpx)
 
-    tile("om_tile", GOLD, (28, 26, 30), GOLD_LIGHT)
-    tile("om_tile_hover", GOLD_LIGHT, (36, 33, 38), WHITE)
-    tile("om_tile_press", (170, 128, 40), (22, 20, 24), GOLD)
+    # Les tuiles om_tile ont été RETIRÉES : redéfinir les boutons cassait le
+    # rendu vanilla (icônes détachées, focus rectangle or parasite). Les
+    # boutons repassent par les textures om_btn* sobres, 100% compatibles.
+    del tile  # la fonction n'est plus utilisée
 
 
 def actionbar_bg() -> None:

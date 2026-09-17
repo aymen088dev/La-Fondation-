@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v13.5** — thème « grand menu orné » (inspiration capture fournie) : panneau principal **cuir sombre + cadre or** (`om_ornate_bg`), boutons-tuiles à **cadre doré 3 états** (`om_tile/hover/press`), texte crème→or au survol. Hub réorganisé en 3 sections (Monde / Progression / Gestion) + bouton **Infos territoire** (fiche du chunk où l'on se trouve). Fiche territoire enrichie (liste des membres avec rang). Packs en **1.5.5**.
+> Dernière mise à jour : **v14** — reprise des menus de ZÉRO après les artifacts des captures : (1) `server_form.json` est désormais une **copie exacte du vanilla** avec UNE seule substitution (`$custom_background` → fond orné cuir/or sans médaillon — le « carré chelou » venait du médaillon étiré par le nineslice) ; (2) tuiles `om_tile` supprimées (elles cassaient le rendu vanilla : icônes détachées, rectangle de focus parasite) — boutons vanilla purs ; (3) **bannières hero désactivées** dans le moteur (source de la barre de chargement bloquée) ; (4) **hub épuré** : plus d'options admin dans `/sn:menu` (elles vivent dans `/sn:admin`, rappel affiché aux admins). Packs en **1.5.6**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
