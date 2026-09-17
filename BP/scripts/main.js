@@ -4203,16 +4203,16 @@ function windowTitle(section) {
   return `§l§aOM §r§8» §r§l${section}`;
 }
 function obString(initial) {
-  return new ObservableString(initial);
+  return new ObservableString(initial, { clientWritable: true });
 }
 function obNumber(initial) {
-  return new ObservableNumber(initial);
+  return new ObservableNumber(initial, { clientWritable: true });
 }
 function obBool(initial) {
-  return new ObservableBoolean(initial);
+  return new ObservableBoolean(initial, { clientWritable: true });
 }
 function obToggle(initial, onChange) {
-  const observable = new ObservableBoolean(initial);
+  const observable = new ObservableBoolean(initial, { clientWritable: true });
   observable.subscribe(onChange);
   return observable;
 }
@@ -4258,6 +4258,7 @@ var OMForm = class {
   }
   button(label, onClick, options, icon) {
     const imageDetails = icon === void 0 || !uiDesignEnabled ? void 0 : { imagePackId: RP_PACK_ID, imageSrc: OM_ICON(icon) };
+    const flatLabel = label.replace(/\s*\n\s*/g, " — ").replace(/§./g, "").trim();
     const handler = () => {
       closeOpenForm(this.player);
       try {
@@ -4270,13 +4271,13 @@ var OMForm = class {
     };
     try {
       this.inner.button(
-        uiText(label),
+        uiText(flatLabel),
         handler,
         imageDetails === void 0 ? options : { ...options, imageDetails }
       );
     } catch {
       if (imageDetails === void 0) throw new Error("OMForm.button a échoué sans image");
-      this.inner.button(uiText(label), handler, options);
+      this.inner.button(uiText(flatLabel), handler, options);
     }
     return this;
   }

@@ -175,19 +175,22 @@ export function divider(): string {
 // est riche : headers, dividers, toggles, images du RP.
 // ---------------------------------------------------------------------------
 
-/** Texte lié ( champ éditable, label réactif). */
+/** Texte lié (champ éditable, label réactif). */
 export function obString(initial: string): ObservableString {
-  return new ObservableString(initial);
+  // clientWritable : le champ est SAISI par le client (two-way binding).
+  // Sans cette option, l'API refuse la construction :
+  // « Expect 'text' observable to be client writable ».
+  return new ObservableString(initial, { clientWritable: true });
 }
 
 /** Nombre lié (slider, dropdown). */
 export function obNumber(initial: number): ObservableNumber {
-  return new ObservableNumber(initial);
+  return new ObservableNumber(initial, { clientWritable: true });
 }
 
 /** Booléen lié (toggle). */
 export function obBool(initial: boolean): ObservableBoolean {
-  return new ObservableBoolean(initial);
+  return new ObservableBoolean(initial, { clientWritable: true });
 }
 
 /**
@@ -198,7 +201,7 @@ export function obToggle(
   initial: boolean,
   onChange: (value: boolean) => void,
 ): ObservableBoolean {
-  const observable = new ObservableBoolean(initial);
+  const observable = new ObservableBoolean(initial, { clientWritable: true });
   observable.subscribe(onChange);
   return observable;
 }
@@ -272,6 +275,13 @@ export class OMForm {
       icon === undefined || !uiDesignEnabled
         ? undefined
         : { imagePackId: RP_PACK_ID, imageSrc: OM_ICON(icon) };
+    // ⚠️ Limites moteur DDUI (constatées en jeu) :
+    // - les boutons sont STRICTEMENT mono-ligne (« Per design buttons are
+    //   single line text only ») : un \n écrase le rendu (barre plate) ;
+    // - les codes § ne sont PAS interprétés dans les boutons (contrairement
+    //   aux labels/headers) : ils s'affichent littéralement.
+    // => on aplati sur une ligne et on retire les codes, proprement.
+    const flatLabel = label.replace(/\s*\n\s*/g, " — ").replace(/§./g, "").trim();
     const handler = () => {
       // Un clic quitte TOUJOURS l'écran courant :
       // - navigation : le menu ouvert par onClick remplace celui-ci ;
@@ -289,7 +299,7 @@ export class OMForm {
     };
     try {
       this.inner.button(
-        uiText(label),
+        uiText(flatLabel),
         handler,
         imageDetails === undefined ? options : { ...options, imageDetails },
       );
@@ -297,7 +307,7 @@ export class OMForm {
       // imageDetails refusé (pack absent…) : réessai SANS image pour que
       // le bouton (et donc le menu) reste fonctionnel.
       if (imageDetails === undefined) throw new Error("OMForm.button a échoué sans image");
-      this.inner.button(uiText(label), handler, options);
+      this.inner.button(uiText(flatLabel), handler, options);
     }
     return this;
   }

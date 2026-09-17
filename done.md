@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v12.1** — le reskin v12 n'avait **aucun effet** (mauvais namespace : fusion impossible) ; le fichier reskin a été réécrit en **écrasement complet** de `ui/server_form.json` (même chemin que vanilla). Toutes les erreurs de menus sont maintenant **visibles en jeu**. Packs en 1.4.1.
+> Dernière mise à jour : **v12.2** — LA cause du crash `/sn:create` trouvée grâce au message en jeu : les observables des champs **saisis par le client** doivent être créés avec `{ clientWritable: true }` (two-way binding). + labels de boutons aplatis (le moteur DDUI rend les boutons mono-ligne et sans codes §). Packs en 1.4.2.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -101,6 +101,12 @@
 - ⚠️ Rappel : après toute modif TS, `bun run build` puis re-copier `BP/` sur le serveur
 
 ---
+
+## 🐛 Fix clientWritable + limites boutons DDUI (v12.2)
+- [x] **Le crash `/sn:create` identifié précisément** (merci le message en jeu v12.1) : `Expect 'text' observable to be client writable`. L'API DDUI exige que l'observable lié à un champ **écrit par le client** (textField, dropdown, slider, toggle) soit créé avec **`{ clientWritable: true }`** (liaison bidirectionnelle UI↔script). `obString`/`obNumber`/`obBool`/`obToggle` le passent maintenant systématiquement — TOUS les menus à champ de saisie étaient concernés, pas seulement /sn:create
+- [x] **Versions API vérifiées** : `@minecraft/server 2.11.0-beta` + `@minecraft/server-ui 2.3.0-beta` — identiques entre node_modules et manifest, le bug n'était PAS un mismatch de version
+- [x] **Boutons mono-ligne sans codes §** : constaté en jeu — le template vanilla dit « Per design buttons are single line text only » (un `\n` écrase le rendu → barre plate) et les codes `§` ne sont pas interprétés dans les boutons (contrairement aux labels/headers qui les rendent). `OMForm.button` aplati maintenant tout label sur une ligne (`\n` → « — ») et retire les codes — au niveau moteur, tous les menus en profitent sans rien changer aux appelants
+- [x] Packs bumpés **1.4.1 → 1.4.2**
 
 ## 🎨 Reskin JSON UI des formulaires + fix /sn:create (v12.1)
 - [x] **⚠️ Correction v12.1 — pourquoi le reskin v12 n'a rien changé** : le fichier déclarait `namespace: "om_server_form"` → ses éléments (`om_server_form.custom_form`) n'étaient référencés **par rien** (l'usine vanilla charge `@server_form.custom_form`) et la fusion « par nom » ne peut pas faire matcher deux namespaces différents. Pareil pour `om_buttons` : `common_buttons.light_text_button` vit dans un namespace intégré au moteur, **non définissable** depuis un RP
