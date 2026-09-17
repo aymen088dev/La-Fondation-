@@ -1,2 +1,2 @@
 export * from "./theme";
-export * from "./hub";
+export { openHubMenu } from "./hub";

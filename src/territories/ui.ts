@@ -1,12 +1,11 @@
 import type { Player } from "@minecraft/server";
 import {
   windowTitle,
-  divider,
-  RP_PACK_ID,
   openWindow,
   openWindowRaw,
   obString,
   obNumber,
+  RP_PACK_ID,
 } from "../ui/theme";
 import { TERRITORY_COLORS, getColor } from "./types";
 import type { StoredDocument } from "../db";
@@ -144,4 +143,4 @@ export function showTerritoryInfo(
 }
 
 // Ré-exports pour compat.
-export { windowTitle, divider, RP_PACK_ID };
+export { windowTitle, RP_PACK_ID };

@@ -1,6 +1,6 @@
 import type { Player } from "@minecraft/server";
 import { openTerritoriesMenu } from "../territories/ui";
-import { windowTitle, openWindow, openWindowRaw, obToggle } from "../ui/theme";
+import { windowTitle, openWindow, openWindowRaw } from "../ui/theme";
 import { MODULE_CATALOG } from "./manager";
 import type { ModuleId, ModuleManager } from "./manager";
 import type { TerritoryManager } from "../territories/manager";
@@ -16,14 +16,21 @@ export function openModulesMenu(player: Player, modules: ModuleManager, territor
     form.label(`§7${modules.enabledCount()}/${MODULE_CATALOG.length} module(s) actif(s).`);
     form.divider();
 
+    // Les modules passent par une liste de boutons ActionForm (un clic
+    // bascule l'état) — plus fiable que les toggles liés et visuellement
+    // équivalent avec l'état affiché dans le label.
     for (const info of MODULE_CATALOG) {
       const enabled = modules.isEnabled(info.id);
-      form.toggle(
+      form.button(
         `${enabled ? "§a✔" : "§c✘"} §l${info.name}§r\n§7${info.description}`,
-        obToggle(enabled, (value) => {
-          modules.setEnabled(info.id, value);
-          player.sendMessage(`§a[Modules] ${info.name} ${value ? "§aactivé" : "§cdésactivé"}§a.`);
-        }),
+        () => {
+          const next = !modules.isEnabled(info.id);
+          modules.setEnabled(info.id, next);
+          player.sendMessage(`§a[Modules] ${info.name} ${next ? "§aactivé" : "§cdésactivé"}§a.`);
+          openModulesMenu(player, modules, territories);
+        },
+        undefined,
+        enabled ? "check" : "close",
       );
     }
 
@@ -56,12 +63,16 @@ export function openModuleConfigMenu(
     form.header(`§6■ §l${info.name}`);
     form.label(`§7${info.description}\n\n§7État : ${enabled ? "§aactivé" : "§cdésactivé"}`);
     form.divider();
-    form.toggle(
-      `§eModule activé`,
-      obToggle(enabled, (value) => {
-        modules.setEnabled(moduleId, value);
-        player.sendMessage(`§a[Modules] ${info.name} ${value ? "§aactivé" : "§cdésactivé"}§a.`);
-      }),
+    form.button(
+      enabled ? `§c■ §lDésactiver ce module` : `§a■ §lActiver ce module`,
+      () => {
+        const next = !modules.isEnabled(moduleId);
+        modules.setEnabled(moduleId, next);
+        player.sendMessage(`§a[Modules] ${info.name} ${next ? "§aactivé" : "§cdésactivé"}§a.`);
+        openModuleConfigMenu(player, moduleId, modules, _territories);
+      },
+      undefined,
+      enabled ? "close" : "check",
     );
   }).catch((error: unknown) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
 }

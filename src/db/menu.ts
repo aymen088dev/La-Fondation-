@@ -135,7 +135,7 @@ async function openDocumentMenu(
       } else if (typeof value === "boolean") {
         const toggle = obBool(value);
         boolValues[key] = toggle;
-        form.toggle(`§e${key}`, toggle);
+        form.toggleOb(`§e${key}`, toggle);
         editableKeys.push(key);
         kinds.push("boolean");
       } else {

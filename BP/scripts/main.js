@@ -4137,12 +4137,7 @@ var logPerm = Logger.getLogger("OpenMontage", "permissions");
 
 // src/ui/theme.ts
 import { system as system7 } from "@minecraft/server";
-import {
-  CustomForm,
-  ObservableString,
-  ObservableNumber,
-  ObservableBoolean
-} from "@minecraft/server-ui";
+import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 var RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
 var OM_ICONS = {
   flag: "flag",
@@ -4191,202 +4186,313 @@ function heroPath(kind) {
   return `textures/ui/${HEROES[kind]}.png`;
 }
 var uiDesignEnabled = true;
-function disableUiDesign(reason) {
-  if (!uiDesignEnabled) return;
-  uiDesignEnabled = false;
-  logMod.warn(`Images désactivées automatiquement (${reason}) — menus sans image pour rester fonctionnels. /scriptevent sn:ui on pour réactiver.`);
-}
 function setUiDesign(enabled) {
   uiDesignEnabled = enabled;
 }
 function windowTitle(section) {
   return `§l§aOM §r§8» §r§l${section}`;
 }
-function obString(initial) {
-  return new ObservableString(initial, { clientWritable: true });
-}
-function obNumber(initial) {
-  return new ObservableNumber(initial, { clientWritable: true });
-}
-function obBool(initial) {
-  return new ObservableBoolean(initial, { clientWritable: true });
-}
-function obToggle(initial, onChange) {
-  const observable = new ObservableBoolean(initial, { clientWritable: true });
-  observable.subscribe(onChange);
-  return observable;
-}
-function uiText(text) {
-  return { rawtext: [{ text }] };
-}
-var OMForm = class {
-  inner;
-  player;
-  titleText;
-  constructor(player, title) {
-    this.player = player;
-    this.titleText = title.replace(/§./g, "").trim();
-    this.inner = new CustomForm(player, uiText(title));
+var ObservableString = class {
+  value;
+  constructor(initial, _options) {
+    this.value = initial;
   }
-  /** Ferme ce formulaire si l'écran s'affiche encore (sinon no-op). */
-  closeIfShowing() {
-    try {
-      if (this.inner.isShowing()) this.inner.close();
-    } catch {
-    }
+  getData() {
+    return this.value;
   }
-  /**
-   * Bannière de héros en tête de menu (image pleine largeur du RP OM).
-   * À appeler EN PREMIER : c'est l'identité graphique du menu.
-   * Fail-safe : si l'API/le pack refuse l'image, le menu s'ouvre quand même.
-   */
-  hero(kind) {
-    if (!uiDesignEnabled) return this;
-    try {
-      this.inner.image(heroPath(kind), RP_PACK_ID, { width: 1 });
-    } catch {
-    }
-    return this;
+  setData(data) {
+    this.value = data;
   }
-  header(text, options) {
-    this.inner.header(uiText(text), options);
-    return this;
+  subscribe(_cb) {
+    return _cb;
   }
-  label(text, options) {
-    this.inner.label(uiText(text), options);
-    return this;
-  }
-  button(label, onClick, options, icon) {
-    const imageDetails = icon === void 0 || !uiDesignEnabled ? void 0 : { imagePackId: RP_PACK_ID, imageSrc: OM_ICON(icon) };
-    const flatLabel = label.replace(/\s*\n\s*/g, " — ").replace(/§./g, "").trim();
-    const handler = () => {
-      closeOpenForm(this.player);
-      try {
-        onClick();
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        logMod.warn(`Action du menu « ${this.titleText} » échouée : ${message}`);
-        this.player.sendMessage(`§c[OM] L'action du menu « ${this.titleText} » a échoué : §f${message}`);
-      }
-    };
-    try {
-      this.inner.button(
-        uiText(flatLabel),
-        handler,
-        imageDetails === void 0 ? options : { ...options, imageDetails }
-      );
-    } catch {
-      if (imageDetails === void 0) throw new Error("OMForm.button a échoué sans image");
-      this.inner.button(uiText(flatLabel), handler, options);
-    }
-    return this;
-  }
-  divider(options) {
-    this.inner.divider(options);
-    return this;
-  }
-  spacer(options) {
-    this.inner.spacer(options);
-    return this;
-  }
-  toggle(label, toggled, options) {
-    this.inner.toggle(uiText(label), toggled, options);
-    return this;
-  }
-  slider(label, value, min, max, options) {
-    this.inner.slider(uiText(label), value, min, max, options);
-    return this;
-  }
-  dropdown(label, value, items, options) {
-    const data = items.map((item, index) => {
-      if (typeof item === "string") return { label: uiText(item), value: index };
-      return {
-        ...item,
-        label: typeof item.label === "string" ? uiText(item.label) : item.label
-      };
-    });
-    this.inner.dropdown(uiText(label), value, data, options);
-    return this;
-  }
-  textField(label, text, options) {
-    this.inner.textField(uiText(label), text, options);
-    return this;
-  }
-  image(src, pack, options) {
-    this.inner.image(src, pack, options);
-    return this;
-  }
-  closeButton() {
-    this.inner.closeButton();
-    return this;
-  }
-  show() {
-    const previous = openForms.get(this.player.id);
-    if (previous !== void 0 && previous !== this) previous.closeIfShowing();
-    openForms.set(this.player.id, this);
-    return this.inner.show().finally(() => {
-      if (openForms.get(this.player.id) === this) {
-        openForms.delete(this.player.id);
-      }
-    });
-  }
-  isShowing() {
-    return this.inner.isShowing();
+  unsubscribe(_cb) {
+    return true;
   }
 };
-var openForms = /* @__PURE__ */ new Map();
-function closeOpenForm(player) {
-  const current = openForms.get(player.id);
-  if (current === void 0) return;
-  openForms.delete(player.id);
-  current.closeIfShowing();
+var ObservableNumber = class {
+  value;
+  constructor(initial, _options) {
+    this.value = initial;
+  }
+  getData() {
+    return this.value;
+  }
+  setData(data) {
+    this.value = data;
+  }
+  subscribe(_cb) {
+    return _cb;
+  }
+  unsubscribe(_cb) {
+    return true;
+  }
+};
+var ObservableBoolean = class {
+  value;
+  constructor(initial, _options) {
+    this.value = initial;
+  }
+  getData() {
+    return this.value;
+  }
+  setData(data) {
+    this.value = data;
+  }
+  subscribe(_cb) {
+    return _cb;
+  }
+  unsubscribe(_cb) {
+    return true;
+  }
+};
+function obString(initial) {
+  return new ObservableString(initial);
 }
-function buildAndShow(player, title, build, withCloseButton) {
+function obNumber(initial) {
+  return new ObservableNumber(initial);
+}
+function obBool(initial) {
+  return new ObservableBoolean(initial);
+}
+var OMForm = class {
+  player;
+  titleText;
+  mode = "unset";
+  actions = [];
+  fieldBuilders = [];
+  fieldReaders = [];
+  heroKind;
+  constructor(player, title, hero) {
+    this.player = player;
+    this.titleText = title.replace(/§./g, "").trim();
+    this.heroKind = hero;
+  }
+  assertActions(method) {
+    if (this.mode === "fields") {
+      throw new Error(
+        `OMForm : ${method}() impossible après un champ (ce menu est en mode ModalForm).`
+      );
+    }
+    this.mode = "actions";
+  }
+  assertFields(method) {
+    if (this.mode === "actions") {
+      throw new Error(
+        `OMForm : ${method}() impossible après un bouton/label (ce menu est en mode ActionForm).`
+      );
+    }
+    this.mode = "fields";
+  }
+  /** Bannière de héros en tête de menu (image du RP OM dans le body). */
+  hero(kind) {
+    if (!uiDesignEnabled) return this;
+    if (this.mode === "unset") this.mode = "actions";
+    this.actions.push({ kind: "image", text: heroPath(kind) });
+    return this;
+  }
+  header(text) {
+    this.assertActions("header");
+    this.actions.push({ kind: "header", text });
+    return this;
+  }
+  label(text) {
+    if (this.mode === "unset") this.mode = "actions";
+    this.actions.push({ kind: "label", text });
+    return this;
+  }
+  button(label, onClick, _options, icon) {
+    this.assertActions("button");
+    const flat = label.replace(/\s*\n\s*/g, "\n").trim();
+    this.actions.push({
+      kind: "button",
+      text: flat,
+      icon: icon !== void 0 && uiDesignEnabled ? OM_ICON(icon) : void 0,
+      onClick: () => {
+        try {
+          onClick();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          logMod.warn(`Action du menu « ${this.titleText} » échouée : ${message}`);
+          this.player.sendMessage(
+            `§c[OM] L'action du menu « ${this.titleText} » a échoué : §f${message}`
+          );
+        }
+      }
+    });
+    return this;
+  }
+  divider() {
+    if (this.mode === "unset") this.mode = "actions";
+    if (this.mode === "actions") this.actions.push({ kind: "divider", text: "" });
+    else this.fieldBuilders.push((form) => form.divider());
+    return this;
+  }
+  spacer() {
+    return this;
+  }
+  toggle(label, initial) {
+    this.assertFields("toggle");
+    this.fieldBuilders.push((form) => form.toggle(label, { defaultValue: initial }));
+    return this;
+  }
+  /** Toggle avec observable (compat menus DDUI). */
+  toggleOb(label, observable) {
+    this.assertFields("toggle");
+    this.fieldBuilders.push((form) => form.toggle(label, { defaultValue: observable.getData() }));
+    this.fieldOrder.push({ kind: "toggle", ref: observable });
+    this.fieldReaders.push((response) => {
+      const index = this.fieldIndexOf("toggle", observable);
+      const raw = response.formValues?.[index];
+      if (typeof raw === "boolean") observable.setData(raw);
+    });
+    return this;
+  }
+  fieldOrder = [];
+  fieldIndexOf(kind, ref) {
+    return this.fieldOrder.findIndex((entry) => entry.kind === kind && entry.ref === ref);
+  }
+  slider(label, observable, min, max, options) {
+    this.assertFields("slider");
+    const current = Math.min(Math.max(observable.getData(), min), max);
+    this.fieldBuilders.push(
+      (form) => form.slider(label, min, max, { valueStep: options?.step ?? 1, defaultValue: current })
+    );
+    this.fieldOrder.push({ kind: "slider", ref: observable });
+    this.fieldReaders.push((response) => {
+      const index = this.fieldIndexOf("slider", observable);
+      const raw = response.formValues?.[index];
+      if (typeof raw === "number") observable.setData(raw);
+    });
+    return this;
+  }
+  dropdown(label, observable, items) {
+    this.assertFields("dropdown");
+    const labels = items.map(
+      (item, index) => typeof item === "string" ? item : item.label || `Option ${index + 1}`
+    );
+    this.fieldBuilders.push(
+      (form) => form.dropdown(label, labels, { defaultValueIndex: observable.getData() })
+    );
+    this.fieldOrder.push({ kind: "dropdown", ref: observable });
+    this.fieldReaders.push((response) => {
+      const index = this.fieldIndexOf("dropdown", observable);
+      const raw = response.formValues?.[index];
+      if (typeof raw === "number") observable.setData(raw);
+    });
+    return this;
+  }
+  textField(label, observable, options) {
+    this.assertFields("textField");
+    this.fieldBuilders.push(
+      (form) => form.textField(label, options?.placeholder ?? "…", { defaultValue: observable.getData() })
+    );
+    this.fieldOrder.push({ kind: "textField", ref: observable });
+    this.fieldReaders.push((response) => {
+      const index = this.fieldIndexOf("textField", observable);
+      const raw = response.formValues?.[index];
+      if (typeof raw === "string") observable.setData(raw);
+    });
+    return this;
+  }
+  /** Compat DDUI : bouton fermer (l'ActionForm a sa croix native). */
+  closeButton() {
+    return this;
+  }
+  /**
+   * Affiche le formulaire (différé de 2 ticks : un show() dans le même tick
+   * qu'une fermeture est perdu en silence).
+   */
+  show() {
+    return new Promise((resolve) => {
+      system7.runTimeout(() => {
+        void this.doShow().then(resolve, (error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          logMod.warn(`Menu « ${this.titleText} » : ${message}`);
+          this.player.sendMessage(`§c[OM] Le menu « ${this.titleText} » n'a pas pu s'afficher : §f${message}`);
+          resolve("ServerClosed");
+        });
+      }, 2);
+    });
+  }
+  async doShow() {
+    if (this.mode === "fields") {
+      const form2 = new ModalFormData().title(this.titleText);
+      for (const build of this.fieldBuilders) build(form2);
+      const response2 = await form2.show(this.player);
+      if (response2.canceled) return "UserClosed";
+      for (const read of this.fieldReaders) read(response2);
+      return "UserClosed";
+    }
+    const form = new ActionFormData().title(this.titleText);
+    const bodyLines = [];
+    const clickHandlers = [];
+    if (this.heroKind !== void 0 && uiDesignEnabled) {
+      form.button("", heroPath(this.heroKind));
+      clickHandlers.push(() => {
+      });
+    }
+    for (const action of this.actions) {
+      if (action.kind === "image") {
+        form.button("", action.text);
+        clickHandlers.push(() => {
+        });
+      } else if (action.kind === "button") {
+        form.button(action.text, action.icon);
+        const handler = action.onClick;
+        clickHandlers.push(() => handler?.());
+      } else if (action.kind === "header") {
+        bodyLines.push(`§l${action.text}§r`);
+      } else if (action.kind === "divider") {
+        bodyLines.push("§8─────────────────────");
+      } else {
+        bodyLines.push(action.text);
+      }
+    }
+    if (bodyLines.length > 0) form.body(bodyLines.join("\n"));
+    const response = await form.show(this.player);
+    if (response.canceled) return "UserClosed";
+    const selection = response.selection;
+    if (selection !== void 0 && selection >= 0 && selection < clickHandlers.length) {
+      clickHandlers[selection]?.();
+    }
+    return "UserClosed";
+  }
+  isShowing() {
+    return false;
+  }
+  closeIfShowing() {
+  }
+};
+function buildAndShow(player, title, build, hero) {
   const shortName = title.replace(/§./g, "").trim();
-  const buildForm = () => {
-    const form = new OMForm(player, title);
-    build(form);
-    if (withCloseButton) form.closeButton();
-    return form;
-  };
-  const report = (what, error) => {
-    const message = error instanceof Error ? error.message : String(error);
-    logMod.warn(`Menu « ${shortName} » ${what} : ${message}`);
-    player.sendMessage(`§c[OM] Le menu « ${shortName} » ${what} : §f${message}`);
-  };
   return new Promise((resolve, reject) => {
     system7.runTimeout(() => {
       let form;
       try {
-        form = buildForm();
+        form = new OMForm(player, title, hero);
+        build(form);
       } catch (error) {
-        report("n'a pas pu se construire", error);
+        const message = error instanceof Error ? error.message : String(error);
+        logMod.warn(`Menu « ${shortName} » n'a pas pu se construire : ${message}`);
+        player.sendMessage(`§c[OM] Le menu « ${shortName} » n'a pas pu se construire : §f${message}`);
         reject(error instanceof Error ? error : new Error(String(error)));
         return;
       }
-      form.show().catch((error) => {
-        if (uiDesignEnabled) {
-          disableUiDesign(error instanceof Error ? error.message : "écran refusé");
-          return buildForm().show();
-        }
-        throw error;
-      }).then(resolve, (error) => {
-        report("n'a pas pu s'afficher", error);
+      form.show().then(resolve, (error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        logMod.warn(`Menu « ${shortName} » n'a pas pu s'afficher : ${message}`);
+        player.sendMessage(`§c[OM] Le menu « ${shortName} » n'a pas pu s'afficher : §f${message}`);
         reject(error instanceof Error ? error : new Error(String(error)));
       });
     }, 2);
   });
 }
 function openWindow(player, section, build, hero) {
-  closeOpenForm(player);
-  return buildAndShow(player, windowTitle(section), (form) => {
-    if (hero !== void 0) form.hero(hero);
-    build(form);
-  }, true);
+  return buildAndShow(player, windowTitle(section), build, hero);
 }
 function openWindowRaw(player, title, build) {
-  closeOpenForm(player);
-  return buildAndShow(player, title, build, false);
+  return buildAndShow(player, title, build);
 }
 
 // src/db/menu.ts
@@ -4487,7 +4593,7 @@ async function openDocumentMenu(db2, player, section, docId) {
       } else if (typeof value === "boolean") {
         const toggle = obBool(value);
         boolValues[key] = toggle;
-        form.toggle(`§e${key}`, toggle);
+        form.toggleOb(`§e${key}`, toggle);
         editableKeys.push(key);
         kinds.push("boolean");
       } else {
@@ -5648,13 +5754,17 @@ function openModulesMenu(player, modules2, territories2) {
     form.divider();
     for (const info of MODULE_CATALOG) {
       const enabled = modules2.isEnabled(info.id);
-      form.toggle(
+      form.button(
         `${enabled ? "§a✔" : "§c✘"} §l${info.name}§r
 §7${info.description}`,
-        obToggle(enabled, (value) => {
-          modules2.setEnabled(info.id, value);
-          player.sendMessage(`§a[Modules] ${info.name} ${value ? "§aactivé" : "§cdésactivé"}§a.`);
-        })
+        () => {
+          const next = !modules2.isEnabled(info.id);
+          modules2.setEnabled(info.id, next);
+          player.sendMessage(`§a[Modules] ${info.name} ${next ? "§aactivé" : "§cdésactivé"}§a.`);
+          openModulesMenu(player, modules2, territories2);
+        },
+        void 0,
+        enabled ? "check" : "close"
       );
     }
     if (MODULE_CATALOG.some((info) => info.id === "territories")) {

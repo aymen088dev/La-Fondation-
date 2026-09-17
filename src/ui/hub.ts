@@ -1,5 +1,5 @@
 import type { Player } from "@minecraft/server";
-import { windowTitle, divider, RP_PACK_ID, openWindow } from "./theme";
+import { windowTitle, RP_PACK_ID, openWindow } from "./theme";
 import { openTerritoriesMenu } from "../territories/ui";
 import type { TerritoryManager } from "../territories/manager";
 import { openRolesMenu, openColorPicker } from "../permissions/ui";
@@ -131,5 +131,5 @@ function openSelfRoleMenu(player: Player, permissions: PermissionManager): void 
   });
 }
 
-// Ré-exporte windowTitle/divider pour compat avec les anciens imports.
-export { windowTitle, divider, RP_PACK_ID };
+// Ré-exporte windowTitle pour compat avec les anciens imports.
+export { windowTitle, RP_PACK_ID };

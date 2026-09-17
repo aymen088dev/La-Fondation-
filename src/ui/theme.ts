@@ -1,63 +1,44 @@
 /**
  * Thème graphique commun à toutes les GUI OpenMontage.
  *
- * ⚠️ Tous les chemins d'icônes sont VÉRIFIÉS contre Mojang/bedrock-samples
- * (fichier .png existant dans resource_pack/textures/). Un chemin invalide
- * = bouton silencieusement sans icône — c'était la cause des icônes manquantes.
+ * MOTEUR (v13) : formulaires VANILLA stables de @minecraft/server-ui :
+ * - ActionFormData : menus à boutons (icônes du RP, labels multi-lignes,
+ *   codes § rendus nativement) ;
+ * - ModalFormData : formulaires à champs (switchs, sliders, dropdowns,
+ *   champs texte — la vraie saisie).
+ *
+ * Le DDUI (CustomForm bêta) est ABANDONNÉ : observable clientWritable capricieux,
+ * boutons mono-ligne sans codes §, écrans qui plantaient en silence. Les forms
+ * vanilla sont rendues par notre reskin JSON UI (RP/ui/om_server_form.json) :
+ * même habillage bleu nuit, sans les bugs.
  */
 
 import { logMod } from "../lib/log";
 import { system } from "@minecraft/server";
 import type { Player } from "@minecraft/server";
-import {
-  CustomForm,
-  ObservableString,
-  ObservableNumber,
-  ObservableBoolean,
-  type UIRawMessage,
-} from "@minecraft/server-ui";
+import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 import type {
-  ButtonOptions,
-  DataDrivenScreenClosedReason,
-  DividerOptions,
-  DropdownItemData,
-  DropdownOptions,
-  ImageOptions,
-  SliderOptions,
-  SpacingOptions,
-  TextFieldOptions,
-  TextOptions,
-  ToggleOptions,
+  ActionFormResponse,
+  ModalFormResponse,
+  MessageFormResponse,
 } from "@minecraft/server-ui";
 
 /**
- * Identifiant du Resource Pack OpenMontage pour l'API DDUI (bêta).
- *
- * ⚠️ `imagePackId` attend l'IDENTIFIANT du pack = son UUID (le même `pack_id`
- * que dans world_resource_packs.json), PAS son nom d'affichage. Passer le
- * nom ne matche aucun pack : les images sont silencieusement ignorées et
- * les menus s'affichent sans aucune texture (cause du bug "menus non
- * custom alors que le RP est chargé").
+ * Identifiant du Resource Pack OpenMontage (icônes des boutons ActionForm).
  */
 export const RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
 
 /** Palette du thème. */
 export const THEME = {
-  /** Couleur principale (vert menthe). */
   primary: "§a",
-  /** Couleur secondaire (or). */
   accent: "§6",
-  /** Danger. */
   danger: "§c",
-  /** Texte discret. */
   muted: "§7",
 } as const;
 
 /**
  * Icônes OM (RP OpenMontage, tuiles 32x32 pixel-art générées par
- * scripts/make_ui_textures.py). Utilisées comme imageDetails des boutons
- * DDUI — dans NOTRE pack donc toujours chargées (plus de chemins vanilla
- * dont l'existence dépendait du client).
+ * scripts/make_ui_textures.py) — passées aux boutons ActionFormData.
  */
 const OM_ICONS = {
   flag: "flag",
@@ -91,7 +72,7 @@ const OM_ICONS = {
 
 export type UIIcon = keyof typeof OM_ICONS;
 
-/** Chemin RP d'une icône OM (tuile 32x32, extension requise par le DDUI). */
+/** Chemin RP d'une icône OM (tuile 32x32). */
 export function OM_ICON(icon: UIIcon): string {
   return `textures/ui/om_ic_${OM_ICONS[icon]}.png`;
 }
@@ -100,9 +81,8 @@ export function OM_ICON(icon: UIIcon): string {
 export const ICONS = OM_ICONS;
 
 /**
- * Bannières de héros (RP OpenMontage, 256x48 — panneaux slate à ruban
- * accent et clef de voûte or, générées par make_ui_textures.py).
- * Affichées en tête des menus principaux via OMForm.hero().
+ * Bannières de héros (RP OpenMontage, 256x48) affichées en tête des menus
+ * principaux comme image dans le body.
  */
 const HEROES = {
   home: "om_hero_home",
@@ -118,35 +98,24 @@ const HEROES = {
 
 export type HeroKind = keyof typeof HEROES;
 
-/** Chemin RP d'une bannière de héros (extension requise par le DDUI). */
+/** Chemin RP d'une bannière de héros. */
 function heroPath(kind: HeroKind): string {
   return `textures/ui/${HEROES[kind]}.png`;
 }
 
 /**
- * Fond d'actionbar custom (RP OpenMontage, référencé par RP/ui/hud_screen.json).
- */
-export const OM_PANEL_TEXTURE = "textures/ui/om_actionbar_bg";
-
-/**
- * Interrupteur du design complet (héros + icônes). Si le client n'a pas le
- * bon RP (cache de pack), les images peuvent empêcher l'ouverture des
- * écrans : `/scriptevent sn:ui off` bascule un rendu SANS image, garanti
- * fonctionnel ; `sn:ui on` réactive.
+ * Interrupteur du design image (héros + icônes) : /scriptevent sn:ui off|on.
  */
 let uiDesignEnabled = true;
 
-/**
- * Désactivation automatique du design image : si un écran échoue à
- * s'afficher alors qu'il contenait des images, on coupe héros + icônes pour
- * la suite — les prochains menus s'affichent donc TOUJOURS (dégradation
- * propre plutôt que des commandes qui « n'ouvrent rien »).
- */
 function disableUiDesign(reason: string): void {
   if (!uiDesignEnabled) return;
   uiDesignEnabled = false;
-  logMod.warn(`Images désactivées automatiquement (${reason}) — menus sans image pour rester fonctionnels. /scriptevent sn:ui on pour réactiver.`);
+  logMod.warn(
+    `Images désactivées automatiquement (${reason}) — menus sans image pour rester fonctionnels. /scriptevent sn:ui on pour réactiver.`,
+  );
 }
+void disableUiDesign;
 
 /** Active/désactive le design image (héros + icônes). */
 export function setUiDesign(enabled: boolean): void {
@@ -163,352 +132,447 @@ export function windowTitle(section: string): string {
   return `§l§aOM §r§8» §r§l${section}`;
 }
 
-/** Ligne de séparation pour les body. */
-export function divider(): string {
-  return "§8─────────────────────";
+// ---------------------------------------------------------------------------
+// Shims observables (compat des menus écrits pour le DDUI) : valeur + callbacks.
+// Le moteur vanilla ne connaît pas ce concept — on lit la valeur au submit.
+// ---------------------------------------------------------------------------
+
+export class ObservableString {
+  private value: string;
+  constructor(initial: string, _options?: unknown) {
+    this.value = initial;
+  }
+  getData(): string {
+    return this.value;
+  }
+  setData(data: string): void {
+    this.value = data;
+  }
+  subscribe(_cb: (v: string) => void): (v: string) => void {
+    return _cb;
+  }
+  unsubscribe(_cb: (v: string) => void): boolean {
+    return true;
+  }
 }
 
-// ---------------------------------------------------------------------------
-// Moteur DDUI (CustomForm, bêta server-ui 2.3) — la vraie UI custom.
-// Contrairement aux forms vanilla (ActionFormData...), les boutons ont des
-// CALLBACKS DIRECTS (pas d'indexation fragile par position), et le layout
-// est riche : headers, dividers, toggles, images du RP.
-// ---------------------------------------------------------------------------
+export class ObservableNumber {
+  private value: number;
+  constructor(initial: number, _options?: unknown) {
+    this.value = initial;
+  }
+  getData(): number {
+    return this.value;
+  }
+  setData(data: number): void {
+    this.value = data;
+  }
+  subscribe(_cb: (v: number) => void): (v: number) => void {
+    return _cb;
+  }
+  unsubscribe(_cb: (v: number) => void): boolean {
+    return true;
+  }
+}
 
-/** Texte lié (champ éditable, label réactif). */
+export class ObservableBoolean {
+  private value: boolean;
+  constructor(initial: boolean, _options?: unknown) {
+    this.value = initial;
+  }
+  getData(): boolean {
+    return this.value;
+  }
+  setData(data: boolean): void {
+    this.value = data;
+  }
+  subscribe(_cb: (v: boolean) => void): (v: boolean) => void {
+    return _cb;
+  }
+  unsubscribe(_cb: (v: boolean) => void): boolean {
+    return true;
+  }
+}
+
+/** Texte lié (champ éditable). */
 export function obString(initial: string): ObservableString {
-  // clientWritable : le champ est SAISI par le client (two-way binding).
-  // Sans cette option, l'API refuse la construction :
-  // « Expect 'text' observable to be client writable ».
-  return new ObservableString(initial, { clientWritable: true });
+  return new ObservableString(initial);
 }
 
 /** Nombre lié (slider, dropdown). */
 export function obNumber(initial: number): ObservableNumber {
-  return new ObservableNumber(initial, { clientWritable: true });
+  return new ObservableNumber(initial);
 }
 
 /** Booléen lié (toggle). */
 export function obBool(initial: boolean): ObservableBoolean {
-  return new ObservableBoolean(initial, { clientWritable: true });
+  return new ObservableBoolean(initial);
 }
 
-/**
- * Booléen lié avec callback au changement — pour les toggles DDUI dont
- * l'effet doit être immédiat (ex : activer/désactiver un module).
- */
-export function obToggle(
-  initial: boolean,
-  onChange: (value: boolean) => void,
-): ObservableBoolean {
-  const observable = new ObservableBoolean(initial, { clientWritable: true });
+/** Booléen lié avec callback au changement (compat). */
+export function obToggle(initial: boolean, onChange: (value: boolean) => void): ObservableBoolean {
+  const observable = new ObservableBoolean(initial);
   observable.subscribe(onChange);
   return observable;
 }
 
-/** Message UI en rawtext : SEUL format où les codes § sont interprétés
- *  par le rendu DDUI (les strings brutes affichent les §l littéralement). */
-function uiText(text: string): UIRawMessage {
-  return { rawtext: [{ text }] };
+// ---------------------------------------------------------------------------
+// Types du moteur OM (implémentés sur les forms vanilla)
+// ---------------------------------------------------------------------------
+
+/** État de fermeture d'un écran (compat avec l'ancien moteur DDUI). */
+export type DataDrivenScreenClosedReason = "UserClosed" | "UserBusy" | "ServerClosed";
+
+export interface ButtonOptions {
+  tooltip?: string;
+}
+
+export interface TextOptions {
+  font_size?: unknown;
+}
+
+export interface DropdownItemData {
+  label: string;
+  value: number;
+}
+
+export interface SliderOptions {
+  step?: number;
+}
+
+export interface TextFieldOptions {
+  placeholder?: string;
+  defaultValue?: string;
+}
+
+interface ActionEntry {
+  kind: "button" | "label" | "header" | "divider" | "image";
+  text: string;
+  icon?: string;
+  onClick?: () => void;
 }
 
 /**
- * Enveloppe CustomForm du thème. Apports :
- * 1. tout texte passé en string est converti en UIRawMessage (codes § rendus) ;
- * 2. le formulaire ouvert est suivi par joueur : la fermeture centralisée
- *    (`closeOpenForm`) permet aux menus de fermer l'écran courant avant
- *    d'ouvrir le suivant (sinon les écrans s'empilent).
+ * Moteur OM : un seul wrappre pour les deux types de formulaires vanilla.
+ * - mode "actions" (ActionFormData) : boutons cliquables à callbacks directs ;
+ * - mode "fields" (ModalFormData) : champs (texte, toggle, slider, dropdown),
+ *   validés par un bouton submit unique.
+ * Le mode est déterminé par le premier élément ajouté.
  */
 export class OMForm {
-  readonly inner: CustomForm;
   private readonly player: Player;
   private readonly titleText: string;
+  private mode: "actions" | "fields" | "unset" = "unset";
+  private readonly actions: ActionEntry[] = [];
+  private readonly fieldBuilders: ((form: ModalFormData) => void)[] = [];
+  private fieldReaders: ((response: ModalFormResponse) => void)[] = [];
+  private readonly heroKind?: HeroKind;
 
-  constructor(player: Player, title: string) {
+  constructor(player: Player, title: string, hero?: HeroKind) {
     this.player = player;
     this.titleText = title.replace(/§./g, "").trim();
-    this.inner = new CustomForm(player, uiText(title));
+    this.heroKind = hero;
   }
 
-  /** Ferme ce formulaire si l'écran s'affiche encore (sinon no-op). */
-  closeIfShowing(): void {
-    try {
-      if (this.inner.isShowing()) this.inner.close();
-    } catch {
-      // L'écran a déjà été fermé (client ou autre écran) — rien à faire.
+  private assertActions(method: string): void {
+    if (this.mode === "fields") {
+      throw new Error(
+        `OMForm : ${method}() impossible après un champ (ce menu est en mode ModalForm).`,
+      );
     }
+    this.mode = "actions";
   }
 
-  /**
-   * Bannière de héros en tête de menu (image pleine largeur du RP OM).
-   * À appeler EN PREMIER : c'est l'identité graphique du menu.
-   * Fail-safe : si l'API/le pack refuse l'image, le menu s'ouvre quand même.
-   */
+  private assertFields(method: string): void {
+    if (this.mode === "actions") {
+      throw new Error(
+        `OMForm : ${method}() impossible après un bouton/label (ce menu est en mode ActionForm).`,
+      );
+    }
+    this.mode = "fields";
+  }
+
+  /** Bannière de héros en tête de menu (image du RP OM dans le body). */
   hero(kind: HeroKind): OMForm {
     if (!uiDesignEnabled) return this;
-    try {
-      this.inner.image(heroPath(kind), RP_PACK_ID, { width: 1 });
-    } catch {
-      // Image impossible (RP absent du client…) : on dégrade sans planter.
-    }
+    if (this.mode === "unset") this.mode = "actions";
+    this.actions.push({ kind: "image", text: heroPath(kind) });
     return this;
   }
 
-  header(text: string, options?: Omit<TextOptions, "tooltip">): OMForm {
-    this.inner.header(uiText(text), options);
+  header(text: string): OMForm {
+    this.assertActions("header");
+    this.actions.push({ kind: "header", text });
     return this;
   }
 
-  label(text: string, options?: Omit<TextOptions, "tooltip">): OMForm {
-    this.inner.label(uiText(text), options);
+  label(text: string): OMForm {
+    if (this.mode === "unset") this.mode = "actions";
+    this.actions.push({ kind: "label", text });
     return this;
   }
 
   button(
     label: string,
     onClick: () => void,
-    options?: ButtonOptions,
-    /** Icône OM affichée à côté du label (imageDetails du RP OpenMontage). */
+    _options?: ButtonOptions,
     icon?: UIIcon,
   ): OMForm {
-    const imageDetails =
-      icon === undefined || !uiDesignEnabled
-        ? undefined
-        : { imagePackId: RP_PACK_ID, imageSrc: OM_ICON(icon) };
-    // ⚠️ Limites moteur DDUI (constatées en jeu) :
-    // - les boutons sont STRICTEMENT mono-ligne (« Per design buttons are
-    //   single line text only ») : un \n écrase le rendu (barre plate) ;
-    // - les codes § ne sont PAS interprétés dans les boutons (contrairement
-    //   aux labels/headers) : ils s'affichent littéralement.
-    // => on aplati sur une ligne et on retire les codes, proprement.
-    const flatLabel = label.replace(/\s*\n\s*/g, " — ").replace(/§./g, "").trim();
-    const handler = () => {
-      // Un clic quitte TOUJOURS l'écran courant :
-      // - navigation : le menu ouvert par onClick remplace celui-ci ;
-      // - action terminale (création, sanctions…) : l'écran se referme.
-      closeOpenForm(this.player);
-      // ⚠️ Une exception dans l'action (manager.create, sanctions…) sortirait
-      // du callback de l'API et mourrait en silence : on la rapporte EN JEU.
-      try {
-        onClick();
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
-        logMod.warn(`Action du menu « ${this.titleText} » échouée : ${message}`);
-        this.player.sendMessage(`§c[OM] L'action du menu « ${this.titleText} » a échoué : §f${message}`);
-      }
-    };
-    try {
-      this.inner.button(
-        uiText(flatLabel),
-        handler,
-        imageDetails === undefined ? options : { ...options, imageDetails },
-      );
-    } catch {
-      // imageDetails refusé (pack absent…) : réessai SANS image pour que
-      // le bouton (et donc le menu) reste fonctionnel.
-      if (imageDetails === undefined) throw new Error("OMForm.button a échoué sans image");
-      this.inner.button(uiText(flatLabel), handler, options);
-    }
+    this.assertActions("button");
+    const flat = label.replace(/\s*\n\s*/g, "\n").trim();
+    this.actions.push({
+      kind: "button",
+      text: flat,
+      icon: icon !== undefined && uiDesignEnabled ? OM_ICON(icon) : undefined,
+      onClick: () => {
+        try {
+          onClick();
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          logMod.warn(`Action du menu « ${this.titleText} » échouée : ${message}`);
+          this.player.sendMessage(
+            `§c[OM] L'action du menu « ${this.titleText} » a échoué : §f${message}`,
+          );
+        }
+      },
+    });
     return this;
   }
 
-  divider(options?: DividerOptions): OMForm {
-    this.inner.divider(options);
+  divider(): OMForm {
+    if (this.mode === "unset") this.mode = "actions";
+    if (this.mode === "actions") this.actions.push({ kind: "divider", text: "" });
+    else this.fieldBuilders.push((form) => form.divider());
     return this;
   }
 
-  spacer(options?: SpacingOptions): OMForm {
-    this.inner.spacer(options);
+  spacer(): OMForm {
     return this;
   }
 
-  toggle(
-    label: string,
-    toggled: ObservableBoolean,
-    options?: ToggleOptions,
-  ): OMForm {
-    this.inner.toggle(uiText(label), toggled, options);
+  toggle(label: string, initial: boolean): OMForm {
+    this.assertFields("toggle");
+    this.fieldBuilders.push((form) => form.toggle(label, { defaultValue: initial }));
     return this;
+  }
+
+  /** Toggle avec observable (compat menus DDUI). */
+  toggleOb(label: string, observable: ObservableBoolean): OMForm {
+    this.assertFields("toggle");
+    this.fieldBuilders.push((form) => form.toggle(label, { defaultValue: observable.getData() }));
+    this.fieldOrder.push({ kind: "toggle", ref: observable });
+    this.fieldReaders.push((response) => {
+      const index = this.fieldIndexOf("toggle", observable);
+      const raw = response.formValues?.[index];
+      if (typeof raw === "boolean") observable.setData(raw);
+    });
+    return this;
+  }
+
+  private fieldOrder: { kind: string; ref: unknown }[] = [];
+
+  private fieldIndexOf(kind: string, ref: unknown): number {
+    return this.fieldOrder.findIndex((entry) => entry.kind === kind && entry.ref === ref);
   }
 
   slider(
     label: string,
-    value: ObservableNumber,
-    min: number | ObservableNumber,
-    max: number | ObservableNumber,
+    observable: ObservableNumber,
+    min: number,
+    max: number,
     options?: SliderOptions,
   ): OMForm {
-    this.inner.slider(uiText(label), value, min, max, options);
-    return this;
-  }
-
-  dropdown(
-    label: string,
-    value: ObservableNumber,
-    items: (DropdownItemData | string)[],
-    options?: DropdownOptions,
-  ): OMForm {
-    // Tous les labels d'items passent en rawtext (codes § rendus) ; un item
-    // string prend la valeur de son index. Les objets fournis par l'appelant
-    // sont reconstruits (JAMAIS mutés) avec leur valeur explicite conservée.
-    const data: DropdownItemData[] = items.map((item, index) => {
-      if (typeof item === "string") return { label: uiText(item), value: index };
-      return {
-        ...item,
-        label: typeof item.label === "string" ? uiText(item.label) : item.label,
-      } as DropdownItemData;
+    this.assertFields("slider");
+    const current = Math.min(Math.max(observable.getData(), min), max);
+    this.fieldBuilders.push((form) =>
+      form.slider(label, min, max, { valueStep: options?.step ?? 1, defaultValue: current }),
+    );
+    this.fieldOrder.push({ kind: "slider", ref: observable });
+    this.fieldReaders.push((response) => {
+      const index = this.fieldIndexOf("slider", observable);
+      const raw = response.formValues?.[index];
+      if (typeof raw === "number") observable.setData(raw);
     });
-    this.inner.dropdown(uiText(label), value, data, options);
     return this;
   }
 
-  textField(
-    label: string,
-    text: ObservableString,
-    options?: TextFieldOptions,
-  ): OMForm {
-    this.inner.textField(uiText(label), text, options);
+  dropdown(label: string, observable: ObservableNumber, items: (DropdownItemData | string)[]): OMForm {
+    this.assertFields("dropdown");
+    const labels = items.map((item, index) =>
+      typeof item === "string" ? item : item.label || `Option ${index + 1}`,
+    );
+    this.fieldBuilders.push((form) =>
+      form.dropdown(label, labels, { defaultValueIndex: observable.getData() }),
+    );
+    this.fieldOrder.push({ kind: "dropdown", ref: observable });
+    this.fieldReaders.push((response) => {
+      const index = this.fieldIndexOf("dropdown", observable);
+      const raw = response.formValues?.[index];
+      if (typeof raw === "number") observable.setData(raw);
+    });
     return this;
   }
 
-  image(src: string, pack: string, options?: ImageOptions): OMForm {
-    this.inner.image(src, pack, options);
+  textField(label: string, observable: ObservableString, options?: TextFieldOptions): OMForm {
+    this.assertFields("textField");
+    this.fieldBuilders.push((form) =>
+      form.textField(label, options?.placeholder ?? "…", { defaultValue: observable.getData() }),
+    );
+    this.fieldOrder.push({ kind: "textField", ref: observable });
+    this.fieldReaders.push((response) => {
+      const index = this.fieldIndexOf("textField", observable);
+      const raw = response.formValues?.[index];
+      if (typeof raw === "string") observable.setData(raw);
+    });
     return this;
   }
 
+  /** Compat DDUI : bouton fermer (l'ActionForm a sa croix native). */
   closeButton(): OMForm {
-    this.inner.closeButton();
     return this;
   }
 
+  /**
+   * Affiche le formulaire (différé de 2 ticks : un show() dans le même tick
+   * qu'une fermeture est perdu en silence).
+   */
   show(): Promise<DataDrivenScreenClosedReason> {
-    // Robustesse : si un écran précédent est encore affiché (flux qui ne
-    // passe pas par un bouton OMForm), on le ferme avant d'afficher celui-ci.
-    const previous = openForms.get(this.player.id);
-    if (previous !== undefined && previous !== this) previous.closeIfShowing();
-    openForms.set(this.player.id, this);
-    return this.inner.show().finally(() => {
-      // Écran fermé (client ou serveur) : on retire le suivi, sauf si un
-      // autre formulaire a déjà pris la place (navigation en cours).
-      if (openForms.get(this.player.id) === this) {
-        openForms.delete(this.player.id);
-      }
+    return new Promise<DataDrivenScreenClosedReason>((resolve) => {
+      system.runTimeout(() => {
+        void this.doShow().then(resolve, (error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          logMod.warn(`Menu « ${this.titleText} » : ${message}`);
+          this.player.sendMessage(`§c[OM] Le menu « ${this.titleText} » n'a pas pu s'afficher : §f${message}`);
+          resolve("ServerClosed");
+        });
+      }, 2);
     });
+  }
+
+  private async doShow(): Promise<DataDrivenScreenClosedReason> {
+    if (this.mode === "fields") {
+      const form = new ModalFormData().title(this.titleText);
+      for (const build of this.fieldBuilders) build(form);
+      const response = await form.show(this.player);
+      if (response.canceled) return "UserClosed";
+      for (const read of this.fieldReaders) read(response);
+      return "UserClosed";
+    }
+
+    // Mode actions (défaut) : ActionFormData.
+    const form = new ActionFormData().title(this.titleText);
+    const bodyLines: string[] = [];
+    const clickHandlers: (() => void)[] = [];
+
+    if (this.heroKind !== undefined && uiDesignEnabled) {
+      form.button("", heroPath(this.heroKind));
+      clickHandlers.push(() => {
+        /* la bannière est cliquable mais sans action */
+      });
+    }
+
+    for (const action of this.actions) {
+      if (action.kind === "image") {
+        form.button("", action.text);
+        clickHandlers.push(() => {
+          /* bannière sans action */
+        });
+      } else if (action.kind === "button") {
+        form.button(action.text, action.icon);
+        const handler = action.onClick;
+        clickHandlers.push(() => handler?.());
+      } else if (action.kind === "header") {
+        bodyLines.push(`§l${action.text}§r`);
+      } else if (action.kind === "divider") {
+        bodyLines.push("§8─────────────────────");
+      } else {
+        bodyLines.push(action.text);
+      }
+    }
+
+    if (bodyLines.length > 0) form.body(bodyLines.join("\n"));
+
+    const response: ActionFormResponse = await form.show(this.player);
+    if (response.canceled) return "UserClosed";
+
+    const selection = response.selection;
+    if (selection !== undefined && selection >= 0 && selection < clickHandlers.length) {
+      clickHandlers[selection]?.();
+    }
+    return "UserClosed";
   }
 
   isShowing(): boolean {
-    return this.inner.isShowing();
+    return false;
+  }
+
+  closeIfShowing(): void {
+    /* les forms vanilla se referment d'elles-mêmes à l'ouverture d'une autre */
   }
 }
 
-/** Formulaire actuellement affiché, par joueur. */
-const openForms = new Map<string, OMForm>();
+// ---------------------------------------------------------------------------
+// Ouvertures normalisées (mêmes signatures que l'ancien moteur)
+// ---------------------------------------------------------------------------
 
 /**
- * Ferme l'écran DDUI ouvert pour ce joueur, s'il y en a un.
- * À appeler AVANT d'ouvrir un autre menu (sinon les écrans s'empilent
- * et le clic d'un bouton laisse l'ancien menu à l'écran).
- */
-export function closeOpenForm(player: Player): void {
-  const current = openForms.get(player.id);
-  if (current === undefined) return;
-  openForms.delete(player.id);
-  current.closeIfShowing();
-}
-
-/**
- * Construit et affiche une fenêtre DDUI.
- *
- * ⚠️ Deux pièges Bedrock gérés ici :
- * 1. Après `close()` d'un écran, re-montrer un autre DANS LE MÊME TICK le
- *    fait perdre en silence (l'ancien écran se referme sous le nouveau) :
- *    le show() est donc différé de 2 ticks.
- * 2. Si l'écran contient des images que le client ne peut pas rendre, la
- *    promesse `show()` peut échouer : on reconstruit alors TOUT le menu
- *    sans images pour qu'il s'affiche quand même.
+ * Construit et affiche une fenêtre OM ; rapporte les erreurs EN JEU.
  */
 function buildAndShow(
   player: Player,
   title: string,
   build: (form: OMForm) => void,
-  withCloseButton: boolean,
+  hero?: HeroKind,
 ): Promise<DataDrivenScreenClosedReason> {
-  /** Nom court du menu pour les messages en jeu (sans les codes §). */
   const shortName = title.replace(/§./g, "").trim();
-
-  const buildForm = (): OMForm => {
-    const form = new OMForm(player, title);
-    build(form);
-    if (withCloseButton) form.closeButton();
-    return form;
-  };
-
-  /** Rend l'erreur VISIBLE en jeu (un console.warn seul = personne ne le lit). */
-  const report = (what: string, error: unknown): void => {
-    const message = error instanceof Error ? error.message : String(error);
-    logMod.warn(`Menu « ${shortName} » ${what} : ${message}`);
-    player.sendMessage(`§c[OM] Le menu « ${shortName} » ${what} : §f${message}`);
-  };
-
-  // Différé de 2 ticks : un show() dans le même tick qu'un close() est perdu.
   return new Promise<DataDrivenScreenClosedReason>((resolve, reject) => {
     system.runTimeout(() => {
-      // ⚠️ try/catch AUTOUR de la construction : si build(form) lève (élément
-      // refusé par l'API DDUI bêta), l'exception sortirait du runTimeout SANS
-      // rejeter la promesse → menu mort en silence. On journalise ET on
-      // affiche l'erreur EN JEU pour qu'elle soit diagnostiquable.
       let form: OMForm;
       try {
-        form = buildForm();
+        form = new OMForm(player, title, hero);
+        build(form);
       } catch (error: unknown) {
-        report("n'a pas pu se construire", error);
+        const message = error instanceof Error ? error.message : String(error);
+        logMod.warn(`Menu « ${shortName} » n'a pas pu se construire : ${message}`);
+        player.sendMessage(`§c[OM] Le menu « ${shortName} » n'a pas pu se construire : §f${message}`);
         reject(error instanceof Error ? error : new Error(String(error)));
         return;
       }
-      form
-        .show()
-        .catch((error: unknown) => {
-          // Échec d'affichage : si le design image était actif, on le coupe
-          // et on retente UNE fois sans aucune image (le suivi du formulaire
-          // ouvert est déjà géré par OMForm.show()).
-          if (uiDesignEnabled) {
-            disableUiDesign(error instanceof Error ? error.message : "écran refusé");
-            return buildForm().show();
-          }
-          throw error;
-        })
-        .then(resolve, (error: unknown) => {
-          report("n'a pas pu s'afficher", error);
-          reject(error instanceof Error ? error : new Error(String(error)));
-        });
+      form.show().then(resolve, (error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        logMod.warn(`Menu « ${shortName} » n'a pas pu s'afficher : ${message}`);
+        player.sendMessage(`§c[OM] Le menu « ${shortName} » n'a pas pu s'afficher : §f${message}`);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      });
     }, 2);
   });
 }
 
 /**
- * Ouvre une fenêtre DDUI (OMForm) avec le titre OpenMontage et un bouton
- * de fermeture.
+ * Ouvre une fenêtre OM avec titre normalisé, héros et gestion d'erreur en jeu.
  */
 export function openWindow(
   player: Player,
   section: string,
   build: (form: OMForm) => void,
-  /** Bannière de héros affichée en tête (identité graphique). */
   hero?: HeroKind,
 ): Promise<DataDrivenScreenClosedReason> {
-  closeOpenForm(player);
-  return buildAndShow(player, windowTitle(section), (form) => {
-    if (hero !== undefined) form.hero(hero);
-    build(form);
-  }, true);
+  return buildAndShow(player, windowTitle(section), build, hero);
 }
 
-/** Fenêtre DDUI sans bouton fermer intégré (le menu gère ses retours). */
+/** Fenêtre avec titre brut (menus secondaires, confirmations…). */
 export function openWindowRaw(
   player: Player,
   title: string,
   build: (form: OMForm) => void,
 ): Promise<DataDrivenScreenClosedReason> {
-  closeOpenForm(player);
-  return buildAndShow(player, title, build, false);
+  return buildAndShow(player, title, build);
 }
+
+/** Ferme l'écran ouvert pour ce joueur (compat : les forms vanilla se gèrent seules). */
+export function closeOpenForm(_player: Player): void {
+  /* no-op sur les forms vanilla */
+}
+
+/** Type de réponse MessageForm (compat imports). */
+export type { MessageFormResponse };

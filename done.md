@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v12.2** — LA cause du crash `/sn:create` trouvée grâce au message en jeu : les observables des champs **saisis par le client** doivent être créés avec `{ clientWritable: true }` (two-way binding). + labels de boutons aplatis (le moteur DDUI rend les boutons mono-ligne et sans codes §). Packs en 1.4.2.
+> Dernière mise à jour : **v13** — **migration du moteur UI : DDUI (CustomForm bêta) abandonné** au profit des formulaires **vanilla stables** (ActionFormData + ModalFormData : codes § et multi-lignes rendus, switchs/sliders natifs) + reskin JSON UI réécrit avec l'arbre `common_dialogs` décodé depuis le vanilla complet (ZtechNetwork/MCBVanillaResourcePack). Packs en 1.5.0.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -101,6 +101,14 @@
 - ⚠️ Rappel : après toute modif TS, `bun run build` puis re-copier `BP/` sur le serveur
 
 ---
+
+## 🔁 Migration moteur UI vanilla + reskin common_dialogs (v13)
+- [x] **DDUI (CustomForm bêta) abandonné définitivement** : trop capricieux (observable `clientWritable`, boutons mono-ligne sans codes §, écrans perdus). Les menus passent sur **ActionFormData** (boutons + icônes RP + labels multi-lignes + codes § rendus nativement) et **ModalFormData** (champs : texte, switchs, sliders, dropdowns — la « vraie » saisie)
+- [x] **Même API OMForm pour les menus** : `button(label, cb, opts, icon)`, `textField`, `slider(label, obs, min, max)`, `dropdown`, `toggleOb`, `hero`, `header`… — les observables deviennent des shims simples (valeur lue au submit via l'index des champs). Menus adaptés : modules (toggles → boutons ON/OFF cliquables), db, modération, rôles, territoires, hub
+- [x] **Reskin JSON UI réécrit avec la vraie source vanilla** : le dépôt **ZtechNetwork/MCBVanillaResourcePack** fournit le RP vanilla complet, dont `ui_template_dialogs.json` = namespace **`common_dialogs`** (introuvable dans bedrock-samples !). Décodé : `main_panel_no_buttons` accepte **`$custom_background`** → notre fond bleu nuit `om_dialog_bg` est injecté proprement via la variable officielle, sans reconstruire la structure (25 éléments au lieu de 32, héritage standard préservé)
+- [x] **Ce que ça donne** : menus à boutons = habillage bleu nuit + icônes + labels couleur multi-lignes **réellement rendus** ; formulaires de saisie = switchs/sliders/dropdowns vanilla fonctionnels
+- [x] Erreurs toujours visibles en jeu (`§c[OM] Le menu « … » …`)
+- [x] Packs bumpés **1.4.2 → 1.5.0**
 
 ## 🐛 Fix clientWritable + limites boutons DDUI (v12.2)
 - [x] **Le crash `/sn:create` identifié précisément** (merci le message en jeu v12.1) : `Expect 'text' observable to be client writable`. L'API DDUI exige que l'observable lié à un champ **écrit par le client** (textField, dropdown, slider, toggle) soit créé avec **`{ clientWritable: true }`** (liaison bidirectionnelle UI↔script). `obString`/`obNumber`/`obBool`/`obToggle` le passent maintenant systématiquement — TOUS les menus à champ de saisie étaient concernés, pas seulement /sn:create
