@@ -4341,7 +4341,17 @@ function buildAndShow(player, title, build, withCloseButton) {
   };
   return new Promise((resolve, reject) => {
     system7.runTimeout(() => {
-      buildForm().show().catch((error) => {
+      let form;
+      try {
+        form = buildForm();
+      } catch (error) {
+        console.warn(
+          `[UI] Construction du formulaire « ${title} » échouée : ${error instanceof Error ? error.message : String(error)}`
+        );
+        reject(error instanceof Error ? error : new Error(String(error)));
+        return;
+      }
+      form.show().catch((error) => {
         if (uiDesignEnabled) {
           disableUiDesign(error instanceof Error ? error.message : "écran refusé");
           return buildForm().show();

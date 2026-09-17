@@ -346,6 +346,54 @@ def make_icons() -> None:
 # ---------------------------------------------------------------------------
 # Textures conservées (déjà référencées par le RP)
 # ---------------------------------------------------------------------------
+NAVY = (12, 20, 54)
+NAVY_BORDER = (52, 87, 213)
+NAVY_BORDER_DARK = (24, 40, 110)
+BTN_BG = (10, 13, 24)
+BTN_BORDER = (58, 66, 88)
+BTN_BORDER_HOVER = (127, 168, 255)
+BTN_BG_HOVER = (16, 23, 40)
+BAND_BG = (8, 8, 16)
+
+
+def panel_png(name: str, w: int, h: int, fill: tuple[int, int, int], border: tuple[int, int, int],
+              alpha: int = 255, border_alpha: int = 255, corner_cut: int = 0) -> None:
+    """Panneau nine-slice : fill uni + bordure 2px (coin extérieur 1px sombre)."""
+    px: list[list[tuple[int, int, int, int]]] = []
+    for y in range(h):
+        row: list[tuple[int, int, int, int]] = []
+        for x in range(w):
+            edge_outer = x in (0, w - 1) or y in (0, h - 1)
+            edge_inner = x in (1, 2, w - 2, w - 3) or y in (1, 2, h - 2, h - 3)
+            if edge_outer:
+                row.append((*NAVY_BORDER_DARK, border_alpha))
+            elif edge_inner:
+                row.append((*border, border_alpha))
+            else:
+                row.append((*fill, alpha))
+        px.append(row)
+    if corner_cut > 0:
+        for i in range(corner_cut):
+            for (x, y) in [(i, 0), (w - 1 - i, 0), (i, h - 1), (w - 1 - i, h - 1),
+                           (0, i), (w - 1, i), (0, h - 1 - i), (w - 1, h - 1 - i)]:
+                if 0 <= x < w and 0 <= y < h:
+                    px[y][x] = (0, 0, 0, 0)
+    write_png(RP_ROOT / "textures" / "ui" / f"{name}.png", w, h, px)
+
+
+def form_reskin_textures() -> None:
+    """Textures du reskin JSON UI des formulaires serveur (DDUI) :
+    panneau bleu nuit + boutons noirs bordés + bandeaux d'en-tête."""
+    # Fond principal des formulaires (bleu nuit, bordure bleue vive)
+    panel_png("om_dialog_bg", 64, 64, NAVY, NAVY_BORDER, alpha=252)
+    # Bandeau d'en-tête (bande noire derrière les titres de section)
+    panel_png("om_header_band", 64, 20, BAND_BG, BTN_BORDER, alpha=235)
+    # Boutons (états)
+    panel_png("om_btn", 32, 32, BTN_BG, BTN_BORDER)
+    panel_png("om_btn_hover", 32, 32, BTN_BG_HOVER, BTN_BORDER_HOVER)
+    panel_png("om_btn_press", 32, 32, (9, 12, 22), BTN_BORDER_HOVER)
+
+
 def actionbar_bg() -> None:
     """Fond d'actionbar 128x10 : panneau sombre semi-transparent aux coins adoucis."""
     px: list[list[tuple[int, int, int, int]]] = []
@@ -401,6 +449,7 @@ def main() -> None:
     for name, (a, b) in HEROES.items():
         hero(name, a, b)
     make_icons()
+    form_reskin_textures()
     actionbar_bg()
     pack_icon()
     print("Terminé.")

@@ -1,0 +1,124 @@
+{
+  "_comment": "Reskin OpenMontage des formulaires serveur (DDUI CustomForm + forms vanilla). Méthode : redéfinir les éléments vanilla PAR NOM EXACT dans un fichier référencé par _ui_defs.json — le moteur FUSIONNE par nom (même technique que hud_screen.json, celle des packs établis). Style : panneau bleu nuit à bordure bleue (captures Métiers/Nation), boutons noirs bordés, en-têtes sur bandeau sombre.",
+
+  "namespace": "om_server_form",
+
+  "custom_form@common_dialogs.main_panel_no_buttons": {
+    "$title_panel": "common_dialogs.standard_title_label",
+    "$title_size": ["100% - 15px", 10],
+    "$title_max_size": ["100% - 15px", 10],
+    "size": [260, 220],
+    "$text_name": "#title_text",
+    "$title_text_binding_type": "none",
+    "$child_control": "server_form.custom_form_panel",
+    "layer": 2,
+
+    "modifications": [
+      {
+        "array_name": "controls",
+        "operation": "insert_front",
+        "value": [
+          {
+            "om_background": {
+              "type": "image",
+              "texture": "textures/ui/om_dialog_bg",
+              "size": ["100%", "100%"],
+              "layer": -10,
+              "anchor_from": "center",
+              "anchor_to": "center"
+            }
+          }
+        ]
+      }
+    ]
+  },
+
+  "long_form@common_dialogs.main_panel_no_buttons": {
+    "$title_panel": "common_dialogs.standard_title_label",
+    "$title_size": ["100% - 15px", 10],
+    "$title_max_size": ["100% - 15px", 10],
+    "size": [260, 220],
+    "$text_name": "#title_text",
+    "$title_text_binding_type": "none",
+    "$child_control": "server_form.long_form_panel",
+    "layer": 2,
+
+    "modifications": [
+      {
+        "array_name": "controls",
+        "operation": "insert_front",
+        "value": [
+          {
+            "om_background": {
+              "type": "image",
+              "texture": "textures/ui/om_dialog_bg",
+              "size": ["100%", "100%"],
+              "layer": -10,
+              "anchor_from": "center",
+              "anchor_to": "center"
+            }
+          }
+        ]
+      }
+    ]
+  },
+
+  "custom_header@settings_common.option_group_header": {
+    "$text": "#custom_text",
+    "text": "#custom_text",
+    "$text_bindings": [
+      {
+        "binding_name": "#custom_text",
+        "binding_type": "collection",
+        "binding_collection_name": "custom_form"
+      }
+    ],
+    "modifications": [
+      {
+        "array_name": "controls",
+        "operation": "insert_front",
+        "value": [
+          {
+            "om_band": {
+              "type": "image",
+              "texture": "textures/ui/om_header_band",
+              "size": ["110%", "100%c + 4px"],
+              "layer": -1,
+              "anchor_from": "center",
+              "anchor_to": "center"
+            }
+          }
+        ]
+      }
+    ]
+  },
+
+  "dynamic_header@settings_common.option_group_spaced_header": {
+    "$text": "#form_button_text",
+    "$text_bindings": [
+      {
+        "binding_name": "#form_button_text",
+        "binding_type": "collection",
+        "binding_collection_name": "form_buttons"
+      }
+    ],
+    "modifications": [
+      {
+        "array_name": "controls",
+        "operation": "insert_front",
+        "value": [
+          {
+            "om_band": {
+              "type": "image",
+              "texture": "textures/ui/om_header_band",
+              "size": ["110%", "100%c + 4px"],
+              "layer": -1,
+              "anchor_from": "center",
+              "anchor_to": "center"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

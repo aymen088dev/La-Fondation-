@@ -423,7 +423,22 @@ function buildAndShow(
   // Différé de 2 ticks : un show() dans le même tick qu'un close() est perdu.
   return new Promise<DataDrivenScreenClosedReason>((resolve, reject) => {
     system.runTimeout(() => {
-      buildForm()
+      // ⚠️ try/catch AUTOUR de la construction : si build(form) lève (élément
+      // refusé par l'API DDUI bêta — ex. dropdown d'objets), l'exception
+      // sortirait du runTimeout SANS rejeter la promesse → menu mort en
+      // silence (le bug « /sn:create ne s'ouvre pas »). On journalise et on
+      // rejette proprement pour que le .catch() du menu s'affiche.
+      let form: OMForm;
+      try {
+        form = buildForm();
+      } catch (error: unknown) {
+        console.warn(
+          `[UI] Construction du formulaire « ${title} » échouée : ${error instanceof Error ? error.message : String(error)}`,
+        );
+        reject(error instanceof Error ? error : new Error(String(error)));
+        return;
+      }
+      form
         .show()
         .catch((error: unknown) => {
           // Échec d'affichage : si le design image était actif, on le coupe

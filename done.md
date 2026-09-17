@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v11** — nouveau module **Classes** (route choisie à la première connexion via /sn:classes, choix définitif, XP/niveaux) + base des **Métiers** (/sn:jobs, catalogue vide, fondations prêtes). Textures héros + icônes ajoutées, packs en 1.3.0.
+> Dernière mise à jour : **v12** — **reskin JSON UI des formulaires** (panneau bleu nuit, boutons noirs bordés, en-têtes sur bandeau — style serveurs) + fix du bug « /sn:create ne s'ouvre pas » (exception silencieuse dans le différé de ticks). Packs en 1.4.0.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -101,6 +101,13 @@
 - ⚠️ Rappel : après toute modif TS, `bun run build` puis re-copier `BP/` sur le serveur
 
 ---
+
+## 🎨 Reskin JSON UI des formulaires + fix /sn:create (v12)
+- [x] **Fix « /sn:create ne s'ouvre pas »** : si la **construction** du formulaire levait (élément refusé par l'API DDUI bêta), l'exception sortait du `runTimeout` **sans rejeter la promesse** → menu mort en silence, le `.catch()` du menu jamais appelé. `buildAndShow` entoure maintenant la construction d'un try/catch qui journalise et rejette proprement — **tous les menus** sont concernés, plus aucun ne peut mourir en silence
+- [x] **Reskin JSON UI complet des formulaires** (méthode de fusion par nom vanilla, celle du hud_screen) : `RP/ui/om_server_form.json` surcharge `server_form.custom_form`/`long_form` (**fond bleu nuit** `om_dialog_bg` derrière les deux types de forms DDUI et vanilla) et les headers (`custom_header`/`dynamic_header` reçoivent un **bandeau sombre** `om_header_band`) ; `RP/ui/om_buttons.json` surcharge `common_buttons.light_text_button` (le bouton utilisé par TOUS les formulaires : submit, boutons de liste) avec **3 états** — normal/hover/pressed (liseré bleu clair au survol)
+- [x] **Nouvelles textures** : `om_dialog_bg` (bleu nuit, bordure bleue), `om_header_band`, `om_btn`, `om_btn_hover`, `om_btn_press`
+- [x] `RP/ui/_ui_defs.json` créé pour déclarer les fichiers de reskin
+- [x] Packs bumpés **1.3.0 → 1.4.0** (textures + JSON UI nouveaux — indispensable pour le cache)
 
 ## ⚔️ Module Classes & Métiers (v11) — `src/classes/` + `src/jobs/`
 - [x] **Classes — la route du joueur** : `/sn:classes` ouvre UN menu à deux états — sans classe : catalogue cliquable (Guerrier, Mage, Archer) avec **confirmation** (le choix est **DÉFINITIF**) ; avec classe : **progression** (niveau, barre d'XP ASCII, XP total). Le menu « change » tout seul après le choix, comme demandé
