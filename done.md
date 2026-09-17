@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v6** — revue complète du projet : 9 bugs/incohérences corrigés (worldLoad, kick serveur, read-only events, dropdown…).
+> Dernière mise à jour : **v7** — base « propre » consolidée : chat ×3 (subscribe en double), imports dynamiques, confirmation vanilla résiduelle.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -104,6 +104,12 @@
 
 ---
 
+## 🔍 Revue « base propre » (v7)
+- [x] **Chat triplé en jeu** : `registerChat` était appelé 2× dans worldLoad (bloc dupliqué) + 1× par le fallback sans garde partagée → chaque message émis **3 fois** et `registerEnforcement` (éjection des bannis) enregistré **2×**. Corrigé par une garde unique `registerChatOnce()` partagée entre worldLoad et fallback
+- [x] **Imports dynamiques supprimés** : `import("..")` en QuickJS/Bedrock est risqué (chunking esbuild) → remplacés par des imports statiques (menus Modules→Territoires et Modération→kickPlayer), vérifiés sans cycle d'import
+- [x] **Confirmation vanilla résiduelle** : le menu « Supprimer TOUS les territoires » utilisait encore un `MessageFormData` vanilla → migré en DDUI (thème cohérent, messages en rawtext)
+- [x] Ré-export mort `ICONS` (modules/ui) supprimé — plus aucun import inutilisé
+
 ## 🔍 Revue complète (v6)
 - [x] **worldLoad** : `sanctions.markLoaded()` était oublié → un banni n'était JAMAIS éjecté au join (`registerEnforcement` vérifiait `sanctions.loaded`, resté false). + chat/enforcement désormais aussi enregistrés dans le fallback (sans worldLoad : un muet pouvait parler)
 - [x] **Kick côté serveur** : `player.runCommand("kick")` échouait pour un non-opérateur → `dimension.runCommand` (permissions serveur) + échappement des guillemets du motif
@@ -141,4 +147,5 @@
 10. **Menu qui reste ouvert après un clic** : les callbacks ouvraient un 2e formulaire par-dessus le 1er (empilement) — `OMForm` ferme désormais l'écran courant avant chaque action/navigation (suivi par joueur + `close()`).
 11. **Bans jamais appliqués au join** : `sanctions.markLoaded()` manquant au worldLoad → `registerEnforcement` se croyait désactivé. Corrigé (+ fallback chat/enforcement).
 12. **Kick qui échouait pour un non-op** : kick exécuté côté serveur (`dimension.runCommand`) au lieu de la perspective du joueur.
+13. **Chat ×3 / bans éjectés 2×** : `registerChat` souscrit sans garde interne ; l'appeler N fois = N traitements par message. Garde unique `registerChatOnce()` (worldLoad + fallback partagent le même flag).
 13. **sendMessage en read-only** : messages de protection planifiés au tick suivant via `system.run` (écriture interdite dans les before-events).

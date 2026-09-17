@@ -47,6 +47,22 @@ registerAdminCommands({ permissions, modules, territories, sanctions, db });
 registerModerationCommands({ sanctions, permissions, db });
 
 let protectionRegistered = false;
+let chatRegistered = false;
+
+/**
+ * Enregistre UNE SEULE FOIS le pipeline chat + éjection des bannis.
+ * ⚠️ Garde partagée worldLoad/fallback : subscribe() appelé N fois =
+ * chaque message de chat traité N fois (bug historique : chat ×3).
+ */
+function registerChatOnce(): void {
+  if (chatRegistered) return;
+  chatRegistered = true;
+  registerChat({
+    permissions,
+    getMute: (playerName) => sanctions.getMute(playerName),
+  });
+  registerEnforcement(sanctions);
+}
 
 /** Applique le tag coloré (rôle + prefix) au-dessus de la tête d'un joueur. */
 function applyNameTag(playerName: string): void {
@@ -90,19 +106,9 @@ world.afterEvents.worldLoad.subscribe(() => {
     applyNameTag(player.name);
   }
 
-  // Chat custom : [grade] nom > message + mute intégré (pipeline unique)
-  registerChat({
-    permissions,
-    getMute: (playerName) => sanctions.getMute(playerName),
-  });
-
-  registerChat({
-    permissions,
-    getMute: (playerName) => sanctions.getMute(playerName),
-  });
-
-  // Sanctions : éjection des bannis au spawn (mute = géré dans le chat)
-  registerEnforcement(sanctions);
+  // Chat custom : [grade] nom > message + mute intégré + éjection bannis
+  // (garde unique : un seul subscribe, même si le fallback s'exécute aussi)
+  registerChatOnce();
 
   if (!protectionRegistered) {
     protectionRegistered = true;
@@ -119,7 +125,6 @@ world.afterEvents.worldLoad.subscribe(() => {
 
 // Fallback : si worldLoad n'arrive pas (ou arrive après un join), on active au 1er spawn
 let worldReady = false;
-let chatRegistered = false;
 system.runInterval(() => {
   if (worldReady) return;
   if (world.getAllPlayers().length === 0) return;
@@ -144,14 +149,8 @@ system.runInterval(() => {
 
   // Le chat et l'enforcement des bans doivent aussi marcher en fallback
   // (avant : sans worldLoad, un muet pouvait parler et un banni rester).
-  if (!chatRegistered) {
-    chatRegistered = true;
-    registerChat({
-      permissions,
-      getMute: (playerName) => sanctions.getMute(playerName),
-    });
-    registerEnforcement(sanctions);
-  }
+  // registerChatOnce est idempotent : sans effet si worldLoad l'a déjà fait.
+  registerChatOnce();
 
   if (!protectionRegistered) {
     protectionRegistered = true;

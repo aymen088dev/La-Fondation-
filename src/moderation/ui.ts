@@ -3,6 +3,7 @@ import type { Player } from "@minecraft/server";
 import { windowTitle, ICONS, openWindow, openWindowRaw, obString, obNumber } from "../ui/theme";
 import type { SanctionsManager } from "./manager";
 import { formatDuration } from "./manager";
+import { kickPlayer } from "./enforcement";
 import { formatDate } from "../territories/manager";
 import type { PermissionManager } from "../permissions/manager";
 
@@ -123,11 +124,9 @@ function openSanctionForm(player: Player, sanctions: SanctionsManager): void {
 
       switch (typeIndex.getData()) {
         case 0: {
-          import("./enforcement").then(({ kickPlayer }) => {
-            const ok = kickPlayer(name, cleanReason);
-            player.sendMessage(ok ? `§a[Modération] ${name} éjecté.` : `§c[Modération] ${name} hors ligne.`);
-            if (ok) sanctions.log("kick", name, player.name, cleanReason);
-          });
+          const ok = kickPlayer(name, cleanReason);
+          player.sendMessage(ok ? `§a[Modération] ${name} éjecté.` : `§c[Modération] ${name} hors ligne.`);
+          if (ok) sanctions.log("kick", name, player.name, cleanReason);
           break;
         }
         case 1: {

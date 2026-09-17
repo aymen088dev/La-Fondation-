@@ -1,640 +1,3 @@
-var __defProp = Object.defineProperty;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __esm = (fn, res) => function __init() {
-  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
-};
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-
-// src/db/collections.ts
-function collectionLabel(collection) {
-  const meta = COLLECTION_META[collection];
-  const icons = {
-    players_index: "👥",
-    territories: "🚩",
-    roles: "👑",
-    members: "🎭",
-    bans: "🔨",
-    mutes: "🔇",
-    warns: "⚠️",
-    infractions: "📜",
-    modules: "🧩"
-  };
-  const icon = icons[collection] ?? "📁";
-  return meta === void 0 ? `${icon} ${collection}` : `${icon} ${meta.label}`;
-}
-var PLAYERS_COLLECTION, TERRITORY_COLLECTION, ROLES_COLLECTION, MEMBERS_COLLECTION, BANS_COLLECTION, MUTES_COLLECTION, WARNS_COLLECTION, INFRACTIONS_COLLECTION, MODULES_COLLECTION, COLLECTION_META, SECTION_ORDER;
-var init_collections = __esm({
-  "src/db/collections.ts"() {
-    "use strict";
-    PLAYERS_COLLECTION = "players_index";
-    TERRITORY_COLLECTION = "territories";
-    ROLES_COLLECTION = "roles";
-    MEMBERS_COLLECTION = "members";
-    BANS_COLLECTION = "bans";
-    MUTES_COLLECTION = "mutes";
-    WARNS_COLLECTION = "warns";
-    INFRACTIONS_COLLECTION = "infractions";
-    MODULES_COLLECTION = "modules";
-    COLLECTION_META = {
-      players_index: { label: "Joueurs", hint: "sessions, grade, première/dernière connexion" },
-      territories: { label: "Territoires", hint: "chunks, drapeau, membres" },
-      roles: { label: "Rôles", hint: "couleur, prefix, niveau, permissions" },
-      members: { label: "Grades attribués", hint: "rôle, prefix et couleur personnalisés" },
-      bans: { label: "Bans", hint: "sanctions d'exclusion actives" },
-      mutes: { label: "Mutes", hint: "sanctions de chat actives" },
-      warns: { label: "Avertissements", hint: "compteur d'avertissements" },
-      infractions: { label: "Journal", hint: "historique de toutes les actions de modération" },
-      modules: { label: "Modules", hint: "activation des fonctionnalités" }
-    };
-    SECTION_ORDER = Object.keys(COLLECTION_META);
-  }
-});
-
-// src/territories/types.ts
-function getColor(id) {
-  return TERRITORY_COLORS.find((color) => color.id === id) ?? TERRITORY_COLORS[0];
-}
-var TERRITORY_COLORS;
-var init_types = __esm({
-  "src/territories/types.ts"() {
-    "use strict";
-    TERRITORY_COLORS = [
-      { id: "rouge", code: "§c" },
-      { id: "vert", code: "§a" },
-      { id: "bleu", code: "§9" },
-      { id: "jaune", code: "§e" },
-      { id: "or", code: "§6" },
-      { id: "violet", code: "§5" },
-      { id: "rose", code: "§d" },
-      { id: "aqua", code: "§b" },
-      { id: "blanc", code: "§f" },
-      { id: "gris", code: "§7" }
-    ];
-  }
-});
-
-// src/territories/manager.ts
-function chunkKey(dimensionId, cx, cz) {
-  return `${dimensionId}:${cx}:${cz}`;
-}
-function chunkKeyFromPosition(dimensionId, x, z) {
-  return chunkKey(dimensionId, Math.floor(x / 16), Math.floor(z / 16));
-}
-function parseChunkKey(key) {
-  const parts = key.split(":");
-  const cx = Number(parts[parts.length - 2]);
-  const cz = Number(parts[parts.length - 1]);
-  const dimensionId = parts.slice(0, -2).join(":");
-  return { dimensionId, cx, cz };
-}
-function chunkCenter(key) {
-  const { dimensionId, cx, cz } = parseChunkKey(key);
-  return { dimensionId, x: cx * 16 + 8, z: cz * 16 + 8 };
-}
-function formatDate(timestamp) {
-  const d = new Date(timestamp);
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-var MAX_CHUNKS_PER_TERRITORY, NAME_MIN, NAME_MAX, NAME_PATTERN, TerritoryManager;
-var init_manager = __esm({
-  "src/territories/manager.ts"() {
-    "use strict";
-    init_collections();
-    MAX_CHUNKS_PER_TERRITORY = 64;
-    NAME_MIN = 3;
-    NAME_MAX = 24;
-    NAME_PATTERN = /^[A-Za-z0-9 _-]+$/;
-    TerritoryManager = class {
-      constructor(db2) {
-        this.db = db2;
-      }
-      /** Passe à true après le chargement de la DB (worldLoad). */
-      loaded = false;
-      markLoaded() {
-        this.loaded = true;
-      }
-      /** Tous les territoires. */
-      all() {
-        return this.db.find(TERRITORY_COLLECTION);
-      }
-      /** Le territoire contrôlant ce chunk, s'il existe. */
-      findByChunk(key) {
-        return this.db.find(
-          TERRITORY_COLLECTION,
-          (doc) => doc.data.chunkKeys.includes(key)
-        )[0];
-      }
-      /** Le territoire d'un joueur (par son pseudo, v1/v2). */
-      findByOwner(owner) {
-        return this.db.find(TERRITORY_COLLECTION, (doc) => doc.data.owner === owner)[0];
-      }
-      /** Le territoire dont ce joueur (par id Bedrock) est propriétaire. */
-      findByOwnerId(ownerId) {
-        return this.db.find(TERRITORY_COLLECTION, (doc) => doc.data.ownerId === ownerId)[0];
-      }
-      /** Le territoire où ce playerId est propriétaire OU membre (rang quelconque). */
-      findByMemberId(playerId) {
-        return this.db.find(
-          TERRITORY_COLLECTION,
-          (doc) => doc.data.ownerId === playerId || doc.data.members.some((member) => member.playerId === playerId)
-        )[0];
-      }
-      /** Ce joueur (pseudo) peut-il interagir/bâtir dans ce chunk ? */
-      isAllowed(playerName, key) {
-        const territory = this.findByChunk(key);
-        return territory === void 0 || territory.data.owner === playerName;
-      }
-      /**
-       * Ce joueur (id Bedrock) peut-il construire dans ce chunk ?
-       * Vrai si chunk libre, s'il est propriétaire, ou membre du territoire.
-       */
-      isAllowedFor(playerId, playerName, key) {
-        const territory = this.findByChunk(key);
-        if (territory === void 0) return true;
-        if (territory.data.ownerId === playerId) return true;
-        if (territory.data.owner === playerName) return true;
-        return territory.data.members.some((member) => member.playerId === playerId);
-      }
-      /** Ce chunk est-il revendiqué par quelqu'un ? */
-      isProtected(key) {
-        return this.findByChunk(key) !== void 0;
-      }
-      /** Sauvegarde immédiate de la DB sous-jacente. */
-      save() {
-        this.db.save();
-      }
-      /** Marque la DB dirty (mutations en place, cf. markDirty()). */
-      touch() {
-        this.db.markDirty();
-      }
-      // -------------------------------------------------------------------------
-      // Membres (v3)
-      // -------------------------------------------------------------------------
-      /** Ajoute un membre à un territoire. Renvoie une erreur si déjà membre. */
-      addMember(territoryId, playerId, playerName) {
-        const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
-        if (territory === void 0) return { ok: false, error: "Territoire introuvable." };
-        if (territory.data.ownerId === playerId) return { ok: false, error: "C'est le propriétaire." };
-        if (territory.data.members.some((m) => m.playerId === playerId)) {
-          return { ok: false, error: `${playerName} fait déjà partie du territoire.` };
-        }
-        territory.data.members.push({ playerId, name: playerName, rank: "member" });
-        territory.updatedAt = Date.now();
-        this.touch();
-        this.db.save();
-        return { ok: true };
-      }
-      /** Retire un membre (par playerId) d'un territoire. */
-      removeMember(territoryId, playerId) {
-        const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
-        if (territory === void 0) return { ok: false, error: "Territoire introuvable." };
-        const before = territory.data.members.length;
-        territory.data.members = territory.data.members.filter((m) => m.playerId !== playerId);
-        if (territory.data.members.length === before) return { ok: false, error: "Ce joueur n'est pas membre." };
-        territory.updatedAt = Date.now();
-        this.touch();
-        this.db.save();
-        return { ok: true };
-      }
-      /** Change le rang d'un membre ("member" ou "officer"). */
-      setMemberRank(territoryId, playerId, rank) {
-        const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
-        if (territory === void 0) return { ok: false, error: "Territoire introuvable." };
-        const member = territory.data.members.find((m) => m.playerId === playerId);
-        if (member === void 0) return { ok: false, error: "Ce joueur n'est pas membre." };
-        if (member.rank === rank) return { ok: true };
-        member.rank = rank;
-        territory.updatedAt = Date.now();
-        this.touch();
-        this.db.save();
-        return { ok: true };
-      }
-      /**
-       * Crée un territoire sur le chunk à la position donnée.
-       * `ownerId` = Player.id Bedrock (identité stable) ; `owner` = pseudo.
-       * Valide : nom, 1 territoire par joueur, chunk libre.
-       */
-      create(owner, name, colorId, dimensionId, x, z, ownerId) {
-        const cleanName = name.trim().replace(/\s+/g, " ");
-        const stableOwnerId = ownerId ?? `name:${owner}`;
-        if (cleanName.length < NAME_MIN || cleanName.length > NAME_MAX) {
-          return { ok: false, error: `Le nom doit faire entre ${NAME_MIN} et ${NAME_MAX} caractères.` };
-        }
-        if (!NAME_PATTERN.test(cleanName)) {
-          return { ok: false, error: "Le nom ne peut contenir que lettres, chiffres, espaces, _ et -." };
-        }
-        if (this.db.findOne(TERRITORY_COLLECTION, cleanName) !== void 0) {
-          return { ok: false, error: "Ce nom de territoire est déjà pris." };
-        }
-        if (this.findByOwner(owner) !== void 0) {
-          return { ok: false, error: "Tu possèdes déjà un territoire." };
-        }
-        const key = chunkKeyFromPosition(dimensionId, x, z);
-        if (this.isProtected(key)) {
-          return { ok: false, error: "Ce chunk est déjà revendiqué par un autre joueur." };
-        }
-        const territory = this.db.insert(
-          TERRITORY_COLLECTION,
-          {
-            name: cleanName,
-            owner,
-            ownerId: stableOwnerId,
-            ownerName: owner,
-            members: [],
-            color: colorId,
-            chunkKeys: [key],
-            createdAt: Date.now()
-          },
-          cleanName
-        );
-        this.db.save();
-        return { ok: true, territory };
-      }
-      /** Ajoute un chunk à un territoire (pour /sn:claim futur). */
-      addChunk(territoryId, key) {
-        const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
-        if (territory === void 0 || territory.data.chunkKeys.includes(key)) return false;
-        if (territory.data.chunkKeys.length >= MAX_CHUNKS_PER_TERRITORY) return false;
-        territory.data.chunkKeys.push(key);
-        territory.updatedAt = Date.now();
-        this.db.save();
-        return true;
-      }
-      /** Supprime un territoire (par son propriétaire). */
-      remove(territoryId, requester) {
-        const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
-        if (territory === void 0 || territory.data.owner !== requester) return false;
-        return this.db.delete(TERRITORY_COLLECTION, territoryId);
-      }
-      /** Supprime un territoire sans vérification de propriétaire (usage admin). */
-      removeForced(territoryId) {
-        return this.db.delete(TERRITORY_COLLECTION, territoryId);
-      }
-    };
-  }
-});
-
-// src/ui/theme.ts
-import {
-  CustomForm,
-  ObservableString,
-  ObservableNumber,
-  ObservableBoolean
-} from "@minecraft/server-ui";
-function windowTitle(section) {
-  return `§l§aOM §r§8» §r§l${section}`;
-}
-function divider() {
-  return "§8─────────────────────";
-}
-function obString(initial) {
-  return new ObservableString(initial);
-}
-function obNumber(initial) {
-  return new ObservableNumber(initial);
-}
-function obBool(initial) {
-  return new ObservableBoolean(initial);
-}
-function obToggle(initial, onChange) {
-  const observable = new ObservableBoolean(initial);
-  observable.subscribe(onChange);
-  return observable;
-}
-function uiText(text) {
-  return { rawtext: [{ text }] };
-}
-function closeOpenForm(player) {
-  const current = openForms.get(player.id);
-  if (current === void 0) return;
-  openForms.delete(player.id);
-  current.closeIfShowing();
-}
-async function openWindow(player, section, build) {
-  closeOpenForm(player);
-  const form = new OMForm(player, windowTitle(section));
-  build(form);
-  form.closeButton();
-  return form.show();
-}
-async function openWindowRaw(player, title, build) {
-  closeOpenForm(player);
-  const form = new OMForm(player, title);
-  build(form);
-  return form.show();
-}
-var RP_PACK_ID, ICONS, OMForm, openForms;
-var init_theme = __esm({
-  "src/ui/theme.ts"() {
-    "use strict";
-    RP_PACK_ID = "OpenMontage UI";
-    ICONS = {
-      // --- items (textures/items/*.png vérifiés) ---
-      sword: "textures/items/diamond_sword",
-      book: "textures/items/book_normal",
-      bookWritable: "textures/items/book_writable",
-      compass: "textures/items/compass_item",
-      map: "textures/items/map_filled",
-      emerald: "textures/items/emerald",
-      diamond: "textures/items/diamond",
-      goldIngot: "textures/items/gold_ingot",
-      ironIngot: "textures/items/iron_ingot",
-      clock: "textures/items/clock_item",
-      door: "textures/items/crimson_door",
-      sign: "textures/items/sign_acacia",
-      helmet: "textures/items/iron_helmet",
-      chainHelmet: "textures/items/chainmail_helmet",
-      pickaxe: "textures/items/iron_pickaxe",
-      nameTag: "textures/items/name_tag",
-      paper: "textures/items/paper",
-      arrow: "textures/items/arrow",
-      shears: "textures/items/shears",
-      bannerPattern: "textures/items/banner_pattern",
-      campfire: "textures/items/campfire",
-      // --- ui (textures/ui/*.png vérifiés) ---
-      banner: "textures/ui/banners_dark",
-      iconSetting: "textures/ui/icon_setting",
-      iconImport: "textures/ui/icon_import",
-      iconTrash: "textures/ui/icon_trash",
-      iconNew: "textures/ui/icon_new",
-      iconTimer: "textures/ui/icon_timer",
-      iconMap: "textures/ui/icon_map",
-      iconMail: "textures/ui/icon_mail",
-      iconLock: "textures/ui/icon_lock",
-      iconMultiplayer: "textures/ui/icon_multiplayer",
-      iconSteve: "textures/ui/icon_steve",
-      iconCrafting: "textures/ui/icon_crafting",
-      check: "textures/ui/check",
-      boxExit: "textures/ui/box_exit",
-      downloadBackup: "textures/ui/download_backup",
-      autoSave: "textures/ui/auto_save",
-      freeDownload: "textures/ui/free_download",
-      bell: "textures/ui/icon_bell",
-      armor: "textures/ui/icon_armor",
-      random: "textures/ui/icon_random",
-      expand: "textures/ui/icon_expand",
-      // --- alias sémantiques (mêmes textures vérifiées) ---
-      barrier: "textures/blocks/barrier",
-      crown: "textures/items/iron_helmet",
-      shield: "textures/ui/icon_armor",
-      flag: "textures/ui/banners_dark",
-      lock: "textures/ui/icon_lock",
-      plus: "textures/ui/icon_new",
-      wrench: "textures/items/shears",
-      anvil: "textures/blocks/anvil_base",
-      save: "textures/ui/download_backup",
-      trash: "textures/ui/icon_trash",
-      danger: "textures/ui/box_exit"
-    };
-    OMForm = class {
-      inner;
-      player;
-      constructor(player, title) {
-        this.player = player;
-        this.inner = new CustomForm(player, uiText(title));
-      }
-      /** Ferme ce formulaire si l'écran s'affiche encore (sinon no-op). */
-      closeIfShowing() {
-        try {
-          if (this.inner.isShowing()) this.inner.close();
-        } catch {
-        }
-      }
-      header(text, options) {
-        this.inner.header(uiText(text), options);
-        return this;
-      }
-      label(text, options) {
-        this.inner.label(uiText(text), options);
-        return this;
-      }
-      button(label, onClick, options) {
-        this.inner.button(
-          uiText(label),
-          () => {
-            closeOpenForm(this.player);
-            onClick();
-          },
-          options
-        );
-        return this;
-      }
-      divider(options) {
-        this.inner.divider(options);
-        return this;
-      }
-      spacer(options) {
-        this.inner.spacer(options);
-        return this;
-      }
-      toggle(label, toggled, options) {
-        this.inner.toggle(uiText(label), toggled, options);
-        return this;
-      }
-      slider(label, value, min, max, options) {
-        this.inner.slider(uiText(label), value, min, max, options);
-        return this;
-      }
-      dropdown(label, value, items, options) {
-        const data = items.map((item, index) => {
-          if (typeof item === "string") return { label: uiText(item), value: index };
-          return {
-            ...item,
-            label: typeof item.label === "string" ? uiText(item.label) : item.label
-          };
-        });
-        this.inner.dropdown(uiText(label), value, data, options);
-        return this;
-      }
-      textField(label, text, options) {
-        this.inner.textField(uiText(label), text, options);
-        return this;
-      }
-      image(src, pack, options) {
-        this.inner.image(src, pack, options);
-        return this;
-      }
-      closeButton() {
-        this.inner.closeButton();
-        return this;
-      }
-      show() {
-        const previous = openForms.get(this.player.id);
-        if (previous !== void 0 && previous !== this) previous.closeIfShowing();
-        openForms.set(this.player.id, this);
-        return this.inner.show().finally(() => {
-          if (openForms.get(this.player.id) === this) {
-            openForms.delete(this.player.id);
-          }
-        });
-      }
-      isShowing() {
-        return this.inner.isShowing();
-      }
-    };
-    openForms = /* @__PURE__ */ new Map();
-  }
-});
-
-// src/territories/ui.ts
-var ui_exports = {};
-__export(ui_exports, {
-  ICONS: () => ICONS,
-  RP_PACK_ID: () => RP_PACK_ID,
-  divider: () => divider,
-  openCreateMenu: () => openCreateMenu,
-  openTerritoriesMenu: () => openTerritoriesMenu,
-  showTerritoryInfo: () => showTerritoryInfo,
-  windowTitle: () => windowTitle
-});
-function openCreateMenu(player, manager) {
-  const name = obString("");
-  const colorIndex = obNumber(0);
-  void openWindowRaw(player, windowTitle("Créer un territoire"), (form) => {
-    form.header(`§a■ §lRevendiquer ce chunk`);
-    form.label(`§7Tu es en §fx=${Math.floor(player.location.x)}§7, §fz=${Math.floor(player.location.z)}§7 (§f${player.dimension.id}§7).`);
-    form.divider();
-    form.textField("§eNom du territoire (3-24 caractères)", name);
-    form.dropdown(
-      "§eCouleur du drapeau",
-      colorIndex,
-      TERRITORY_COLORS.map((color, value) => ({ label: `${color.code}■ ${color.id}`, value }))
-    );
-    form.divider();
-    form.button(`§a■ §lRevendiquer ce chunk !`, () => {
-      const cleanName = name.getData().trim().replace(/\s+/g, " ");
-      const color = TERRITORY_COLORS[colorIndex.getData()] ?? TERRITORY_COLORS[0];
-      const result = manager.create(
-        player.name,
-        cleanName,
-        color?.id ?? "rouge",
-        player.dimension.id,
-        player.location.x,
-        player.location.z,
-        player.id
-      );
-      if (!result.ok) {
-        player.sendMessage(`§c[Territoires] ${result.error}`);
-        return;
-      }
-      player.sendMessage(
-        `§a[Territoires] Territoire §r${color?.code}■ ${result.territory.data.name} §r§acrée ! Ce chunk est sous ta bannière.`
-      );
-    });
-    form.closeButton();
-  }).catch(
-    (error) => console.warn(`[Territoires] Erreur menu création : ${error instanceof Error ? error.message : String(error)}`)
-  );
-}
-function openTerritoriesMenu(player, manager) {
-  const territories2 = manager.all();
-  if (territories2.length === 0) {
-    player.sendMessage("§7[Territoires] Aucun territoire pour l'instant. Sois le premier avec §f/sn:create§7 !");
-    return;
-  }
-  void openWindow(player, "Territoires", (form) => {
-    form.label(`§7${territories2.length} territoire(s) revendiqué(s) :`);
-    form.divider();
-    for (const territory of territories2) {
-      const color = getColor(territory.data.color);
-      form.button(
-        `${color.code}■ ${territory.data.name}§r
-§7par ${territory.data.owner}`,
-        () => showTerritoryInfo(player, territory, manager)
-      );
-    }
-  }).catch(
-    (error) => console.warn(`[Territoires] Erreur menu liste : ${error instanceof Error ? error.message : String(error)}`)
-  );
-}
-function showTerritoryInfo(player, territory, manager) {
-  void manager;
-  const data = territory.data;
-  const color = getColor(data.color);
-  const center = chunkCenter(data.chunkKeys[0] ?? "");
-  const isOwner = data.ownerId === player.id || data.owner === player.name;
-  void openWindowRaw(player, windowTitle(data.name), (form) => {
-    form.header(`${color.code}■ §l${data.name}`);
-    form.label(
-      [
-        `§ePropriétaire : §f${data.owner}${isOwner ? " §a(toi)" : ""}`,
-        `§eDrapeau : §r${color.code}■ ${color.id}`,
-        `§eCréé le : §f${formatDate(data.createdAt)}`,
-        `§eChunks contrôlés : §f${data.chunkKeys.length}`,
-        `§eZone : §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
-        `§eMembres : §f${data.members.length}`
-      ].join("\n")
-    );
-    form.divider();
-    form.label("§7Seuls le propriétaire et ses membres peuvent y construire, y ouvrir des conteneurs ou y combattre.");
-    if (isOwner) {
-      form.spacer();
-      form.button(`§6■ Changer le drapeau (/sn:setflag)`, () => {
-        player.sendMessage(
-          `§7[Territoires] Couleurs : ${TERRITORY_COLORS.map((c) => `${c.code}${c.id}`).join("§7, ")}`
-        );
-      });
-      form.button(`§c■ Supprimer ce territoire`, () => {
-        const ok = manager.remove(data.name, player.name);
-        player.sendMessage(
-          ok ? `§a[Territoires] ${data.name} supprimé.` : "§c[Territoires] Suppression impossible."
-        );
-      });
-    }
-  }).catch(
-    (error) => console.warn(`[Territoires] Erreur fiche territoire : ${error instanceof Error ? error.message : String(error)}`)
-  );
-}
-var init_ui = __esm({
-  "src/territories/ui.ts"() {
-    "use strict";
-    init_theme();
-    init_types();
-    init_manager();
-  }
-});
-
-// src/moderation/enforcement.ts
-var enforcement_exports = {};
-__export(enforcement_exports, {
-  kickPlayer: () => kickPlayer,
-  registerEnforcement: () => registerEnforcement
-});
-import { world as world10, system as system10 } from "@minecraft/server";
-function kickPlayer(playerName, reason) {
-  const player = world10.getAllPlayers().find((candidate) => candidate.name === playerName);
-  if (player === void 0) return false;
-  try {
-    player.dimension.runCommand(`kick "${playerName}" ${reason.replace(/"/g, "")}`);
-    return true;
-  } catch {
-    return false;
-  }
-}
-function registerEnforcement(sanctions2) {
-  world10.afterEvents.playerSpawn.subscribe((event) => {
-    if (!event.initialSpawn || !sanctions2.loaded) return;
-    const player = event.player;
-    const ban = sanctions2.getBan(player.name);
-    if (ban === void 0) return;
-    const expiry = ban.expiresAt === 0 ? "§4BANNI PERMANENTLEMENT" : `§4BANNI§7 (encore ${Math.max(1, Math.ceil((ban.expiresAt - Date.now()) / 6e4))} min)`;
-    player.sendMessage(`§c[OpenMontage] ${expiry}
-§7Motif : §f${ban.reason}§7 — par §f${ban.by}`);
-    system10.run(() => {
-      kickPlayer(player.name, ban.reason);
-    });
-  });
-}
-var init_enforcement = __esm({
-  "src/moderation/enforcement.ts"() {
-    "use strict";
-  }
-});
-
 // src/main.ts
 import { world as world14, system as system14 } from "@minecraft/server";
 
@@ -997,19 +360,395 @@ function registerAutosave(db2, intervalTicks = 100) {
   return () => system.clearRun(runId);
 }
 
-// src/db/index.ts
-init_collections();
+// src/db/collections.ts
+var PLAYERS_COLLECTION = "players_index";
+var TERRITORY_COLLECTION = "territories";
+var ROLES_COLLECTION = "roles";
+var MEMBERS_COLLECTION = "members";
+var BANS_COLLECTION = "bans";
+var MUTES_COLLECTION = "mutes";
+var WARNS_COLLECTION = "warns";
+var INFRACTIONS_COLLECTION = "infractions";
+var MODULES_COLLECTION = "modules";
+var COLLECTION_META = {
+  players_index: { label: "Joueurs", hint: "sessions, grade, première/dernière connexion" },
+  territories: { label: "Territoires", hint: "chunks, drapeau, membres" },
+  roles: { label: "Rôles", hint: "couleur, prefix, niveau, permissions" },
+  members: { label: "Grades attribués", hint: "rôle, prefix et couleur personnalisés" },
+  bans: { label: "Bans", hint: "sanctions d'exclusion actives" },
+  mutes: { label: "Mutes", hint: "sanctions de chat actives" },
+  warns: { label: "Avertissements", hint: "compteur d'avertissements" },
+  infractions: { label: "Journal", hint: "historique de toutes les actions de modération" },
+  modules: { label: "Modules", hint: "activation des fonctionnalités" }
+};
+var SECTION_ORDER = Object.keys(COLLECTION_META);
+function collectionLabel(collection) {
+  const meta = COLLECTION_META[collection];
+  const icons = {
+    players_index: "👥",
+    territories: "🚩",
+    roles: "👑",
+    members: "🎭",
+    bans: "🔨",
+    mutes: "🔇",
+    warns: "⚠️",
+    infractions: "📜",
+    modules: "🧩"
+  };
+  const icon = icons[collection] ?? "📁";
+  return meta === void 0 ? `${icon} ${collection}` : `${icon} ${meta.label}`;
+}
 
-// src/territories/index.ts
-init_types();
-init_manager();
+// src/territories/types.ts
+var TERRITORY_COLORS = [
+  { id: "rouge", code: "§c" },
+  { id: "vert", code: "§a" },
+  { id: "bleu", code: "§9" },
+  { id: "jaune", code: "§e" },
+  { id: "or", code: "§6" },
+  { id: "violet", code: "§5" },
+  { id: "rose", code: "§d" },
+  { id: "aqua", code: "§b" },
+  { id: "blanc", code: "§f" },
+  { id: "gris", code: "§7" }
+];
+function getColor(id) {
+  return TERRITORY_COLORS.find((color) => color.id === id) ?? TERRITORY_COLORS[0];
+}
+
+// src/territories/manager.ts
+var MAX_CHUNKS_PER_TERRITORY = 64;
+var NAME_MIN = 3;
+var NAME_MAX = 24;
+var NAME_PATTERN = /^[A-Za-z0-9 _-]+$/;
+function chunkKey(dimensionId, cx, cz) {
+  return `${dimensionId}:${cx}:${cz}`;
+}
+function chunkKeyFromPosition(dimensionId, x, z) {
+  return chunkKey(dimensionId, Math.floor(x / 16), Math.floor(z / 16));
+}
+function parseChunkKey(key) {
+  const parts = key.split(":");
+  const cx = Number(parts[parts.length - 2]);
+  const cz = Number(parts[parts.length - 1]);
+  const dimensionId = parts.slice(0, -2).join(":");
+  return { dimensionId, cx, cz };
+}
+function chunkCenter(key) {
+  const { dimensionId, cx, cz } = parseChunkKey(key);
+  return { dimensionId, x: cx * 16 + 8, z: cz * 16 + 8 };
+}
+function formatDate(timestamp) {
+  const d = new Date(timestamp);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+var TerritoryManager = class {
+  constructor(db2) {
+    this.db = db2;
+  }
+  /** Passe à true après le chargement de la DB (worldLoad). */
+  loaded = false;
+  markLoaded() {
+    this.loaded = true;
+  }
+  /** Tous les territoires. */
+  all() {
+    return this.db.find(TERRITORY_COLLECTION);
+  }
+  /** Le territoire contrôlant ce chunk, s'il existe. */
+  findByChunk(key) {
+    return this.db.find(
+      TERRITORY_COLLECTION,
+      (doc) => doc.data.chunkKeys.includes(key)
+    )[0];
+  }
+  /** Le territoire d'un joueur (par son pseudo, v1/v2). */
+  findByOwner(owner) {
+    return this.db.find(TERRITORY_COLLECTION, (doc) => doc.data.owner === owner)[0];
+  }
+  /** Le territoire dont ce joueur (par id Bedrock) est propriétaire. */
+  findByOwnerId(ownerId) {
+    return this.db.find(TERRITORY_COLLECTION, (doc) => doc.data.ownerId === ownerId)[0];
+  }
+  /** Le territoire où ce playerId est propriétaire OU membre (rang quelconque). */
+  findByMemberId(playerId) {
+    return this.db.find(
+      TERRITORY_COLLECTION,
+      (doc) => doc.data.ownerId === playerId || doc.data.members.some((member) => member.playerId === playerId)
+    )[0];
+  }
+  /** Ce joueur (pseudo) peut-il interagir/bâtir dans ce chunk ? */
+  isAllowed(playerName, key) {
+    const territory = this.findByChunk(key);
+    return territory === void 0 || territory.data.owner === playerName;
+  }
+  /**
+   * Ce joueur (id Bedrock) peut-il construire dans ce chunk ?
+   * Vrai si chunk libre, s'il est propriétaire, ou membre du territoire.
+   */
+  isAllowedFor(playerId, playerName, key) {
+    const territory = this.findByChunk(key);
+    if (territory === void 0) return true;
+    if (territory.data.ownerId === playerId) return true;
+    if (territory.data.owner === playerName) return true;
+    return territory.data.members.some((member) => member.playerId === playerId);
+  }
+  /** Ce chunk est-il revendiqué par quelqu'un ? */
+  isProtected(key) {
+    return this.findByChunk(key) !== void 0;
+  }
+  /** Sauvegarde immédiate de la DB sous-jacente. */
+  save() {
+    this.db.save();
+  }
+  /** Marque la DB dirty (mutations en place, cf. markDirty()). */
+  touch() {
+    this.db.markDirty();
+  }
+  // -------------------------------------------------------------------------
+  // Membres (v3)
+  // -------------------------------------------------------------------------
+  /** Ajoute un membre à un territoire. Renvoie une erreur si déjà membre. */
+  addMember(territoryId, playerId, playerName) {
+    const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+    if (territory === void 0) return { ok: false, error: "Territoire introuvable." };
+    if (territory.data.ownerId === playerId) return { ok: false, error: "C'est le propriétaire." };
+    if (territory.data.members.some((m) => m.playerId === playerId)) {
+      return { ok: false, error: `${playerName} fait déjà partie du territoire.` };
+    }
+    territory.data.members.push({ playerId, name: playerName, rank: "member" });
+    territory.updatedAt = Date.now();
+    this.touch();
+    this.db.save();
+    return { ok: true };
+  }
+  /** Retire un membre (par playerId) d'un territoire. */
+  removeMember(territoryId, playerId) {
+    const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+    if (territory === void 0) return { ok: false, error: "Territoire introuvable." };
+    const before = territory.data.members.length;
+    territory.data.members = territory.data.members.filter((m) => m.playerId !== playerId);
+    if (territory.data.members.length === before) return { ok: false, error: "Ce joueur n'est pas membre." };
+    territory.updatedAt = Date.now();
+    this.touch();
+    this.db.save();
+    return { ok: true };
+  }
+  /** Change le rang d'un membre ("member" ou "officer"). */
+  setMemberRank(territoryId, playerId, rank) {
+    const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+    if (territory === void 0) return { ok: false, error: "Territoire introuvable." };
+    const member = territory.data.members.find((m) => m.playerId === playerId);
+    if (member === void 0) return { ok: false, error: "Ce joueur n'est pas membre." };
+    if (member.rank === rank) return { ok: true };
+    member.rank = rank;
+    territory.updatedAt = Date.now();
+    this.touch();
+    this.db.save();
+    return { ok: true };
+  }
+  /**
+   * Crée un territoire sur le chunk à la position donnée.
+   * `ownerId` = Player.id Bedrock (identité stable) ; `owner` = pseudo.
+   * Valide : nom, 1 territoire par joueur, chunk libre.
+   */
+  create(owner, name, colorId, dimensionId, x, z, ownerId) {
+    const cleanName = name.trim().replace(/\s+/g, " ");
+    const stableOwnerId = ownerId ?? `name:${owner}`;
+    if (cleanName.length < NAME_MIN || cleanName.length > NAME_MAX) {
+      return { ok: false, error: `Le nom doit faire entre ${NAME_MIN} et ${NAME_MAX} caractères.` };
+    }
+    if (!NAME_PATTERN.test(cleanName)) {
+      return { ok: false, error: "Le nom ne peut contenir que lettres, chiffres, espaces, _ et -." };
+    }
+    if (this.db.findOne(TERRITORY_COLLECTION, cleanName) !== void 0) {
+      return { ok: false, error: "Ce nom de territoire est déjà pris." };
+    }
+    if (this.findByOwner(owner) !== void 0) {
+      return { ok: false, error: "Tu possèdes déjà un territoire." };
+    }
+    const key = chunkKeyFromPosition(dimensionId, x, z);
+    if (this.isProtected(key)) {
+      return { ok: false, error: "Ce chunk est déjà revendiqué par un autre joueur." };
+    }
+    const territory = this.db.insert(
+      TERRITORY_COLLECTION,
+      {
+        name: cleanName,
+        owner,
+        ownerId: stableOwnerId,
+        ownerName: owner,
+        members: [],
+        color: colorId,
+        chunkKeys: [key],
+        createdAt: Date.now()
+      },
+      cleanName
+    );
+    this.db.save();
+    return { ok: true, territory };
+  }
+  /** Ajoute un chunk à un territoire (pour /sn:claim futur). */
+  addChunk(territoryId, key) {
+    const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+    if (territory === void 0 || territory.data.chunkKeys.includes(key)) return false;
+    if (territory.data.chunkKeys.length >= MAX_CHUNKS_PER_TERRITORY) return false;
+    territory.data.chunkKeys.push(key);
+    territory.updatedAt = Date.now();
+    this.db.save();
+    return true;
+  }
+  /** Supprime un territoire (par son propriétaire). */
+  remove(territoryId, requester) {
+    const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+    if (territory === void 0 || territory.data.owner !== requester) return false;
+    return this.db.delete(TERRITORY_COLLECTION, territoryId);
+  }
+  /** Supprime un territoire sans vérification de propriétaire (usage admin). */
+  removeForced(territoryId) {
+    return this.db.delete(TERRITORY_COLLECTION, territoryId);
+  }
+};
 
 // src/territories/commands.ts
 import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system7 } from "@minecraft/server";
 
+// src/ui/theme.ts
+import {
+  CustomForm,
+  ObservableString,
+  ObservableNumber,
+  ObservableBoolean
+} from "@minecraft/server-ui";
+function windowTitle(section) {
+  return `§l§aOM §r§8» §r§l${section}`;
+}
+function obString(initial) {
+  return new ObservableString(initial);
+}
+function obNumber(initial) {
+  return new ObservableNumber(initial);
+}
+function obBool(initial) {
+  return new ObservableBoolean(initial);
+}
+function obToggle(initial, onChange) {
+  const observable = new ObservableBoolean(initial);
+  observable.subscribe(onChange);
+  return observable;
+}
+function uiText(text) {
+  return { rawtext: [{ text }] };
+}
+var OMForm = class {
+  inner;
+  player;
+  constructor(player, title) {
+    this.player = player;
+    this.inner = new CustomForm(player, uiText(title));
+  }
+  /** Ferme ce formulaire si l'écran s'affiche encore (sinon no-op). */
+  closeIfShowing() {
+    try {
+      if (this.inner.isShowing()) this.inner.close();
+    } catch {
+    }
+  }
+  header(text, options) {
+    this.inner.header(uiText(text), options);
+    return this;
+  }
+  label(text, options) {
+    this.inner.label(uiText(text), options);
+    return this;
+  }
+  button(label, onClick, options) {
+    this.inner.button(
+      uiText(label),
+      () => {
+        closeOpenForm(this.player);
+        onClick();
+      },
+      options
+    );
+    return this;
+  }
+  divider(options) {
+    this.inner.divider(options);
+    return this;
+  }
+  spacer(options) {
+    this.inner.spacer(options);
+    return this;
+  }
+  toggle(label, toggled, options) {
+    this.inner.toggle(uiText(label), toggled, options);
+    return this;
+  }
+  slider(label, value, min, max, options) {
+    this.inner.slider(uiText(label), value, min, max, options);
+    return this;
+  }
+  dropdown(label, value, items, options) {
+    const data = items.map((item, index) => {
+      if (typeof item === "string") return { label: uiText(item), value: index };
+      return {
+        ...item,
+        label: typeof item.label === "string" ? uiText(item.label) : item.label
+      };
+    });
+    this.inner.dropdown(uiText(label), value, data, options);
+    return this;
+  }
+  textField(label, text, options) {
+    this.inner.textField(uiText(label), text, options);
+    return this;
+  }
+  image(src, pack, options) {
+    this.inner.image(src, pack, options);
+    return this;
+  }
+  closeButton() {
+    this.inner.closeButton();
+    return this;
+  }
+  show() {
+    const previous = openForms.get(this.player.id);
+    if (previous !== void 0 && previous !== this) previous.closeIfShowing();
+    openForms.set(this.player.id, this);
+    return this.inner.show().finally(() => {
+      if (openForms.get(this.player.id) === this) {
+        openForms.delete(this.player.id);
+      }
+    });
+  }
+  isShowing() {
+    return this.inner.isShowing();
+  }
+};
+var openForms = /* @__PURE__ */ new Map();
+function closeOpenForm(player) {
+  const current = openForms.get(player.id);
+  if (current === void 0) return;
+  openForms.delete(player.id);
+  current.closeIfShowing();
+}
+async function openWindow(player, section, build) {
+  closeOpenForm(player);
+  const form = new OMForm(player, windowTitle(section));
+  build(form);
+  form.closeButton();
+  return form.show();
+}
+async function openWindowRaw(player, title, build) {
+  closeOpenForm(player);
+  const form = new OMForm(player, title);
+  build(form);
+  return form.show();
+}
+
 // src/db/menu.ts
-init_theme();
-init_collections();
 function summarize(doc) {
   const data = doc.data ?? {};
   if (typeof data.name === "string" && data.name !== "") {
@@ -4682,9 +4421,107 @@ var DirectionUtils = class {
 };
 var log2 = Logger.getLogger("itemUtils", "bedrock-boost", "itemUtils");
 
+// src/territories/ui.ts
+function openCreateMenu(player, manager) {
+  const name = obString("");
+  const colorIndex = obNumber(0);
+  void openWindowRaw(player, windowTitle("Créer un territoire"), (form) => {
+    form.header(`§a■ §lRevendiquer ce chunk`);
+    form.label(`§7Tu es en §fx=${Math.floor(player.location.x)}§7, §fz=${Math.floor(player.location.z)}§7 (§f${player.dimension.id}§7).`);
+    form.divider();
+    form.textField("§eNom du territoire (3-24 caractères)", name);
+    form.dropdown(
+      "§eCouleur du drapeau",
+      colorIndex,
+      TERRITORY_COLORS.map((color, value) => ({ label: `${color.code}■ ${color.id}`, value }))
+    );
+    form.divider();
+    form.button(`§a■ §lRevendiquer ce chunk !`, () => {
+      const cleanName = name.getData().trim().replace(/\s+/g, " ");
+      const color = TERRITORY_COLORS[colorIndex.getData()] ?? TERRITORY_COLORS[0];
+      const result = manager.create(
+        player.name,
+        cleanName,
+        color?.id ?? "rouge",
+        player.dimension.id,
+        player.location.x,
+        player.location.z,
+        player.id
+      );
+      if (!result.ok) {
+        player.sendMessage(`§c[Territoires] ${result.error}`);
+        return;
+      }
+      player.sendMessage(
+        `§a[Territoires] Territoire §r${color?.code}■ ${result.territory.data.name} §r§acrée ! Ce chunk est sous ta bannière.`
+      );
+    });
+    form.closeButton();
+  }).catch(
+    (error) => console.warn(`[Territoires] Erreur menu création : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+function openTerritoriesMenu(player, manager) {
+  const territories2 = manager.all();
+  if (territories2.length === 0) {
+    player.sendMessage("§7[Territoires] Aucun territoire pour l'instant. Sois le premier avec §f/sn:create§7 !");
+    return;
+  }
+  void openWindow(player, "Territoires", (form) => {
+    form.label(`§7${territories2.length} territoire(s) revendiqué(s) :`);
+    form.divider();
+    for (const territory of territories2) {
+      const color = getColor(territory.data.color);
+      form.button(
+        `${color.code}■ ${territory.data.name}§r
+§7par ${territory.data.owner}`,
+        () => showTerritoryInfo(player, territory, manager)
+      );
+    }
+  }).catch(
+    (error) => console.warn(`[Territoires] Erreur menu liste : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+function showTerritoryInfo(player, territory, manager) {
+  void manager;
+  const data = territory.data;
+  const color = getColor(data.color);
+  const center = chunkCenter(data.chunkKeys[0] ?? "");
+  const isOwner = data.ownerId === player.id || data.owner === player.name;
+  void openWindowRaw(player, windowTitle(data.name), (form) => {
+    form.header(`${color.code}■ §l${data.name}`);
+    form.label(
+      [
+        `§ePropriétaire : §f${data.owner}${isOwner ? " §a(toi)" : ""}`,
+        `§eDrapeau : §r${color.code}■ ${color.id}`,
+        `§eCréé le : §f${formatDate(data.createdAt)}`,
+        `§eChunks contrôlés : §f${data.chunkKeys.length}`,
+        `§eZone : §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
+        `§eMembres : §f${data.members.length}`
+      ].join("\n")
+    );
+    form.divider();
+    form.label("§7Seuls le propriétaire et ses membres peuvent y construire, y ouvrir des conteneurs ou y combattre.");
+    if (isOwner) {
+      form.spacer();
+      form.button(`§6■ Changer le drapeau (/sn:setflag)`, () => {
+        player.sendMessage(
+          `§7[Territoires] Couleurs : ${TERRITORY_COLORS.map((c) => `${c.code}${c.id}`).join("§7, ")}`
+        );
+      });
+      form.button(`§c■ Supprimer ce territoire`, () => {
+        const ok = manager.remove(data.name, player.name);
+        player.sendMessage(
+          ok ? `§a[Territoires] ${data.name} supprimé.` : "§c[Territoires] Suppression impossible."
+        );
+      });
+    }
+  }).catch(
+    (error) => console.warn(`[Territoires] Erreur fiche territoire : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+
 // src/territories/commands.ts
-init_types();
-init_ui();
 function registerCommands(manager, db2, modules2, permissions2) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
   const allowed = (player, perm) => {
@@ -4840,7 +4677,6 @@ function registerCommands(manager, db2, modules2, permissions2) {
 }
 
 // src/territories/protection.ts
-init_manager();
 import { world as world7, system as system8, GameMode as GameMode2, Player as Player3 } from "@minecraft/server";
 function safeSend(player, message) {
   system8.run(() => {
@@ -4964,8 +4800,6 @@ function registerProtection(manager, modules2) {
 }
 
 // src/territories/announce.ts
-init_manager();
-init_types();
 import { system as system9, world as world8 } from "@minecraft/server";
 var NO_TERRITORY_MESSAGE = "§7Zone libre";
 function registerAnnouncer(manager, modules2, intervalTicks = 10) {
@@ -4996,11 +4830,7 @@ function registerAnnouncer(manager, modules2, intervalTicks = 10) {
   }, intervalTicks);
 }
 
-// src/territories/index.ts
-init_ui();
-
 // src/permissions/manager.ts
-init_collections();
 var DEFAULT_ROLE_NAME = "Joueur";
 var DEFAULT_ROLE_COLOR = "§8";
 var DEFAULT_ROLE_PREFIX = "[Joueur]";
@@ -5325,7 +5155,6 @@ var PermissionManager = class {
 };
 
 // src/permissions/ui.ts
-init_theme();
 function openRolesMenu(player, permissions2) {
   const roles = permissions2.allRoles();
   void openWindow(player, "Rôles", (form) => {
@@ -5447,10 +5276,8 @@ function openPrefixMenu(player, title, onDone) {
 
 // src/permissions/players-ui.ts
 import { world as world9 } from "@minecraft/server";
-init_theme();
 
 // src/players.ts
-init_collections();
 function findPlayerById(db2, playerId) {
   return db2.findOne(PLAYERS_COLLECTION, playerId);
 }
@@ -5624,15 +5451,9 @@ function openAssignRoleMenu(player, targetName, permissions2, db2) {
 }
 
 // src/permissions/commands.ts
-init_theme();
 import { CustomCommandStatus as CustomCommandStatus2, CommandPermissionLevel as CommandPermissionLevel2, system as system11, PlayerPermissionLevel } from "@minecraft/server";
 
-// src/modules/ui.ts
-init_theme();
-import { MessageFormData } from "@minecraft/server-ui";
-
 // src/modules/manager.ts
-init_collections();
 var MODULE_IDS = ["territories", "moderation"];
 var MODULE_CATALOG = [
   {
@@ -5691,9 +5512,7 @@ function openModulesMenu(player, modules2, territories2) {
     if (MODULE_CATALOG.some((info) => info.id === "territories")) {
       form.divider();
       form.button(`§e■ Voir les territoires`, () => {
-        void Promise.resolve().then(() => (init_ui(), ui_exports)).then(({ openTerritoriesMenu: openTerritoriesMenu2 }) => {
-          if (territories2 !== void 0) openTerritoriesMenu2(player, territories2);
-        });
+        if (territories2 !== void 0) openTerritoriesMenu(player, territories2);
       });
       form.button(`§c■ Supprimer TOUS les territoires`, () => {
         if (territories2 !== void 0) openWipeTerritoriesMenu(player, modules2, territories2);
@@ -5702,29 +5521,30 @@ function openModulesMenu(player, modules2, territories2) {
   }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
 }
 function openWipeTerritoriesMenu(player, modules2, territories2) {
-  new MessageFormData().title("§4⚠ DANGER").body(`Supprimer §lTOUS§r§4 les territoires (${territories2.all().length})?
+  void openWindowRaw(player, windowTitle("Supprimer les territoires"), (form) => {
+    form.header(`§4⚠ §lDANGER`);
+    form.label(
+      `Supprimer §lTOUS§r§4 les territoires (${territories2.all().length}) ?
 
-Action irréversible !`).button2("§4SUPPRIMER TOUT").button1("§aAnnuler").show(player).then((response) => {
-    if (response.selection !== 1) return;
-    let removed = 0;
-    for (const territory of territories2.all()) {
-      if (territories2.removeForced(territory.id)) removed++;
-    }
-    player.sendMessage(`§a[Modules] ${removed} territoire(s) supprimé(s).`);
-    openModulesMenu(player, modules2, territories2);
+§7Action irréversible !`
+    );
+    form.divider();
+    form.button(`§4■ §lSUPPRIMER TOUT`, () => {
+      let removed = 0;
+      for (const territory of territories2.all()) {
+        if (territories2.removeForced(territory.id)) removed++;
+      }
+      player.sendMessage(`§a[Modules] ${removed} territoire(s) supprimé(s).`);
+      openModulesMenu(player, modules2, territories2);
+    });
+    form.button(`§a■ §lAnnuler`, () => openModulesMenu(player, modules2, territories2));
   }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
 }
 
-// src/ui/hub.ts
-init_theme();
-init_ui();
-
 // src/moderation/ui.ts
-init_theme();
 import { world as world11 } from "@minecraft/server";
 
 // src/moderation/manager.ts
-init_collections();
 function formatDuration(minutes) {
   if (minutes === 0) return "permanent";
   if (minutes < 60) return `${minutes} min`;
@@ -5873,8 +5693,34 @@ var SanctionsManager = class {
   }
 };
 
+// src/moderation/enforcement.ts
+import { world as world10, system as system10 } from "@minecraft/server";
+function kickPlayer(playerName, reason) {
+  const player = world10.getAllPlayers().find((candidate) => candidate.name === playerName);
+  if (player === void 0) return false;
+  try {
+    player.dimension.runCommand(`kick "${playerName}" ${reason.replace(/"/g, "")}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function registerEnforcement(sanctions2) {
+  world10.afterEvents.playerSpawn.subscribe((event) => {
+    if (!event.initialSpawn || !sanctions2.loaded) return;
+    const player = event.player;
+    const ban = sanctions2.getBan(player.name);
+    if (ban === void 0) return;
+    const expiry = ban.expiresAt === 0 ? "§4BANNI PERMANENTLEMENT" : `§4BANNI§7 (encore ${Math.max(1, Math.ceil((ban.expiresAt - Date.now()) / 6e4))} min)`;
+    player.sendMessage(`§c[OpenMontage] ${expiry}
+§7Motif : §f${ban.reason}§7 — par §f${ban.by}`);
+    system10.run(() => {
+      kickPlayer(player.name, ban.reason);
+    });
+  });
+}
+
 // src/moderation/ui.ts
-init_manager();
 function resolveTargetId(targetName) {
   const online = world11.getAllPlayers().find((candidate) => candidate.name === targetName);
   return online?.id ?? null;
@@ -5971,11 +5817,9 @@ function openSanctionForm(player, sanctions2) {
       }
       switch (typeIndex.getData()) {
         case 0: {
-          Promise.resolve().then(() => (init_enforcement(), enforcement_exports)).then(({ kickPlayer: kickPlayer2 }) => {
-            const ok = kickPlayer2(name, cleanReason);
-            player.sendMessage(ok ? `§a[Modération] ${name} éjecté.` : `§c[Modération] ${name} hors ligne.`);
-            if (ok) sanctions2.log("kick", name, player.name, cleanReason);
-          });
+          const ok = kickPlayer(name, cleanReason);
+          player.sendMessage(ok ? `§a[Modération] ${name} éjecté.` : `§c[Modération] ${name} hors ligne.`);
+          if (ok) sanctions2.log("kick", name, player.name, cleanReason);
           break;
         }
         case 1: {
@@ -6261,9 +6105,6 @@ function registerChat(deps) {
   });
 }
 
-// src/moderation/index.ts
-init_enforcement();
-
 // src/moderation/commands.ts
 import {
   CustomCommandParamType as CustomCommandParamType2,
@@ -6272,7 +6113,6 @@ import {
   system as system13
 } from "@minecraft/server";
 import { world as world13 } from "@minecraft/server";
-init_enforcement();
 var NOT_PLAYER = "§c[Modération] Réservé aux joueurs.";
 function requires(player, permissions2, perm) {
   return permissions2.can(player.name, perm, player.playerPermissionLevel >= 2);
@@ -6478,6 +6318,16 @@ registerCommands(territories, db, modules, permissions);
 registerAdminCommands({ permissions, modules, territories, sanctions, db });
 registerModerationCommands({ sanctions, permissions, db });
 var protectionRegistered = false;
+var chatRegistered = false;
+function registerChatOnce() {
+  if (chatRegistered) return;
+  chatRegistered = true;
+  registerChat({
+    permissions,
+    getMute: (playerName) => sanctions.getMute(playerName)
+  });
+  registerEnforcement(sanctions);
+}
 function applyNameTag(playerName) {
   const player = world14.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return;
@@ -6507,15 +6357,7 @@ world14.afterEvents.worldLoad.subscribe(() => {
   for (const player of world14.getAllPlayers()) {
     applyNameTag(player.name);
   }
-  registerChat({
-    permissions,
-    getMute: (playerName) => sanctions.getMute(playerName)
-  });
-  registerChat({
-    permissions,
-    getMute: (playerName) => sanctions.getMute(playerName)
-  });
-  registerEnforcement(sanctions);
+  registerChatOnce();
   if (!protectionRegistered) {
     protectionRegistered = true;
     registerProtection(territories, modules);
@@ -6528,7 +6370,6 @@ world14.afterEvents.worldLoad.subscribe(() => {
   );
 });
 var worldReady = false;
-var chatRegistered = false;
 system14.runInterval(() => {
   if (worldReady) return;
   if (world14.getAllPlayers().length === 0) return;
@@ -6548,14 +6389,7 @@ system14.runInterval(() => {
       applyNameTag(player.name);
     }
   }
-  if (!chatRegistered) {
-    chatRegistered = true;
-    registerChat({
-      permissions,
-      getMute: (playerName) => sanctions.getMute(playerName)
-    });
-    registerEnforcement(sanctions);
-  }
+  registerChatOnce();
   if (!protectionRegistered) {
     protectionRegistered = true;
     registerProtection(territories, modules);
