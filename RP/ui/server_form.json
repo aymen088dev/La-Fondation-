@@ -1,5 +1,5 @@
 {
-  "_comment": "Reskin OpenMontage des formulaires serveur (ActionForm/ModalForm). TECHNIQUE PRO (celle des vrais packs) : la structure reste 100% vanilla (heritage common_dialogs.main_panel_no_buttons + common_buttons.light_text_button, namespaces reels charges par le jeu) et on ne passe que des VARIABLES au point d'usage : $custom_background (fond bleu nuit OM), $default/hover/pressed_button_texture (boutons noirs bordes OM 3 etats), $title_text_color (titre OM). Portee limitee aux forms serveur : le reste du jeu n'est pas touche. Aucune structure copiee : si Mojang change ses widgets, on suit automatiquement.",
+  "_comment": "Reskin OpenMontage des formulaires serveur. METHODE (celle qui marche, comme notre hud_screen.json) : CE fichier porte le MEME CHEMIN que le vanilla (ui/server_form.json) => ECRASEMENT total par le RP. Le script OMForm envoie des forms banales ; c'est CE fichier qui possede et dessine l'ecran : fond bleu nuit OM, bandeau de marque revele par le tag §r§r dans le titre, boutons OM 3 etats. Structure heritee de common_dialogs/common_buttons (namespaces reels du jeu) + nos variables.",
 
   "namespace": "server_form",
 

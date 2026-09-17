@@ -24,6 +24,7 @@ function summarize(doc: StoredDocument<Record<string, unknown>>): string {
     if (typeof data.reason === "string") extras.push(String(data.reason).slice(0, 30));
     if (typeof data.enabled === "boolean") extras.push(data.enabled ? "ON" : "OFF");
     if (typeof data.grade === "string" && data.grade !== "") extras.push(`grade ${data.grade}`);
+    if (typeof data.class === "string" && data.class !== "") extras.push(`classe ${data.class}`);
     if (typeof data.sessions === "number") extras.push(`${data.sessions} sessions`);
     if (Array.isArray(data.perms)) extras.push(`${data.perms.length} perms`);
     if (Array.isArray(data.members)) extras.push(`${data.members.length} membres`);

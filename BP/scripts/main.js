@@ -4256,6 +4256,9 @@ function obNumber(initial) {
 function obBool(initial) {
   return new ObservableBoolean(initial);
 }
+function fieldKind(el) {
+  return el.valueType;
+}
 var OMForm = class {
   player;
   titleText;
@@ -4347,6 +4350,7 @@ var OMForm = class {
     this.enterFields();
     this.elements.push({
       kind: "field",
+      valueType: "boolean",
       build: (form) => form.toggle(label, { defaultValue: initial }),
       read: (response, index) => {
         void response.formValues?.[index];
@@ -4359,6 +4363,7 @@ var OMForm = class {
     this.enterFields();
     this.elements.push({
       kind: "field",
+      valueType: "boolean",
       build: (form) => form.toggle(label, { defaultValue: observable.getData() }),
       read: (response, index) => {
         const raw = response.formValues?.[index];
@@ -4372,6 +4377,7 @@ var OMForm = class {
     const current = Math.min(Math.max(observable.getData(), min), max);
     this.elements.push({
       kind: "field",
+      valueType: "number",
       build: (form) => form.slider(label, min, max, { valueStep: options?.step ?? 1, defaultValue: current }),
       read: (response, index) => {
         const raw = response.formValues?.[index];
@@ -4387,6 +4393,7 @@ var OMForm = class {
     );
     this.elements.push({
       kind: "field",
+      valueType: "number",
       build: (form) => form.dropdown(label, labels, { defaultValueIndex: observable.getData() }),
       read: (response, index) => {
         const raw = response.formValues?.[index];
@@ -4399,6 +4406,7 @@ var OMForm = class {
     this.enterFields();
     this.elements.push({
       kind: "field",
+      valueType: "string",
       build: (form) => form.textField(label, options?.placeholder ?? "…", { defaultValue: observable.getData() }),
       read: (response, index) => {
         const raw = response.formValues?.[index];
@@ -4472,11 +4480,39 @@ var OMForm = class {
     }
     const response = await form.show(this.player);
     if (response.canceled) return "UserClosed";
-    let readIndex = 0;
-    for (const el of this.elements) {
-      if (el.kind === "field") {
-        el.read(response, readIndex);
-        readIndex += 1;
+    const values = response.formValues ?? [];
+    const fieldEls = this.elements.filter((el) => el.kind === "field");
+    if (values.length === fieldEls.length) {
+      for (const [index, el] of fieldEls.entries()) el.read(response, index);
+    } else {
+      const taken = new Array(values.length).fill(false);
+      const take = (index) => {
+        if (index >= 0 && index < values.length && !taken[index]) {
+          taken[index] = true;
+          return values[index];
+        }
+        return void 0;
+      };
+      const pick = (kind) => {
+        for (const [index, value] of values.entries()) {
+          if (!taken[index] && typeof value === kind) return take(index);
+        }
+        return void 0;
+      };
+      const pending = [];
+      for (const [index, el] of fieldEls.entries()) {
+        const raw = take(index);
+        if (raw === void 0) {
+          pending.push(el);
+        } else {
+          el.read({ ...response, formValues: [raw] }, 0);
+        }
+      }
+      for (const el of pending) {
+        const raw = pick(fieldKind(el));
+        if (raw !== void 0) {
+          el.read({ ...response, formValues: [raw] }, 0);
+        }
       }
     }
     submitAction?.();
@@ -4564,6 +4600,7 @@ function summarize(doc) {
     if (typeof data.reason === "string") extras.push(String(data.reason).slice(0, 30));
     if (typeof data.enabled === "boolean") extras.push(data.enabled ? "ON" : "OFF");
     if (typeof data.grade === "string" && data.grade !== "") extras.push(`grade ${data.grade}`);
+    if (typeof data.class === "string" && data.class !== "") extras.push(`classe ${data.class}`);
     if (typeof data.sessions === "number") extras.push(`${data.sessions} sessions`);
     if (Array.isArray(data.perms)) extras.push(`${data.perms.length} perms`);
     if (Array.isArray(data.members)) extras.push(`${data.members.length} membres`);
@@ -5586,7 +5623,7 @@ function findPlayerByName(db2, playerName) {
     (doc) => doc.data.name === playerName
   )[0];
 }
-function trackPlayerJoin(db2, playerId, playerName, grade = "") {
+function trackPlayerJoin(db2, playerId, playerName, grade = "", className = "") {
   const now = Date.now();
   const existing = findPlayerById(db2, playerId);
   const legacy = findPlayerByName(db2, playerName);
@@ -5595,6 +5632,8 @@ function trackPlayerJoin(db2, playerId, playerName, grade = "") {
     existing.data.lastSeen = now;
     existing.data.sessions += 1;
     if (grade !== "") existing.data.grade = grade;
+    if (className !== "") existing.data.class = className;
+    else if (existing.data.class === void 0) existing.data.class = "";
     existing.updatedAt = now;
     db2.save();
     return existing.id;
@@ -5609,7 +5648,8 @@ function trackPlayerJoin(db2, playerId, playerName, grade = "") {
         firstSeen: legacy.data.firstSeen,
         lastSeen: now,
         sessions: legacy.data.sessions + 1,
-        grade: grade !== "" ? grade : legacy.data.grade
+        grade: grade !== "" ? grade : legacy.data.grade,
+        class: className !== "" ? className : legacy.data.class ?? ""
       },
       playerId
     );
@@ -5618,7 +5658,7 @@ function trackPlayerJoin(db2, playerId, playerName, grade = "") {
   }
   db2.insert(
     PLAYERS_COLLECTION,
-    { playerId, name: playerName, firstSeen: now, lastSeen: now, sessions: 1, grade },
+    { playerId, name: playerName, firstSeen: now, lastSeen: now, sessions: 1, grade, class: className },
     playerId
   );
   db2.save();
@@ -5703,11 +5743,16 @@ function openPlayerConfigMenu(player, targetName, permissions2, db2) {
   const prefixLabel = member?.data.customPrefix ?? "(défaut du rôle)";
   const colorLabel = member?.data.customColor ?? "(défaut du rôle)";
   const isOnline = world9.getAllPlayers().some((candidate) => candidate.name === targetName);
+  const classRecord = db2 !== void 0 ? allKnownPlayers(db2).find((record) => record.data.name === targetName) : void 0;
+  const classLabel = classRecord?.data.class ? classRecord.data.class : "§8pas encore choisie";
   void openWindow(player, targetName, (form) => {
     form.header(`§b■ §l${targetName}§r ${isOnline ? "§a●" : "§8●"}`);
-    form.label(`§7Rôle : ${roleLabel}
+    form.label(
+      `§7Rôle : ${roleLabel}
+§7Classe : §f${classLabel}
 §7Prefix perso : §f${prefixLabel}
-§7Couleur perso : §f${colorLabel}`);
+§7Couleur perso : §f${colorLabel}`
+    );
     form.divider();
     form.button(
       `§e■ §lAttribuer / changer de rôle`,
@@ -7020,7 +7065,13 @@ world14.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
   const player = event.player;
   permissions.ensureDefaultRole(player.name, player.id);
-  trackPlayerJoin(db, player.id, player.name, permissions.roleOf(player.name)?.data.name ?? "");
+  trackPlayerJoin(
+    db,
+    player.id,
+    player.name,
+    permissions.roleOf(player.name)?.data.name ?? "",
+    classes.classOf(player.name)?.classId ?? ""
+  );
   const member = permissions.getMember(player.name);
   if (member !== void 0 && member.data.playerId !== player.id) {
     member.data.playerId = player.id;

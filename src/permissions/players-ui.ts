@@ -100,10 +100,17 @@ export function openPlayerConfigMenu(
   const prefixLabel = member?.data.customPrefix ?? "(défaut du rôle)";
   const colorLabel = member?.data.customColor ?? "(défaut du rôle)";
   const isOnline = world.getAllPlayers().some((candidate) => candidate.name === targetName);
+  const classRecord =
+    db !== undefined
+      ? allKnownPlayers(db).find((record) => record.data.name === targetName)
+      : undefined;
+  const classLabel = classRecord?.data.class ? classRecord.data.class : "§8pas encore choisie";
 
   void openWindow(player, targetName, (form) => {
     form.header(`§b■ §l${targetName}§r ${isOnline ? "§a●" : "§8●"}`);
-    form.label(`§7Rôle : ${roleLabel}\n§7Prefix perso : §f${prefixLabel}\n§7Couleur perso : §f${colorLabel}`);
+    form.label(
+      `§7Rôle : ${roleLabel}\n§7Classe : §f${classLabel}\n§7Prefix perso : §f${prefixLabel}\n§7Couleur perso : §f${colorLabel}`,
+    );
     form.divider();
     form.button(`§e■ §lAttribuer / changer de rôle`, () =>
       openAssignRoleMenu(player, targetName, permissions, db), undefined, "crown",

@@ -262,9 +262,16 @@ type FormElement =
   | { kind: "button"; text: string; icon?: string; onClick: () => void }
   | {
       kind: "field";
+      /** Type de valeur produite par ce champ (string/number/boolean). */
+      valueType: "string" | "number" | "boolean";
       build: (form: ModalFormData) => void;
       read: (response: ModalFormResponse, index: number) => void;
     };
+
+/** Type de valeur d'un champ (pour l'appariement robuste de formValues). */
+function fieldKind(el: Extract<FormElement, { kind: "field" }>): "string" | "number" | "boolean" {
+  return el.valueType;
+}
 
 /**
  * Moteur OM : un seul wrapper pour les deux types de formulaires vanilla.
@@ -378,6 +385,7 @@ export class OMForm {
     this.enterFields();
     this.elements.push({
       kind: "field",
+      valueType: "boolean",
       build: (form) => form.toggle(label, { defaultValue: initial }),
       read: (response, index) => {
         void response.formValues?.[index];
@@ -391,6 +399,7 @@ export class OMForm {
     this.enterFields();
     this.elements.push({
       kind: "field",
+      valueType: "boolean",
       build: (form) => form.toggle(label, { defaultValue: observable.getData() }),
       read: (response, index) => {
         const raw = response.formValues?.[index];
@@ -411,6 +420,7 @@ export class OMForm {
     const current = Math.min(Math.max(observable.getData(), min), max);
     this.elements.push({
       kind: "field",
+      valueType: "number",
       build: (form) =>
         form.slider(label, min, max, { valueStep: options?.step ?? 1, defaultValue: current }),
       read: (response, index) => {
@@ -428,6 +438,7 @@ export class OMForm {
     );
     this.elements.push({
       kind: "field",
+      valueType: "number",
       build: (form) =>
         form.dropdown(label, labels, { defaultValueIndex: observable.getData() }),
       read: (response, index) => {
@@ -442,6 +453,7 @@ export class OMForm {
     this.enterFields();
     this.elements.push({
       kind: "field",
+      valueType: "string",
       build: (form) =>
         form.textField(label, options?.placeholder ?? "…", { defaultValue: observable.getData() }),
       read: (response, index) => {
@@ -524,12 +536,49 @@ export class OMForm {
     const response = await form.show(this.player);
     if (response.canceled) return "UserClosed";
 
-    // Second passage : lecture des valeurs (indices comptés ci-dessus).
-    let readIndex = 0;
-    for (const el of this.elements) {
-      if (el.kind === "field") {
-        el.read(response, readIndex);
-        readIndex += 1;
+    /*
+     * Lecture des valeurs. Le nombre d'entrées de formValues peut différer du
+     * nombre de champs posés (des runtimes comptent aussi les éléments
+     * non-interactifs — c'était la cause du bug « nom entre 3 et 24 » :
+     * le nom d'un territoire de 8 caractères était lu à un index décalé,
+     * donc vide). On essaie d'abord l'appariement par position, puis on
+     * retombe sur un appariement par type : chaque champ lit la première
+     * entrée encore libre de son type (string/number/boolean).
+     */
+    const values = response.formValues ?? [];
+    const fieldEls = this.elements.filter((el): el is Extract<FormElement, { kind: "field" }> => el.kind === "field");
+    if (values.length === fieldEls.length) {
+      for (const [index, el] of fieldEls.entries()) el.read(response, index);
+    } else {
+      const taken = new Array<boolean>(values.length).fill(false);
+      const take = (index: number): unknown => {
+        if (index >= 0 && index < values.length && !taken[index]) {
+          taken[index] = true;
+          return values[index];
+        }
+        return undefined;
+      };
+      const pick = (kind: "string" | "number" | "boolean"): unknown => {
+        for (const [index, value] of values.entries()) {
+          if (!taken[index] && typeof value === kind) return take(index);
+        }
+        return undefined;
+      };
+      // Position d'abord (chaque champ essaie son index), puis par type.
+      const pending: Extract<FormElement, { kind: "field" }>[] = [];
+      for (const [index, el] of fieldEls.entries()) {
+        const raw = take(index);
+        if (raw === undefined) {
+          pending.push(el);
+        } else {
+          el.read({ ...response, formValues: [raw] } as ModalFormResponse, 0);
+        }
+      }
+      for (const el of pending) {
+        const raw = pick(fieldKind(el));
+        if (raw !== undefined) {
+          el.read({ ...response, formValues: [raw] } as ModalFormResponse, 0);
+        }
       }
     }
     submitAction?.();

@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v13.3** — analyse de l'addon **Leaf** (uploadé dans le repo) : leur système NutUI décodé (tags invisibles dans le titre que le JSON UI détecte pour changer de design). Adaptation OM (sans copier) : tag `§r§r` invisible préfixé aux titres par le moteur → le RP révèle un **bandeau OM** derrière le titre. Packs en **1.5.3**.
+> Dernière mise à jour : **v13.4** — 3 fixes déterminants : (1) **le reskin part au bon endroit** : le fichier JSON UI s'appelle désormais `RP/ui/server_form.json` — **même chemin que le vanilla = écrasement** (la méthode prouvée par notre `hud_screen.json` qui, lui, marche) ; (2) **bug « nom entre 3 et 24 » réglé** : lecture de `formValues` robuste au décalage (appariement position d'abord, puis par type de valeur) ; (3) **la classe du joueur est dans la DB** (`class` sur `players_index`, mise à jour au join, affichée dans le résumé et la fiche joueur). Dépendances API passées à **`beta`** (suit la bêta du jeu installé). Packs en **1.5.4**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---

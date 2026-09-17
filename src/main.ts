@@ -184,7 +184,13 @@ world.afterEvents.playerSpawn.subscribe((event) => {
   const player = event.player;
   // Tout nouveau joueur reçoit le rôle [Joueur] (gris) avant le tracking.
   permissions.ensureDefaultRole(player.name, player.id);
-  trackPlayerJoin(db, player.id, player.name, permissions.roleOf(player.name)?.data.name ?? "");
+  trackPlayerJoin(
+    db,
+    player.id,
+    player.name,
+    permissions.roleOf(player.name)?.data.name ?? "",
+    classes.classOf(player.name)?.classId ?? "",
+  );
 
   // Résout les identités v3 : member (grade) + sanction par pseudo → Player.id
   const member = permissions.getMember(player.name);

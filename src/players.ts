@@ -26,6 +26,8 @@ export interface PlayerRecord {
   sessions: number;
   /** Grade/rôle actuel (copie dénormalisée pour les listes rapides). */
   grade: string;
+  /** Classe choisie (copie dénormalisée, vide = pas encore choisie). */
+  class: string;
 }
 
 /** Recherche par identifiant Bedrock direct. */
@@ -50,17 +52,20 @@ export function trackPlayerJoin(
   playerId: string,
   playerName: string,
   grade = "",
+  className = "",
 ): string {
   const now = Date.now();
   const existing = findPlayerById(db, playerId);
   const legacy = findPlayerByName(db, playerName);
 
-  // Entrée à jour : refresh + copie du grade.
+  // Entrée à jour : refresh + copie du grade et de la classe.
   if (existing !== undefined) {
     existing.data.name = playerName;
     existing.data.lastSeen = now;
     existing.data.sessions += 1;
     if (grade !== "") existing.data.grade = grade;
+    if (className !== "") existing.data.class = className;
+    else if (existing.data.class === undefined) existing.data.class = "";
     existing.updatedAt = now;
     db.save();
     return existing.id;
@@ -78,6 +83,7 @@ export function trackPlayerJoin(
         lastSeen: now,
         sessions: legacy.data.sessions + 1,
         grade: grade !== "" ? grade : legacy.data.grade,
+        class: className !== "" ? className : (legacy.data.class ?? ""),
       },
       playerId,
     );
@@ -88,7 +94,7 @@ export function trackPlayerJoin(
   // Première visite.
   db.insert<PlayerRecord>(
     PLAYERS_COLLECTION,
-    { playerId, name: playerName, firstSeen: now, lastSeen: now, sessions: 1, grade },
+    { playerId, name: playerName, firstSeen: now, lastSeen: now, sessions: 1, grade, class: className },
     playerId,
   );
   db.save();
