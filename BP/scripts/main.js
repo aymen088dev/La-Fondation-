@@ -4189,8 +4189,9 @@ var uiDesignEnabled = true;
 function setUiDesign(enabled) {
   uiDesignEnabled = enabled;
 }
+var UI_TITLE_TAG = "§r§r";
 function windowTitle(section) {
-  return `§l§aOM §r§8» §r§l${section}`;
+  return `${UI_TITLE_TAG}§l§aOM §r§8» §r§l${section}`;
 }
 var ObservableString = class {
   value;

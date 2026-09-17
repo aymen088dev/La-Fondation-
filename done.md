@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v13.2** — reskin « technique pro » : la structure reste 100 % vanilla (héritage `common_dialogs`/`common_buttons`), seules des **variables** sont passées au point d'usage — fond bleu nuit (`$custom_background`), **boutons OM 3 états** (`$default/hover/pressed_button_texture` → textures noires bordées, texte qui passe au vert au survol), titre vert OM (`$title_text_color`). Portée limitée aux forms serveur. Packs en **1.5.2**.
+> Dernière mise à jour : **v13.3** — analyse de l'addon **Leaf** (uploadé dans le repo) : leur système NutUI décodé (tags invisibles dans le titre que le JSON UI détecte pour changer de design). Adaptation OM (sans copier) : tag `§r§r` invisible préfixé aux titres par le moteur → le RP révèle un **bandeau OM** derrière le titre. Packs en **1.5.3**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -101,6 +101,12 @@
 - ⚠️ Rappel : après toute modif TS, `bun run build` puis re-copier `BP/` sur le serveur
 
 ---
+
+## 🔍 Analyse Leaf + tag de marque OM (v13.3)
+- [x] **L'addon Leaf (V4.2.4, uploadé dans le repo) décortiqué** : framework UI complet (starlib2), et surtout le système **NutUI** — des tags invisibles dans le titre du form (`§f§0§0`, `§t§h§e§m§0§1`…) que le JSON UI détecte via `(#title_text - 'tag') != #title_text` pour **changer de design à la volée** (leur `custom_form_switch` route entre plusieurs écrans selon le tag) — la technique des captures « grandes UIs colorées »
+- [x] **Adaptation OM (le « pareil sans tout copier »)** : le moteur préfixe tout titre par **`§r§r`** (deux resets = strictement invisible, zéro manipulation de chaîne) ; le JSON UI révèle alors un **bandeau OM** derrière le titre (`om_title_band`, texture bordée, bindings sur `#title_text`). Les forms d'autres add-ons (sans tag) gardent le skin neutre
+- [x] `custom_form`/`long_form` passent par `title_area_with_om_band` (bandeau conditionnel + titre standard)
+- [x] Packs bumpés **1.5.2 → 1.5.3**
 
 ## 🎨 Reskin « technique pro » par variables (v13.2)
 - [x] **Méthode des vrais packs** (décodée dans `ui_template_buttons.json` vanilla) : `light_text_button` est entièrement piloté par des **variables** (`$default_button_texture`, `$hover_button_texture`, `$pressed_button_texture`, `$default/hover/pressed_text_color`) — au lieu de recopier la structure, on **redéfinit les variables au point d'usage** : mêmes leviers officiels, nos textures à nous, **zéro structure copiée** (si Mojang change ses widgets, on suit automatiquement)

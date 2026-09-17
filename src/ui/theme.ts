@@ -124,9 +124,19 @@ export function isUiDesignEnabled(): boolean {
   return uiDesignEnabled;
 }
 
+/**
+ * Tag UI invisible préfixé aux titres (technique « pro » décodée sur l'addon
+ * Leaf/NutUI, adaptée OM) : le JSON UI du RP teste la présence de ce tag dans
+ * #title_text pour révéler le bandeau de marque OM sur nos formulaires.
+ * Deux codes reset §r§r = strictement invisibles à l'écran, sans casser le
+ * rendu du titre. Les formulaires d'autres add-ons (sans tag) gardent le
+ * skin neutre.
+ */
+export const UI_TITLE_TAG = "§r§r";
+
 /** Construit un titre de fenêtre normalisé : "OM » <title>" (gras, vert/gris). */
 export function windowTitle(section: string): string {
-  return `§l§aOM §r§8» §r§l${section}`;
+  return `${UI_TITLE_TAG}§l§aOM §r§8» §r§l${section}`;
 }
 
 // ---------------------------------------------------------------------------

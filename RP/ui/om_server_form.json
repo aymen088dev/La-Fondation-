@@ -37,8 +37,44 @@
     "nineslice_size": [2, 2, 2, 2]
   },
 
+  "om_title_band": {
+    "type": "image",
+    "texture": "textures/ui/om_btn",
+    "layer": 3,
+    "nineslice_size": [2, 2, 2, 2],
+    "size": ["100% - 12px", 14],
+    "offset": [0, 3],
+    "anchor_from": "top_middle",
+    "anchor_to": "top_middle",
+    "bindings": [
+      {
+        "binding_name": "#title_text",
+        "binding_type": "global"
+      },
+      {
+        "binding_type": "view",
+        "source_property_name": "((#title_text - '\u00a7r\u00a7r') = #title_text)",
+        "target_property_name": "#visible",
+        "ignored": "((#title_text - '\u00a7r\u00a7r') != #title_text)"
+      }
+    ]
+  },
+
+  "title_area_with_om_band": {
+    "type": "panel",
+    "size": ["100%", "default"],
+    "controls": [
+      {
+        "om_band@server_form.om_title_band": {}
+      },
+      {
+        "title@common_dialogs.standard_title_label": {}
+      }
+    ]
+  },
+
   "custom_form@common_dialogs.main_panel_no_buttons": {
-    "$title_panel": "common_dialogs.standard_title_label",
+    "$title_panel": "server_form.title_area_with_om_band",
     "$title_size": ["100% - 15px", 10],
     "$title_max_size": ["100% - 15px", 10],
     "$title_text_color": [0.42, 0.90, 0.55],
@@ -51,7 +87,7 @@
   },
 
   "long_form@common_dialogs.main_panel_no_buttons": {
-    "$title_panel": "common_dialogs.standard_title_label",
+    "$title_panel": "server_form.title_area_with_om_band",
     "$title_size": ["100% - 15px", 10],
     "$title_max_size": ["100% - 15px", 10],
     "$title_text_color": [0.42, 0.90, 0.55],
