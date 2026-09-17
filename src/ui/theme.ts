@@ -114,6 +114,24 @@ function heroPath(kind: HeroKind): string {
  */
 export const OM_PANEL_TEXTURE = "textures/ui/om_actionbar_bg";
 
+/**
+ * Interrupteur du design complet (héros + icônes). Si le client n'a pas le
+ * bon RP (cache de pack), les images peuvent empêcher l'ouverture des
+ * écrans : `/scriptevent sn:ui off` bascule un rendu SANS image, garanti
+ * fonctionnel ; `sn:ui on` réactive.
+ */
+let uiDesignEnabled = true;
+
+/** Active/désactive le design image (héros + icônes). */
+export function setUiDesign(enabled: boolean): void {
+  uiDesignEnabled = enabled;
+}
+
+/** État actuel du design image. */
+export function isUiDesignEnabled(): boolean {
+  return uiDesignEnabled;
+}
+
 /** Construit un titre de fenêtre normalisé : "OM » <title>" (gras, vert/gris). */
 export function windowTitle(section: string): string {
   return `§l§aOM §r§8» §r§l${section}`;
@@ -193,9 +211,15 @@ export class OMForm {
   /**
    * Bannière de héros en tête de menu (image pleine largeur du RP OM).
    * À appeler EN PREMIER : c'est l'identité graphique du menu.
+   * Fail-safe : si l'API/le pack refuse l'image, le menu s'ouvre quand même.
    */
   hero(kind: HeroKind): OMForm {
-    this.inner.image(heroPath(kind), RP_PACK_ID, { width: 1 });
+    if (!uiDesignEnabled) return this;
+    try {
+      this.inner.image(heroPath(kind), RP_PACK_ID, { width: 1 });
+    } catch {
+      // Image impossible (RP absent du client…) : on dégrade sans planter.
+    }
     return this;
   }
 
@@ -216,18 +240,29 @@ export class OMForm {
     /** Icône OM affichée à côté du label (imageDetails du RP OpenMontage). */
     icon?: UIIcon,
   ): OMForm {
-    const imageDetails = icon === undefined ? undefined : { imagePackId: RP_PACK_ID, imageSrc: OM_ICON(icon) };
-    this.inner.button(
-      uiText(label),
-      () => {
-        // Un clic quitte TOUJOURS l'écran courant :
-        // - navigation : le menu ouvert par onClick remplace celui-ci ;
-        // - action terminale (création, sanctions…) : l'écran se referme.
-        closeOpenForm(this.player);
-        onClick();
-      },
-      imageDetails === undefined ? options : { ...options, imageDetails },
-    );
+    const imageDetails =
+      icon === undefined || !uiDesignEnabled
+        ? undefined
+        : { imagePackId: RP_PACK_ID, imageSrc: OM_ICON(icon) };
+    const handler = () => {
+      // Un clic quitte TOUJOURS l'écran courant :
+      // - navigation : le menu ouvert par onClick remplace celui-ci ;
+      // - action terminale (création, sanctions…) : l'écran se referme.
+      closeOpenForm(this.player);
+      onClick();
+    };
+    try {
+      this.inner.button(
+        uiText(label),
+        handler,
+        imageDetails === undefined ? options : { ...options, imageDetails },
+      );
+    } catch {
+      // imageDetails refusé (pack absent…) : réessai SANS image pour que
+      // le bouton (et donc le menu) reste fonctionnel.
+      if (imageDetails === undefined) throw new Error("OMForm.button a échoué sans image");
+      this.inner.button(uiText(label), handler, options);
+    }
     return this;
   }
 

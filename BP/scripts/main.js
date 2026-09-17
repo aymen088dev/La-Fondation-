@@ -651,6 +651,10 @@ var HEROES = {
 function heroPath(kind) {
   return `textures/ui/${HEROES[kind]}`;
 }
+var uiDesignEnabled = true;
+function setUiDesign(enabled) {
+  uiDesignEnabled = enabled;
+}
 function windowTitle(section) {
   return `§l§aOM §r§8» §r§l${section}`;
 }
@@ -688,9 +692,14 @@ var OMForm = class {
   /**
    * Bannière de héros en tête de menu (image pleine largeur du RP OM).
    * À appeler EN PREMIER : c'est l'identité graphique du menu.
+   * Fail-safe : si l'API/le pack refuse l'image, le menu s'ouvre quand même.
    */
   hero(kind) {
-    this.inner.image(heroPath(kind), RP_PACK_ID, { width: 1 });
+    if (!uiDesignEnabled) return this;
+    try {
+      this.inner.image(heroPath(kind), RP_PACK_ID, { width: 1 });
+    } catch {
+    }
     return this;
   }
   header(text, options) {
@@ -702,15 +711,21 @@ var OMForm = class {
     return this;
   }
   button(label, onClick, options, icon) {
-    const imageDetails = icon === void 0 ? void 0 : { imagePackId: RP_PACK_ID, imageSrc: OM_ICON(icon) };
-    this.inner.button(
-      uiText(label),
-      () => {
-        closeOpenForm(this.player);
-        onClick();
-      },
-      imageDetails === void 0 ? options : { ...options, imageDetails }
-    );
+    const imageDetails = icon === void 0 || !uiDesignEnabled ? void 0 : { imagePackId: RP_PACK_ID, imageSrc: OM_ICON(icon) };
+    const handler = () => {
+      closeOpenForm(this.player);
+      onClick();
+    };
+    try {
+      this.inner.button(
+        uiText(label),
+        handler,
+        imageDetails === void 0 ? options : { ...options, imageDetails }
+      );
+    } catch {
+      if (imageDetails === void 0) throw new Error("OMForm.button a échoué sans image");
+      this.inner.button(uiText(label), handler, options);
+    }
     return this;
   }
   divider(options) {
@@ -6508,6 +6523,19 @@ system14.runInterval(() => {
     applyNameTag(player.name);
   }
 }, 100);
+system14.afterEvents.scriptEventReceive.subscribe((event) => {
+  if (event.id !== "sn:ui" || event.sourceEntity === void 0) return;
+  if (event.sourceEntity.typeId !== "minecraft:player") return;
+  const player = event.sourceEntity;
+  const mode = event.message.trim().toLowerCase();
+  if (mode === "on" || mode === "off") {
+    setUiDesign(mode === "on");
+    log3.info(`Design UI (héros + icônes) : ${mode.toUpperCase()}`);
+    player.sendMessage(
+      mode === "on" ? "§a[OpenMontage] Design UI activé (héros + icônes)." : "§e[OpenMontage] Design UI désactivé (menus sans image — mode compatibilité)."
+    );
+  }
+});
 system14.runInterval(() => {
   const stats = db.stats();
   logDb.info(

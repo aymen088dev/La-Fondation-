@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement d'OpenMontage
 
-> Dernière mise à jour : **v8** — refonte design des menus : bannières de héros RP en tête + icônes 32×32 sur les boutons, plus aucune texture placeholder.
+> Dernière mise à jour : **v9** — correctifs « menus non changés / non ouverts » : bump de version des packs (cache Bedrock), design image fail-safe + toggle `/sn:ui`, veille API UI Bedrock dans utile.md.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
@@ -103,6 +103,13 @@
 ---
 
 ---
+
+## 🔧 Correctifs UI (v9) — « menus non changés / certains ne s'ouvrent pas »
+- [x] **Cause racine du « menus inchangés »** : Bedrock met les packs en **cache par uuid+version** — nos manifest étaient restés en 1.0.0, donc le jeu rechargait l'ancien RP (sans héros/icônes). **BP + RP passés en 1.1.0** et `serveur/world_*_packs.json` mis en cohérence ; règle documentée : toute modif de pack = version +1
+- [x] **Cause du « certains menus ne s'ouvrent pas »** : les images DDUI (héros + `imageDetails`) référencent des textures que l'ancien RP caché ne contient pas → écrans qui plantent. Double protection :
+  - **Fail-safe dans `OMForm`** : `hero()` et `button()` dégradent silencieusement si l'image est refusée (bouton réessayé sans image, menu garanti ouvert)
+  - **Toggle runtime** : `/scriptevent sn:ui off` → tous les menus sans image (mode compatibilité), `sn:ui on` pour réactiver
+- [x] **Veille API UI Bedrock** dans `utile.md` : mcbe-ui-codex (référence vérifiée textures/JSON UI/Script API), Chest-Form (menus coffre), forms-plus & better-forms (wrappers typés), bedrock-tile-menu, EasyUIBuilder, Ore-UI-Types — LeviInterface écarté (LeviLamina, pas add-on)
 
 ## 🎨 Refonte design des menus (v8)
 - [x] **Zéro texture placeholder restante** : les 10 bandeaux `om_banner_*` (déjà inutilisés) sont supprimés ; `scripts/make_placeholder_pngs.py` remplacé par **`scripts/make_ui_textures.py`** (`bun run textures`)

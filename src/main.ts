@@ -1,4 +1,5 @@
 import { world, system } from "@minecraft/server";
+import type { Player } from "@minecraft/server";
 import { createBedrockStorage, JsonDatabase, registerAutosave } from "./db";
 import { TerritoryManager, registerCommands, registerProtection, registerAnnouncer } from "./territories";
 import { PermissionManager, canUseAdminPanel, registerChat } from "./permissions";
@@ -11,6 +12,7 @@ import {
 } from "./moderation";
 import { trackPlayerJoin } from "./players";
 import { log, logDb } from "./lib/log";
+import { setUiDesign } from "./ui/theme";
 import { Timings } from "@bedrock-oss/bedrock-boost";
 /**
  * OpenMontage — point d'entrée du behavior pack (TypeScript).
@@ -203,6 +205,24 @@ system.runInterval(() => {
     applyNameTag(player.name);
   }
 }, 100);
+
+// Toggle du design image (héros + icônes) : /scriptevent sn:ui off|on|status
+// — si le client n'a pas le bon RP, les écrans restent utilisables sans image.
+system.afterEvents.scriptEventReceive.subscribe((event) => {
+  if (event.id !== "sn:ui" || event.sourceEntity === undefined) return;
+  if (event.sourceEntity.typeId !== "minecraft:player") return;
+  const player = event.sourceEntity as Player;
+  const mode = event.message.trim().toLowerCase();
+  if (mode === "on" || mode === "off") {
+    setUiDesign(mode === "on");
+    log.info(`Design UI (héros + icônes) : ${mode.toUpperCase()}`);
+    player.sendMessage(
+      mode === "on"
+        ? "§a[OpenMontage] Design UI activé (héros + icônes)."
+        : "§e[OpenMontage] Design UI désactivé (menus sans image — mode compatibilité).",
+    );
+  }
+});
 
 // Heartbeat : état de la DB toutes les 30 secondes (600 ticks)
 system.runInterval(() => {

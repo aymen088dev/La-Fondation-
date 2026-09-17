@@ -37,6 +37,22 @@
 | [bedrock-crustaceans/chorus](https://github.com/bedrock-crustaceans/chorus) | 72 | Serveur en Rust — perf max, équipe réduite |
 | [8Crafter-Studios/Bedrock-World-Editor](https://github.com/8Crafter-Studios/Bedrock-World-Editor) | 73 | Éditeur NBT/LevelDB de mondes — utile pour inspecter/réparer la DB Dynamic Properties en dehors du jeu |
 
+## 🖱️ API UI pour add-ons (Script API Bedrock)
+
+> Veille du 17 sept. 2026. Notre `OMForm` (wrapper DDUI CustomForm) reste la base ; ces projets servent de référence, d'inspiration ou d'extension.
+
+| Outil | ⭐ | Pourquoi ça peut servir |
+|---|---|---|
+| **[XxVoidicxX/mcbe-ui-codex](https://github.com/XxVoidicxX/mcbe-ui-codex)** | réf | 🏆 **À garder sous la main** : référence VÉRIFIÉE — 600+ chemins de textures vanilla avec aperçus PNG, référence Script API 2.x avec 20+ pièges documentés, et un **guide JSON UI de reskin des forms serveur** (boutons custom nineslice, hover/pressed…). Docs MIT. Utilisable comme contexte dev/AI |
+| **[Sprixvy/Chest-Form](https://github.com/Sprixvy/Chest-Form)** | 1 | **ChestFormData** : rend une form comme un coffre (27/54 slots, lore, durabilité, glint enchant) — style « serveurs Java » sans entités. JS + RP JSON UI inclus. Idéal si un jour on veut une boutique/menu inventaire |
+| [wisp-ts/forms-plus](https://github.com/wisp-ts/forms-plus) | 0 | Wrapper **typé** de `@minecraft/server-ui` (TS, à jour avr. 2026) — même philosophie que notre `OMForm`, bon miroir pour comparer les approches |
+| [forestJAVASCRIPT/better-forms](https://github.com/forestJAVASCRIPT/better-forms) | 0 | Lib de wrappers pour les forms `server-ui` (TS) |
+| [markeev/bedrock-tile-menu](https://github.com/markeev/bedrock-tile-menu) | 1 | Menus en **tuiles image** par-dessus les Forms standard (RP JSON UI, sans mods client). Côté logiciel serveur (PocketMine/Nukkit) mais la technique RP est transposable à un add-on |
+| [Refaltor77/EasyUIBuilder](https://github.com/Refaltor77/EasyUIBuilder) | 110 | Outil visuel pour générer du JSON UI de forms plus vite |
+| [8Crafter-Studios/Ore-UI-Types](https://github.com/8Crafter-Studios/Ore-UI-Types) | 2 | Types TS de l'environnement de script **Ore UI** (la nouvelle UI client de Mojang, actif sept. 2026) — pas encore pilotable par add-on, mais à surveiller de près |
+
+❌ **LeviInterface (leoweyr)** écarté : « UI queues » pour **LeviLamina** (plugin C++ serveur), pas pour les add-ons Script API.
+
 ## 🎨 JSON UI / UI custom
 
 | Outil | ⭐ | Pourquoi ça peut servir |
