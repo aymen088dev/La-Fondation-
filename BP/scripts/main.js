@@ -5339,16 +5339,6 @@ var MinesManager = class {
   pending = /* @__PURE__ */ new Map();
   queueRunning = false;
   nightVisionLoopRegistered = false;
-  /**
-   * La zone de spawn (plateforme à cheval sur les 4 chunks de l'origine)
-   * est-elle entièrement générée ?
-   */
-  isSpawnAreaReady() {
-    for (const key of ["0:0", "-1:0", "0:-1", "-1:-1"]) {
-      if (!this.generated.has(key)) return false;
-    }
-    return true;
-  }
   /** Le module mines est-il actif ? (check live si branché) */
   isUsable() {
     return this.enabledCheck !== void 0 ? this.enabledCheck() : this.enabled;
@@ -5415,23 +5405,27 @@ var MinesManager = class {
     } catch {
     }
   }
-  /** Aller : mémorise le retour, prépare le spawn, téléporte quand prêt. */
+  /**
+   * Aller : mémorise le retour, téléporte EN PREMIER (c'est la présence du
+   * joueur qui CHARGE les chunks de la dimension — sans lui, la file de
+   * génération boucle sur des chunks jamais chargés et l'arrivée « différée »
+   * ne vient jamais), puis met la plateforme en file. La sécurité résistance
+   * du spawn + le secours anti-chute portent le joueur les ~2 s que dure
+   * la pose de la plateforme.
+   */
   enter(player) {
     const dimension = this.dimension();
     if (dimension === void 0) {
       return "§c[Mines] Dimension indisponible : vérifie que le pack déclare bien nalania:mines.";
     }
     this.rememberOverworld(player);
+    this.teleportToSpawn(player, dimension);
+    this.pendingArrivals.delete(player.id);
     this.ensureChunk(0, 0, dimension);
     this.ensureChunk(-1, 0, dimension);
     this.ensureChunk(0, -1, dimension);
     this.ensureChunk(-1, -1, dimension);
     this.pumpQueue();
-    if (!this.isSpawnAreaReady()) {
-      this.pendingArrivals.add(player.id);
-      return "§b[Mines] Préparation de la mine… §7tu arrives dès que la plateforme est prête.";
-    }
-    this.teleportToSpawn(player, dimension);
     return "§b[Mines] Bienvenue dans la mine ! §7Retour : §f/sn:monde§7.";
   }
   /** Retour : dernière position connue dans le monde normal, sinon spawn. */
@@ -5459,10 +5453,20 @@ var MinesManager = class {
     player.teleport({ x: spawn.x + 0.5, y: spawn.y + 2, z: spawn.z + 0.5 }, { dimension: overworld });
     return "§a[Mines] Retour au spawn du monde (pas de position mémorisée).";
   }
-  /** Téléporte aux mines : plateforme, night vision SANS particules. */
+  /**
+   * Téléporte aux mines : au niveau de la plateforme, night vision SANS
+   * particules, et courtes invulnérabilités (résistance + feu) le temps que
+   * la génération finisse — sécurité no-op si les effets sont indisponibles.
+   */
   teleportToSpawn(player, dimension) {
     player.teleport({ x: 0.5, y: Y_SPAWN_FEET, z: 0.5 }, { dimension });
     this.applyNightVision(player);
+    for (const effect of ["resistance", "fire_resistance"]) {
+      try {
+        player.addEffect(effect, 20 * 10, { amplifier: 4, showParticles: false });
+      } catch {
+      }
+    }
   }
   /**
    * Night vision sans particules. `showParticles: false` n'est pas honoré
@@ -5495,7 +5499,11 @@ var MinesManager = class {
       }
     }, 20 * 30);
   }
-  /** Arrivées différées (plateforme pas encore prête au moment de /sn:mine). */
+  /**
+   * File de téléportation différée (plus nécessaire pour l'aller — la
+   * téléportation est immédiate — mais conservée pour les retours programmés
+   * éventuels et la compat des appels internes).
+   */
   pendingArrivals = /* @__PURE__ */ new Set();
   flushPendingArrivals() {
     if (this.pendingArrivals.size === 0) return;

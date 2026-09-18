@@ -182,6 +182,34 @@ def ornate_textures() -> None:
 
     write_png(RP_ROOT / "textures" / "ui" / "om_ornate_bg.png", w, h, px)
 
+    # ---- Grand cadre « CARTES » 128x128 (nineslice 12px) : variante
+    #      distinction visuelle pour Le Monde / Classes / fiches de clan —
+    #      corps bleu nuit, double filet ARGENT extérieur + OR intérieur,
+    #      coins à onglet inversés (argent clair sur la bande argent).
+    px2: list[list[tuple[int, int, int, int]]] = []
+    for y in range(h):
+        row2: list[tuple[int, int, int, int]] = []
+        for x in range(w):
+            d = ((x - w / 2) ** 2 + (y - h / 2) ** 2) ** 0.5 / (w / 2)
+            base = lerp((30, 34, 44), (20, 23, 31), min(1.0, d))   # bleu nuit
+            grain = ((x * 7 + y * 13) % 5) - 2
+            base = (max(0, base[0] + grain), max(0, base[1] + grain), max(0, base[2] + grain))
+            row2.append((*base, 255))
+        px2.append(row2)
+    for y in range(h):
+        for x in range(w):
+            edge = min(x, y, w - 1 - x, h - 1 - y)
+            if edge <= 1:
+                px2[y][x] = (12, 13, 18, 255)
+            elif edge <= 3:
+                px2[y][x] = (*lerp(SILVER, SILVER_DIM, (x + y) / (w + h)), 255)
+            elif edge == 4:
+                px2[y][x] = (*lerp(GOLD_DIM, GOLD, (x + y) / (w + h)), 255)
+            elif edge == 5:
+                px2[y][x] = (28, 31, 40, 255)
+    draw_miter(px2, w, h, [(3, SILVER_BRIGHT), (4, GOLD)])
+    write_png(RP_ROOT / "textures" / "ui" / "om_cards_bg.png", w, h, px2)
+
     # ---- Panneau interne 96x96 (nineslice 8px) : noir doux, liseré ARGENT,
     #      perles lumineuses aux 4 coins + retour fin (liseré double). ----
     cw = ch = 96

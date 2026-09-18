@@ -1,7 +1,19 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v19.1 — MINE SOLIDE (creuse tes galeries toi-même) + flèche ← de retour + night vision invisible**.
+> Dernière mise à jour : **v19.2 — JSON UI SPLITTÉ PAR TYPE D'ÉCRAN (fond cuir/or pour les menus, bleu-nuit/argent pour les formulaires) + génération de la mine réparée**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v19.2 — JSON UI splitté + génération de la mine réparée (sept. 2026)
+- [x] **JSON UI en PLUSIEURS FICHIERS** (demande « un fichier par menu » — Bedrock n'expose pas un écran par menu mais un par TYPE de formulaire ; le split est donc fait par type, avec un fond différent par fichier) :
+  - `ui/om_base.json` — socle partagé (boutons 3 états, panneaux, fonds) ;
+  - `ui/server_form.json` — **menus à boutons** (hub, admin, États…) : grand cadre **cuir sombre à cadre OR** ;
+  - `ui/om_forms.json` — **formulaires à champs** (/sn:create, sanctions, rôles…) : grand cadre **bleu nuit à filet argent + or** (variante « cartes ») — différence immédiatement visible ;
+  - les trois sont déclarés dans `_ui_defs.json`, les contrôles héritent du socle (namespace `om_base`), texture nouvelle `om_cards_bg.png`.
+- [x] **CAUSE RACINE de la mauvaise génération de la mine trouvée** : la génération était programmée **avant** la téléportation, mais **seul un joueur présent dans la dimension charge les chunks** — la file bouclait sur des chunks jamais chargés (l'arrivée « différée » ne venait jamais, la mine semblait ne pas se générer). Désormais : **téléportation immédiate** (elle force le chargement), puis la plateforme se pose autour du joueur en ~2 s, avec **résistance + fire resistance 10 s** en attendant, night vision sans particules ré-appliquée toutes les 30 s, secours anti-chute en filet.
+- [x] Vérifications : héritages inter-fichiers résolus (aucune référence cassée), 4 fichiers JSON valides, build + typecheck + **57/57 tests**.
+- Packs **1.9.2** (BP, RP, serveur) — bump obligatoire pour invalider le cache Bedrock.
 
 ---
 

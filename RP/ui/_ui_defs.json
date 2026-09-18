@@ -1,6 +1,8 @@
 {
   "ui_defs": [
     "ui/hud_screen.json",
-    "ui/server_form.json"
+    "ui/server_form.json",
+    "ui/om_base.json",
+    "ui/om_forms.json"
   ]
 }

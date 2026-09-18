@@ -1,0 +1,58 @@
+{
+  "namespace": "om_base",
+
+  "_comment": "Socle partagé du reskin NaLandia (v19.2) : boutons 3 états, panneaux déroulants argentés, image de fond ornée. SPLIT en plusieurs fichiers : ui/om_base.json (ce socle, namespace om_base) est déclaré dans _ui_defs.json ; ui/server_form.json (menus à boutons, écrasement du vanilla, namespace server_form) et ui/om_forms.json (formulaires à champs) héritent de ses contrôles via om_base.*. Chaque TYPE d'écran a ainsi son propre fichier ET son propre fond : cuir sombre à cadre or pour les menus à boutons, bleu nuit à filet argent (« cartes ») pour les formulaires.",
+
+  "om_btn_image": {
+    "type": "image",
+    "layer": 1,
+    "texture": "$new_ui_button_texture",
+    "nineslice_size": [10, 10, 10, 10]
+  },
+
+  "om_text_button@common_buttons.light_text_button": {
+    "$default_button_texture": "textures/ui/om_btn",
+    "$hover_button_texture": "textures/ui/om_btn_hover",
+    "$pressed_button_texture": "textures/ui/om_btn_press",
+    "$locked_button_texture": "textures/ui/om_btn",
+    "$button_image": "om_base.om_btn_image",
+    "$default_text_color": [0.90, 0.88, 0.84],
+    "$hover_text_color": [1.0, 0.90, 0.55],
+    "$pressed_text_color": [1.0, 1.0, 1.0],
+    "$locked_text_color": [0.55, 0.55, 0.58],
+    "$button_font_size": "normal"
+  },
+
+  "om_pane_image": {
+    "type": "image",
+    "texture": "textures/ui/om_content_bg",
+    "nineslice_size": [8, 8, 8, 8],
+    "layer": 1
+  },
+
+  "om_scroll_pane@common.scrolling_panel": {
+    "$show_background": true,
+    "$scroll_background_image_control": "om_base.om_pane_image",
+    "$scroll_track_image_control": "common.empty_panel",
+    "$scroll_bar_contained": true,
+    "$scroll_bar_left_padding_size": [0, 0],
+    "$scroll_bar_right_padding_size": [0, 0],
+    "$scroll_size": [3, "100% - 4px"],
+    "$scroll_view_port_size": ["100% - 5px", "100% - 2px"],
+    "$scroll_view_port_offset": [2, 0]
+  },
+
+  "om_ornate_background": {
+    "type": "image",
+    "texture": "textures/ui/om_ornate_bg",
+    "layer": 1,
+    "nineslice_size": [12, 12, 12, 12]
+  },
+
+  "om_cards_background": {
+    "type": "image",
+    "texture": "textures/ui/om_cards_bg",
+    "layer": 1,
+    "nineslice_size": [12, 12, 12, 12]
+  }
+}

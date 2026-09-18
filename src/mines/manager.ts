@@ -109,17 +109,6 @@ export class MinesManager {
   private queueRunning = false;
   private nightVisionLoopRegistered = false;
 
-  /**
-   * La zone de spawn (plateforme à cheval sur les 4 chunks de l'origine)
-   * est-elle entièrement générée ?
-   */
-  private isSpawnAreaReady(): boolean {
-    for (const key of ["0:0", "-1:0", "0:-1", "-1:-1"]) {
-      if (!this.generated.has(key)) return false;
-    }
-    return true;
-  }
-
   /** Le module mines est-il actif ? (check live si branché) */
   isUsable(): boolean {
     return this.enabledCheck !== undefined ? this.enabledCheck() : this.enabled;
@@ -197,7 +186,14 @@ export class MinesManager {
     }
   }
 
-  /** Aller : mémorise le retour, prépare le spawn, téléporte quand prêt. */
+  /**
+   * Aller : mémorise le retour, téléporte EN PREMIER (c'est la présence du
+   * joueur qui CHARGE les chunks de la dimension — sans lui, la file de
+   * génération boucle sur des chunks jamais chargés et l'arrivée « différée »
+   * ne vient jamais), puis met la plateforme en file. La sécurité résistance
+   * du spawn + le secours anti-chute portent le joueur les ~2 s que dure
+   * la pose de la plateforme.
+   */
   private enter(player: Player): string {
     const dimension = this.dimension();
     if (dimension === undefined) {
@@ -206,19 +202,19 @@ export class MinesManager {
 
     this.rememberOverworld(player);
 
-    // La plateforme doit être PRÊTE avant la téléportation (plus de chute
-    // dans le vide). Elle est à cheval sur 4 chunks : tous sont mis en file.
+    // 1) Téléportation IMMÉDIATE : elle force Bedrock à charger les chunks
+    //    de la poche de spawn (le joueur est l'unique chargeur de chunks).
+    this.teleportToSpawn(player, dimension);
+    this.pendingArrivals.delete(player.id);
+
+    // 2) La plateforme est à cheval sur 4 chunks : tous sont mis en file.
+    //    Le pompe tourne aussi via l'entretien (toutes les 2 s).
     this.ensureChunk(0, 0, dimension);
     this.ensureChunk(-1, 0, dimension);
     this.ensureChunk(0, -1, dimension);
     this.ensureChunk(-1, -1, dimension);
     this.pumpQueue();
-    if (!this.isSpawnAreaReady()) {
-      this.pendingArrivals.add(player.id);
-      return "§b[Mines] Préparation de la mine… §7tu arrives dès que la plateforme est prête.";
-    }
 
-    this.teleportToSpawn(player, dimension);
     return "§b[Mines] Bienvenue dans la mine ! §7Retour : §f/sn:monde§7.";
   }
 
@@ -253,10 +249,21 @@ export class MinesManager {
     return "§a[Mines] Retour au spawn du monde (pas de position mémorisée).";
   }
 
-  /** Téléporte aux mines : plateforme, night vision SANS particules. */
+  /**
+   * Téléporte aux mines : au niveau de la plateforme, night vision SANS
+   * particules, et courtes invulnérabilités (résistance + feu) le temps que
+   * la génération finisse — sécurité no-op si les effets sont indisponibles.
+   */
   private teleportToSpawn(player: Player, dimension: Dimension): void {
     player.teleport({ x: 0.5, y: Y_SPAWN_FEET, z: 0.5 }, { dimension });
     this.applyNightVision(player);
+    for (const effect of ["resistance", "fire_resistance"] as const) {
+      try {
+        player.addEffect(effect, 20 * 10, { amplifier: 4, showParticles: false });
+      } catch {
+        // effet indisponible : le secours anti-chute reste en place
+      }
+    }
   }
 
   /**
@@ -293,7 +300,11 @@ export class MinesManager {
     }, 20 * 30);
   }
 
-  /** Arrivées différées (plateforme pas encore prête au moment de /sn:mine). */
+  /**
+   * File de téléportation différée (plus nécessaire pour l'aller — la
+   * téléportation est immédiate — mais conservée pour les retours programmés
+   * éventuels et la compat des appels internes).
+   */
   private readonly pendingArrivals = new Set<string>();
 
   private flushPendingArrivals(): void {
