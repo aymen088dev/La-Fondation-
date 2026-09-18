@@ -186,7 +186,10 @@ export function openStatesMenu(player: Player, manager: TerritoryManager): void 
   );
 }
 
-/** Fiche détaillée d'un État/clan, avec retour vers la liste. */
+/**
+ * Fiche d'un État/clan — DESIGN DIFFÉRENCIÉ « parchemin d'État » (v19) :
+ * bannière couleur du drapeau, titre blanc centré, lignes en annuaire.
+ */
 export function showStateInfo(
   player: Player,
   territory: StoredDocument<TerritoryData>,
@@ -199,15 +202,21 @@ export function showStateInfo(
   const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
 
   void openWindowRaw(player, windowTitle(data.name), (form) => {
-    form.header(`${color.code}§l${data.name}`);
     form.label(
       [
-        `§eChef : §f${data.owner}${isOwner ? " §a(toi)" : ""}`,
-        `§eDrapeau : §r${color.code}${color.id}`,
-        `§eFondé le : §f${formatDate(data.createdAt)}`,
-        `§eTerritoire : §f${extentLine(data.chunkKeys.length)}`,
-        `§eCapitale : §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
-        `§eMembres : §f${data.members.length}`,
+        `${color.code}╔══════════════════════╗`,
+        `§f§l        ${data.name}`,
+        `${color.code}╚══════════════════════╝`,
+      ].join("\n"),
+    );
+    form.label(
+      [
+        `§eChef        §f${data.owner}${isOwner ? " §a(toi)" : ""}`,
+        `§eDrapeau     §r${color.code}${color.id}`,
+        `§eFondé le    §f${formatDate(data.createdAt)}`,
+        `§eTerritoire  §f${extentLine(data.chunkKeys.length)}`,
+        `§eCapitale    §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
+        `§eMembres     §f${data.members.length}`,
       ].join("\n"),
     );
     form.divider();
@@ -248,12 +257,18 @@ export function openMyClanMenu(
   const rankLabel = isOwner ? "§6Chef" : myRank === "officer" ? "§bOfficier" : "§7Membre";
 
   void openWindowRaw(player, windowTitle("Mon clan"), (form) => {
-    form.header(`${color.code}§l${data.name}`);
     form.label(
       [
-        `§eTon rang : §r${rankLabel}`,
-        `§eTerritoire : §f${extentLine(data.chunkKeys.length)}`,
-        `§eMembres : §f${data.members.length + 1} §7(chef inclus)`,
+        `${color.code}╔══════════════════════╗`,
+        `§f§l        ${data.name}`,
+        `${color.code}╚══════════════════════╝`,
+      ].join("\n"),
+    );
+    form.label(
+      [
+        `§eTon rang      §r${rankLabel}`,
+        `§eTerritoire    §f${extentLine(data.chunkKeys.length)}`,
+        `§eMembres       §f${data.members.length + 1} §7(chef inclus)`,
       ].join("\n"),
     );
     form.divider();

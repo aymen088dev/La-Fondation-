@@ -1,9 +1,28 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v18 — DIMENSION MINIÈRE + NATION COMPLÈTE + DRAPEAUX PERSO + CLASSES REDÉSIGNÉES**.
+> Dernière mise à jour : **v19 — MINE RÉÉCRITE (monde 100 % pierre, minerais équilibrés) + /sn:monde + menus différenciés**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
+
+## 🆕 v19 — La vraie mine + menus différenciés (sept. 2026)
+- [x] **Mine réécrite de fond en comble** (la v18 générait des « tunnels de 2 blocs » avec ~600 minerais/chunk) :
+  - monde **ENTIÈREMENT en pierre** (70 couches, y 2→71, entre deux lits de bedrock) — ambiance souterraine permanente ;
+  - **galeries croisées** traversantes de 6 blocs de haut (marche + tête, continuité garantie entre chunks) ;
+  - **2-3 grandes salles par chunk** (8-13 de large, 5-8 de haut) avec piliers de soutien, lanternes et contours bruchés organiques ;
+  - minerais **plus riches qu'en surface mais ÉQUILIBRÉS** (~150 blocs/chunk, testé) répartis par **bandes de profondeur** : charbon/fer partout, cuivre en dessous, or/redstone tout en bas, lapis/émeraude/diamant dans les 14 derniers blocs ;
+  - veines ne perçant JAMAIS une salle ou une galerie (peintes uniquement dans la pierre).
+- [x] **Génération par `fillBlocks`** (API native, rapide) + **garde `isChunkLoaded`** : un chunk n'est généré que s'il est chargé, sinon la tâche est REJOUÉE (fini les chunks « à moitié faits » marqués comme terminés) ; file anti-lag **1 chunk/tick**, arrêt propre si tout échoue, relance par l'entretien.
+- [x] **Arrivée SÉCURISÉE** : la téléportation n'a lieu que quand la **plateforme du spawn est prête** (disque r=8 à cheval sur les 4 chunks de l'origine, deepslate poli, muret, lanternes) — plus jamais de chute dans le vide (message « Préparation de la mine… » en attendant).
+- [x] **`/sn:monde` — « Le Monde »** : menu de choix avec DESIGN DIFFÉRENCIÉ (« portes du monde », deux cartes vertes/bleu acier) ; **le retour au monde normal téléporte à ta DERNIÈRE position** mémorisée (dynamic property) ; `/sn:mine` reste le raccourci aller/retour.
+- [x] **Design différencié des menus** (hub/admin inchangés) : Classes = fiches « voies » à bannière (bandeaux couleur, **nom en beau texte blanc**), fiches État/clan = « parchemin » à bannière + lignes en annuaire, Mes infos = fiche perso avec ligne Dons (prête pour la future fonctionnalité).
+- [x] **Bouton « Retour au menu » des Mines réparé** : rouvre réellement le hub (callback `back`) au lieu d'afficher un message ; entretien mines enregistré dès le boot (plus de dépendance à l'ordre worldLoad/fallback).
+- [x] **Tests** : 58/58 — nouveau lot pour la mine (déterminisme du plan, salles intérieures et hautes, galeries continues 6 blocs, budget minerais 100-200/chunk, bandes de profondeur, diamants tout en bas, veines bornées au chunk, clipBox, muret du spawn).
+- Packs **1.9.0** (BP, RP, serveur).
+
+---
+
+## 🆕 v18 — Mines, nation, drapeaux, classes (sept. 2026)
 
 ## 🆕 v18 — Mines, nation, drapeaux, classes (sept. 2026)
 - [x] **Dimension custom « nalania:mines »** (`BP/dimensions/nalania_mines.json`, schéma officiel 1.26.50 : générateur *void*, 384 blocs de haut) remplie par le module Mines : plateforme d'arrivée en deepslate poli avec lanternes et barrières, galeries croisées + salle centrale, poches creusées, **minerais ×3 à ×5 par rapport à la surface** (charbon, fer, cuivre, or, redstone, lapis, émeraude, diamant), torchères

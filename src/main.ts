@@ -103,10 +103,8 @@ world.afterEvents.worldLoad.subscribe(() => {
   // Dimension minière : check live sur le module "mines" (/sn:modules)
   // + boucles d'entretien (génération, secours anti-chute).
   mines.enabledCheck = () => modules.isEnabled("mines");
-  if (modules.isEnabled("mines")) {
-    mines.registerMaintenance();
-    mines.registerFallRescue();
-  }
+  mines.registerMaintenance();
+  mines.registerFallRescue();
 
   // Rôles par défaut ([Joueur], [Modo]) puis bootstrap admin :
   // le premier opérateur vanilla devient Admin si aucun admin n'existe
@@ -187,10 +185,8 @@ system.runInterval(() => {
     registerProtection(territories, modules);
     registerAnnouncer(territories, modules);
     mines.enabledCheck = () => modules.isEnabled("mines");
-    if (modules.isEnabled("mines")) {
-      mines.registerMaintenance();
-      mines.registerFallRescue();
-    }
+    mines.registerMaintenance();
+    mines.registerFallRescue();
     log.warn("Activation par fallback (worldLoad non reçu) : protection active.");
   }
   worldReady = true;

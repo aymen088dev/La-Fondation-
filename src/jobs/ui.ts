@@ -1,7 +1,10 @@
 /**
- * Menu /sn:jobs — DDUI. Base des métiers, catalogue VIDE pour l'instant :
- * le menu affiche l'état (aucun métier disponible) et est prêt à lister
- * le futur catalogue + les métiers exercés (XP, niveaux, abandon).
+ * Menu /sn:jobs — DESIGN DIFFÉRENCIÉ « registre des métiers » (v19).
+ *
+ * Présentation en fiches à bannière (comme les voies de Classes) mais
+ * avec une encre cuivrée : bandeau, métiers exercés avec barres d'XP.
+ * Le catalogue est volontairement vide pour l'instant — les fondations
+ * sont prêtes.
  */
 
 import type { Player } from "@minecraft/server";
@@ -17,28 +20,36 @@ function xpBar(xp: number, perLevel: number): string {
 /** Ouvre le menu des métiers. */
 export function openJobsMenu(player: Player, jobs: JobManager): void {
   void openWindow(player, "Métiers", (form) => {
-    form.header("§6■ §lMétiers");
-    form.divider();
+    // ---- Bannière du registre ----
+    form.label(
+      [
+        `§6╔══════════════════════╗`,
+        `§f§l        Métiers`,
+        `§6╚══════════════════════╝`,
+      ].join("\n"),
+    );
 
     const mine = jobs.jobsOf(player.name);
 
     // ----- Métiers exercés (avec XP/niveau) -----
     if (mine.length > 0) {
-      form.label("§7Tes métiers :");
       for (const job of mine) {
         const level = jobLevel(job.xp);
         const progress = job.xp % 50;
         form.label(
-          `§e■ §f${job.jobId} §7— niveau §f${level}\n` +
+          `§6✦ §f${job.jobId} §7— niveau §f§l${level}§r\n` +
             `${xpBar(progress, 50)} §8(${progress}/50 XP)`,
         );
       }
+      form.divider();
+    } else {
+      form.label(`§7Tu n'exerces aucun métier pour l'instant.`);
       form.divider();
     }
 
     // ----- Catalogue : volontairement vide (base à compléter plus tard) -----
     form.label(
-      "§7Aucun métier n'est encore disponible.\n§8Le catalogue (bûcheron, mineur…) sera ajouté prochainement — les fondations sont prêtes.",
+      "§7Aucun métier n'est encore ouvert au recrutement.\n§8Le registre (bûcheron, mineur…) sera complété prochainement — les fondations sont prêtes.",
     );
   }).catch((error: unknown) => console.warn(`[Jobs] ${error instanceof Error ? error.message : String(error)}`));
 }

@@ -673,7 +673,7 @@ var TerritoryManager = class {
 };
 
 // src/territories/commands.ts
-import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system8, world as world8 } from "@minecraft/server";
+import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system9, world as world9 } from "@minecraft/server";
 
 // node_modules/@bedrock-oss/bedrock-boost/dist/index.mjs
 import {
@@ -4933,15 +4933,21 @@ function showStateInfo(player, territory, manager) {
   const isOwner = data.ownerId === player.id || data.owner === player.name;
   const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
   void openWindowRaw(player, windowTitle(data.name), (form) => {
-    form.header(`${color.code}§l${data.name}`);
     form.label(
       [
-        `§eChef : §f${data.owner}${isOwner ? " §a(toi)" : ""}`,
-        `§eDrapeau : §r${color.code}${color.id}`,
-        `§eFondé le : §f${formatDate(data.createdAt)}`,
-        `§eTerritoire : §f${extentLine(data.chunkKeys.length)}`,
-        `§eCapitale : §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
-        `§eMembres : §f${data.members.length}`
+        `${color.code}╔══════════════════════╗`,
+        `§f§l        ${data.name}`,
+        `${color.code}╚══════════════════════╝`
+      ].join("\n")
+    );
+    form.label(
+      [
+        `§eChef        §f${data.owner}${isOwner ? " §a(toi)" : ""}`,
+        `§eDrapeau     §r${color.code}${color.id}`,
+        `§eFondé le    §f${formatDate(data.createdAt)}`,
+        `§eTerritoire  §f${extentLine(data.chunkKeys.length)}`,
+        `§eCapitale    §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
+        `§eMembres     §f${data.members.length}`
       ].join("\n")
     );
     form.divider();
@@ -4966,12 +4972,18 @@ function openMyClanMenu(player, manager, territory) {
   const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
   const rankLabel = isOwner ? "§6Chef" : myRank === "officer" ? "§bOfficier" : "§7Membre";
   void openWindowRaw(player, windowTitle("Mon clan"), (form) => {
-    form.header(`${color.code}§l${data.name}`);
     form.label(
       [
-        `§eTon rang : §r${rankLabel}`,
-        `§eTerritoire : §f${extentLine(data.chunkKeys.length)}`,
-        `§eMembres : §f${data.members.length + 1} §7(chef inclus)`
+        `${color.code}╔══════════════════════╗`,
+        `§f§l        ${data.name}`,
+        `${color.code}╚══════════════════════╝`
+      ].join("\n")
+    );
+    form.label(
+      [
+        `§eTon rang      §r${rankLabel}`,
+        `§eTerritoire    §f${extentLine(data.chunkKeys.length)}`,
+        `§eMembres       §f${data.members.length + 1} §7(chef inclus)`
       ].join("\n")
     );
     form.divider();
@@ -5192,6 +5204,566 @@ function openDissolveMenu(player, manager, territory) {
   );
 }
 
+// src/mines/manager.ts
+import { world as world8, system as system8, GameMode as GameMode2 } from "@minecraft/server";
+import { BlockVolume } from "@minecraft/server";
+
+// src/mines/generator.ts
+function rng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = a + 1831565813 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hash(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+var Y_BEDROCK_MAX = 1;
+var Y_STONE_MIN = 2;
+var Y_STONE_MAX = 71;
+var Y_CEIL_BEDROCK = 72;
+var Y_GALLERY_AIR_MIN = 5;
+var Y_GALLERY_AIR_MAX = 10;
+var Y_SPAWN_FEET = 5;
+var ORE_SPECS = [
+  { block: "minecraft:coal_ore", tries: 8, veinMin: 4, veinMax: 9, yMin: Y_STONE_MIN, yMax: Y_STONE_MAX },
+  { block: "minecraft:copper_ore", tries: 5, veinMin: 4, veinMax: 9, yMin: 10, yMax: 60 },
+  { block: "minecraft:iron_ore", tries: 6, veinMin: 3, veinMax: 6, yMin: Y_STONE_MIN, yMax: 64 },
+  { block: "minecraft:gold_ore", tries: 3, veinMin: 2, veinMax: 5, yMin: Y_STONE_MIN, yMax: 28 },
+  { block: "minecraft:redstone_ore", tries: 3, veinMin: 4, veinMax: 7, yMin: Y_STONE_MIN, yMax: 20 },
+  { block: "minecraft:lapis_ore", tries: 2, veinMin: 3, veinMax: 6, yMin: 6, yMax: 30 },
+  { block: "minecraft:diamond_ore", tries: 2, veinMin: 1, veinMax: 4, yMin: Y_STONE_MIN, yMax: 14 },
+  { block: "minecraft:emerald_ore", tries: 2, veinMin: 1, veinMax: 1, yMin: 20, yMax: 60 }
+];
+function rndOffset(rand) {
+  return Math.floor(rand() * 3) - 1;
+}
+function planChunk(seed, cx, cz) {
+  const rand = rng(hash(`nalania:mines#${seed}#${cx}:${cz}`));
+  const ox = cx * 16;
+  const oz = cz * 16;
+  const corridorX = {
+    x0: ox,
+    x1: ox + 15,
+    y0: Y_GALLERY_AIR_MIN,
+    y1: Y_GALLERY_AIR_MAX,
+    z0: oz + 7,
+    z1: oz + 9
+  };
+  const corridorZ = {
+    x0: ox + 7,
+    x1: ox + 9,
+    y0: Y_GALLERY_AIR_MIN,
+    y1: Y_GALLERY_AIR_MAX,
+    z0: oz,
+    z1: oz + 15
+  };
+  const roomCount = 2 + Math.floor(rand() * 2);
+  const rooms = [];
+  const pillars = [];
+  const lanterns = [];
+  for (let i = 0; i < roomCount; i++) {
+    const w = 8 + Math.floor(rand() * 6);
+    const d = 8 + Math.floor(rand() * 6);
+    const h = 5 + Math.floor(rand() * 4);
+    const x0 = ox + 1 + Math.floor(rand() * (15 - w));
+    const z0 = oz + 1 + Math.floor(rand() * (15 - d));
+    const y0 = 6 + Math.floor(rand() * 5);
+    const y1 = Math.min(y0 + h - 1, 30);
+    const room = { x0, x1: x0 + w - 1, y0, y1, z0, z1: z0 + d - 1 };
+    rooms.push(room);
+    if (w >= 10 && rand() < 0.7) {
+      const px = x0 + 2 + Math.floor(rand() * (w - 4));
+      const pz = z0 + 2 + Math.floor(rand() * (d - 4));
+      pillars.push({ x0: px, x1: px, y0: room.y0, y1: room.y1, z0: pz, z1: pz });
+    }
+    lanterns.push({
+      x: x0 + Math.floor(w / 2),
+      y: room.y0,
+      z: z0 + Math.floor(d / 2)
+    });
+  }
+  const torches = [];
+  for (const t of [2, 8, 14]) {
+    torches.push({ x: ox + t, y: Y_GALLERY_AIR_MIN, z: oz + 7 });
+    torches.push({ x: ox + 7, y: Y_GALLERY_AIR_MIN, z: oz + t });
+  }
+  const veins = [];
+  for (const spec of ORE_SPECS) {
+    for (let t = 0; t < spec.tries; t++) {
+      const size = spec.veinMin + Math.floor(rand() * (spec.veinMax - spec.veinMin + 1));
+      const cells = [];
+      let px = ox + Math.floor(rand() * 16);
+      let py = spec.yMin + Math.floor(rand() * (spec.yMax - spec.yMin + 1));
+      let pz = oz + Math.floor(rand() * 16);
+      for (let b = 0; b < size; b++) {
+        cells.push({ x: px, y: py, z: pz });
+        px = Math.min(ox + 15, Math.max(ox, px + rndOffset(rand)));
+        py = Math.min(spec.yMax, Math.max(spec.yMin, py + rndOffset(rand)));
+        pz = Math.min(oz + 15, Math.max(oz, pz + rndOffset(rand)));
+      }
+      veins.push({ block: spec.block, cells });
+    }
+  }
+  return { cx, cz, rooms, corridorX, corridorZ, pillars, veins, lanterns, torches };
+}
+function clipBox(box, cx, cz) {
+  const x0 = Math.max(box.x0, cx * 16);
+  const x1 = Math.min(box.x1, cx * 16 + 15);
+  const z0 = Math.max(box.z0, cz * 16);
+  const z1 = Math.min(box.z1, cz * 16 + 15);
+  if (x0 > x1 || z0 > z1 || box.y0 > box.y1) return null;
+  return { x0, x1, y0: box.y0, y1: box.y1, z0, z1 };
+}
+var SPAWN_RADIUS = 8;
+function spawnRingPositions() {
+  const positions = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (let a = 0; a < 72; a++) {
+    const angle = a / 72 * Math.PI * 2;
+    const x = Math.round(Math.cos(angle) * SPAWN_RADIUS);
+    const z = Math.round(Math.sin(angle) * SPAWN_RADIUS);
+    const key = `${x}:${z}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      positions.push({ x, y: Y_GALLERY_AIR_MIN, z });
+    }
+  }
+  return positions;
+}
+
+// src/mines/manager.ts
+var MINES_DIMENSION_ID = "nalania:mines";
+var RETURN_PROP = "nalania:overworld_return";
+var ORES_PUBLIC = [
+  { label: "Charbon", color: "§8" },
+  { label: "Cuivre", color: "§6" },
+  { label: "Fer", color: "§f" },
+  { label: "Or", color: "§e" },
+  { label: "Redstone", color: "§c" },
+  { label: "Lapis", color: "§9" },
+  { label: "Émeraude", color: "§a" },
+  { label: "Diamant", color: "§b" }
+];
+var worldSeed = 1337;
+function setMinesSeed(seed) {
+  worldSeed = seed >>> 0;
+}
+var MinesManager = class {
+  /** Passe à true après le worldLoad (la dimension devient adressable). */
+  loaded = false;
+  /** État statique (fallback si aucun check live branché). */
+  enabled = true;
+  /**
+   * Check live branché par main.ts (module « mines » de /sn:modules) :
+   * permet au toggle du menu Modules d'agir instantanément.
+   */
+  enabledCheck;
+  /** Chunks définitivement générés. */
+  generated = /* @__PURE__ */ new Set();
+  /** Chunks en attente (clé → tâche) : rejoués tant qu'ils échouent. */
+  pending = /* @__PURE__ */ new Map();
+  queueRunning = false;
+  /**
+   * La zone de spawn (plateforme à cheval sur les 4 chunks de l'origine)
+   * est-elle entièrement générée ?
+   */
+  isSpawnAreaReady() {
+    for (const key of ["0:0", "-1:0", "0:-1", "-1:-1"]) {
+      if (!this.generated.has(key)) return false;
+    }
+    return true;
+  }
+  /** Le module mines est-il actif ? (check live si branché) */
+  isUsable() {
+    return this.enabledCheck !== void 0 ? this.enabledCheck() : this.enabled;
+  }
+  markLoaded() {
+    this.loaded = true;
+  }
+  /** La dimension minière (undefined tant que non chargée/inexistante). */
+  dimension() {
+    if (!this.loaded) return void 0;
+    try {
+      return world8.getDimension(MINES_DIMENSION_ID);
+    } catch {
+      return void 0;
+    }
+  }
+  /** Le joueur est-il dans la dimension minière ? */
+  isInMines(player) {
+    return player.dimension.id === MINES_DIMENSION_ID;
+  }
+  /**
+   * Va aux mines (depuis le monde normal) ou revient au monde normal à la
+   * dernière position connue du joueur (retour exact).
+   */
+  toggle(player) {
+    if (!this.isUsable()) return "§c[Mines] Le module Mines est désactivé (/sn:modules).";
+    if (this.isInMines(player)) return this.exit(player);
+    return this.enter(player);
+  }
+  /** Menu « Monde » : choix explicite de la destination. */
+  goNormal(player) {
+    if (!this.isInMines(player)) return "§7[Mines] Tu es déjà dans le monde normal.";
+    return this.exit(player);
+  }
+  goMines(player) {
+    if (this.isInMines(player)) return "§7[Mines] Tu es déjà dans la mine.";
+    return this.enter(player);
+  }
+  /**
+   * Dernière position connue du joueur dans le monde normal
+   * (dimension !== mines), ou undefined.
+   */
+  lastOverworldLocation(player) {
+    try {
+      const raw = player.getDynamicProperty(RETURN_PROP);
+      if (typeof raw === "string") {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.dimensionId === "string" && parsed.dimensionId !== MINES_DIMENSION_ID) {
+          return parsed;
+        }
+      }
+    } catch {
+    }
+    return void 0;
+  }
+  rememberOverworld(player) {
+    try {
+      player.setDynamicProperty(RETURN_PROP, JSON.stringify({
+        dimensionId: player.dimension.id,
+        x: player.location.x,
+        y: player.location.y,
+        z: player.location.z
+      }));
+    } catch {
+    }
+  }
+  /** Aller : mémorise le retour, prépare le spawn, téléporte quand prêt. */
+  enter(player) {
+    const dimension = this.dimension();
+    if (dimension === void 0) {
+      return "§c[Mines] Dimension indisponible : vérifie que le pack déclare bien nalania:mines.";
+    }
+    this.rememberOverworld(player);
+    this.ensureChunk(0, 0, dimension);
+    this.ensureChunk(-1, 0, dimension);
+    this.ensureChunk(0, -1, dimension);
+    this.ensureChunk(-1, -1, dimension);
+    this.pumpQueue();
+    if (!this.isSpawnAreaReady()) {
+      this.pendingArrivals.add(player.id);
+      return "§b[Mines] Préparation de la mine… §7tu arrives dès que la plateforme est prête.";
+    }
+    this.teleportToSpawn(player, dimension);
+    return "§b[Mines] Bienvenue dans la mine ! §7Retour : §f/sn:monde§7.";
+  }
+  /** Retour : dernière position connue dans le monde normal, sinon spawn. */
+  exit(player) {
+    const target = this.lastOverworldLocation(player);
+    if (target !== void 0) {
+      try {
+        const dimension = world8.getDimension(target.dimensionId);
+        player.teleport({ x: target.x, y: target.y, z: target.z }, { dimension });
+        return "§a[Mines] Retour à ta dernière position dans le monde normal.";
+      } catch {
+      }
+    }
+    const overworld = world8.getDimension("minecraft:overworld");
+    let spawn;
+    try {
+      spawn = world8.getDefaultSpawnLocation();
+    } catch {
+      spawn = { x: 0, y: 100, z: 0 };
+    }
+    player.teleport({ x: spawn.x + 0.5, y: spawn.y + 2, z: spawn.z + 0.5 }, { dimension: overworld });
+    return "§a[Mines] Retour au spawn du monde (pas de position mémorisée).";
+  }
+  /** Téléporte aux mines : plateforme du spawn, nuit + night vision. */
+  teleportToSpawn(player, dimension) {
+    player.teleport({ x: 0.5, y: Y_SPAWN_FEET, z: 0.5 }, { dimension });
+    try {
+      player.addEffect("night_vision", 20 * 120, { amplifier: 0, showParticles: false });
+    } catch {
+    }
+  }
+  /** Arrivées différées (plateforme pas encore prête au moment de /sn:mine). */
+  pendingArrivals = /* @__PURE__ */ new Set();
+  flushPendingArrivals() {
+    if (this.pendingArrivals.size === 0) return;
+    const dimension = this.dimension();
+    if (dimension === void 0) return;
+    for (const id of [...this.pendingArrivals]) {
+      const player = world8.getAllPlayers().find((candidate) => candidate.id === id);
+      if (player === void 0) {
+        this.pendingArrivals.delete(id);
+        continue;
+      }
+      try {
+        this.teleportToSpawn(player, dimension);
+        player.sendMessage("§b[Mines] La plateforme est prête — bienvenue dans la mine !");
+      } catch {
+        return;
+      }
+      this.pendingArrivals.delete(id);
+    }
+  }
+  /**
+   * Met un chunk en file de génération (idempotent). La tâche est REJOUÉE
+   * tant que ses écritures échouent (chunks pas encore chargés) — plus
+   * jamais de chunk « à moitié généré » marqué comme fait.
+   */
+  ensureChunk(cx, cz, dimension) {
+    const key = `${cx}:${cz}`;
+    if (this.generated.has(key) || this.pending.has(key)) return;
+    const plan = planChunk(worldSeed, cx, cz);
+    this.pending.set(key, {
+      key,
+      run: () => {
+        if (!dimension.isChunkLoaded({ x: cx * 16 + 8, y: Y_SPAWN_FEET, z: cz * 16 + 8 })) {
+          throw new Error("chunk pas encore chargé");
+        }
+        generateChunk(dimension, plan, cx, cz);
+        this.generated.add(key);
+        this.pending.delete(key);
+      }
+    });
+  }
+  /**
+   * Exécute la file de génération — UNE tâche par tick (anti-lag). Un
+   * fillBlocks par couche de l'opération : un chunk complet prend ~5 ticks
+   * et le rayon exploré se remplit en quelques secondes sans figer le
+   * serveur. Les échecs (chunk pas chargé) sont replacés en FIN de file ;
+   * si TOUTE la file échoue, la pompe s'arrête (l'entretien la relancera
+   * au prochain passage — pas de boucle infinie à vide).
+   */
+  pumpQueue() {
+    if (this.queueRunning) return;
+    this.queueRunning = true;
+    const run = () => {
+      const next = this.pending.values().next();
+      if (next.done) {
+        this.queueRunning = false;
+        this.flushPendingArrivals();
+        return;
+      }
+      try {
+        next.value.run();
+      } catch (error) {
+        if (!next.value.logged) {
+          next.value.logged = true;
+          log3.warn(
+            `Mines : chunk ${next.value.key} en attente de chargement (${error instanceof Error ? error.message : String(error)})`
+          );
+        }
+        this.pending.delete(next.value.key);
+        this.pending.set(next.value.key, next.value);
+        if ([...this.pending.values()].every((task) => task.logged)) {
+          this.queueRunning = false;
+          this.flushPendingArrivals();
+          return;
+        }
+        this.flushPendingArrivals();
+        system8.run(run);
+        return;
+      }
+      this.flushPendingArrivals();
+      system8.run(run);
+    };
+    system8.run(run);
+  }
+  /** Force le traitement de la file (tests / appel immédiat). */
+  kickQueue() {
+    this.pumpQueue();
+  }
+  /**
+   * Boucle d'entretien : génère les chunks autour des joueurs présents
+   * dans la dimension + exécute la file (l'entretien alimente, la pompe
+   * consomme une tâche par tick).
+   */
+  registerMaintenance(intervalTicks = 40) {
+    system8.runInterval(() => {
+      if (!this.loaded || !this.isUsable()) return;
+      const dimension = this.dimension();
+      if (dimension === void 0) return;
+      for (const player of world8.getAllPlayers()) {
+        if (player.dimension.id !== MINES_DIMENSION_ID) continue;
+        const pcx = Math.floor(player.location.x / 16);
+        const pcz = Math.floor(player.location.z / 16);
+        for (let dx = -3; dx <= 3; dx++) {
+          for (let dz = -3; dz <= 3; dz++) {
+            this.ensureChunk(pcx + dx, pcz + dz, dimension);
+          }
+        }
+      }
+      this.pumpQueue();
+    }, intervalTicks);
+  }
+  /** Sécurité : chute dans le vide (faille) → retour à la plateforme. */
+  registerFallRescue(intervalTicks = 20) {
+    system8.runInterval(() => {
+      if (!this.loaded || !this.isUsable()) return;
+      for (const player of world8.getAllPlayers()) {
+        if (player.dimension.id !== MINES_DIMENSION_ID) continue;
+        if (player.location.y < 0) {
+          const dimension = this.dimension();
+          if (dimension === void 0) continue;
+          player.teleport({ x: 0.5, y: Y_SPAWN_FEET, z: 0.5 }, { dimension });
+          player.sendMessage("§e[Mines] Tu es tombé dans le vide : ramené à la plateforme.");
+        }
+      }
+    }, intervalTicks);
+  }
+  /** Les créatifs et spectateurs ne déclenchent rien de spécial (compat). */
+  static isSurvivalLike(player) {
+    return player.getGameMode() === GameMode2.Survival || player.getGameMode() === GameMode2.Adventure;
+  }
+};
+function fill(dimension, box, block) {
+  dimension.fillBlocks(
+    new BlockVolume(
+      { x: box.x0, y: box.y0, z: box.z0 },
+      { x: box.x1, y: box.y1, z: box.z1 }
+    ),
+    block,
+    { ignoreChunkBoundErrors: true }
+  );
+}
+function generateChunk(dimension, plan, cx, cz) {
+  const full = {
+    x0: cx * 16,
+    x1: cx * 16 + 15,
+    y0: 0,
+    y1: Y_CEIL_BEDROCK,
+    z0: cz * 16,
+    z1: cz * 16 + 15
+  };
+  fill(dimension, { ...full, y0: 0, y1: Y_BEDROCK_MAX }, "minecraft:bedrock");
+  fill(dimension, { ...full, y0: Y_STONE_MIN, y1: Y_STONE_MAX }, "minecraft:stone");
+  fill(dimension, { ...full, y0: Y_CEIL_BEDROCK, y1: Y_CEIL_BEDROCK }, "minecraft:bedrock");
+  for (const room of plan.rooms) fill(dimension, room, "minecraft:air");
+  fill(dimension, clipBox(plan.corridorX, cx, cz) ?? plan.corridorX, "minecraft:air");
+  fill(dimension, clipBox(plan.corridorZ, cx, cz) ?? plan.corridorZ, "minecraft:air");
+  for (const pillar of plan.pillars) fill(dimension, pillar, "minecraft:stone");
+  const oreSet = new Set(ORE_SPECS.map((spec) => spec.block));
+  for (const vein of plan.veins) {
+    for (const cell of vein.cells) {
+      const cellCx = Math.floor(cell.x / 16);
+      const cellCz = Math.floor(cell.z / 16);
+      if (cellCx !== cx || cellCz !== cz) continue;
+      if (cell.y < Y_STONE_MIN || cell.y > Y_STONE_MAX) continue;
+      try {
+        const block = dimension.getBlock({ x: cell.x, y: cell.y, z: cell.z });
+        if (block === void 0) continue;
+        if (block.typeId !== "minecraft:stone") continue;
+        if (oreSet.has(block.typeId)) continue;
+        block.setType(vein.block);
+      } catch {
+      }
+    }
+  }
+  for (const lantern of plan.lanterns) {
+    try {
+      dimension.getBlock({ x: lantern.x, y: lantern.y, z: lantern.z })?.setType("minecraft:lantern");
+    } catch {
+    }
+  }
+  for (const torch of plan.torches) {
+    try {
+      dimension.getBlock({ x: torch.x, y: torch.y, z: torch.z })?.setType("minecraft:torch");
+    } catch {
+    }
+  }
+  const spawnDisk = {
+    x0: -SPAWN_RADIUS,
+    x1: SPAWN_RADIUS,
+    y0: Y_STONE_MIN,
+    y1: Y_GALLERY_AIR_MAX,
+    z0: -SPAWN_RADIUS,
+    z1: SPAWN_RADIUS
+  };
+  const portion = clipBox(spawnDisk, cx, cz);
+  if (portion !== null) {
+    fill(dimension, { ...portion, y0: Y_STONE_MIN, y1: Y_GALLERY_AIR_MIN - 1 }, "minecraft:polished_deepslate");
+    fill(dimension, { ...portion, y0: Y_GALLERY_AIR_MIN, y1: Y_GALLERY_AIR_MAX }, "minecraft:air");
+  }
+  for (const ring of spawnRingPositions()) {
+    if (Math.floor(ring.x / 16) !== cx || Math.floor(ring.z / 16) !== cz) continue;
+    try {
+      dimension.getBlock({ x: ring.x, y: Y_GALLERY_AIR_MIN, z: ring.z })?.setType("minecraft:stone_brick_wall");
+    } catch {
+    }
+  }
+  if (cx === 0 && cz === 0) {
+    const r = SPAWN_RADIUS;
+    for (const [lx, lz] of [[1, 1], [r - 1, 1], [1, r - 1], [r - 1, r - 1]]) {
+      try {
+        dimension.getBlock({ x: lx, y: Y_GALLERY_AIR_MIN, z: lz })?.setType("minecraft:lantern");
+      } catch {
+      }
+    }
+  }
+}
+
+// src/mines/ui.ts
+function openWorldMenu(player, mines2) {
+  const inMines = mines2.isInMines(player);
+  void openWindowRaw(player, windowTitle("Le Monde"), (form) => {
+    form.header(`§b§lOù veux-tu aller ?§r`);
+    form.label(
+      inMines ? `§7Tu es actuellement dans §b§ola Mine§r§7.` : `§7Tu es actuellement dans le §a§lMonde normal§r§7.`
+    );
+    form.divider();
+    form.header(`§a═══ §l§aMonde normal§r §a═══`);
+    form.label(
+      [
+        `§7La surface, les biomes, tes constructions…`,
+        inMines ? `§eRetour : §fte téléporte à ta dernière position§e ici.` : `§8Tu y es déjà.`
+      ].join("\n")
+    );
+    form.button(`§a§l⬥ Aller au monde normal`, () => {
+      if (!inMines) {
+        player.sendMessage("§7[Mines] Tu es déjà dans le monde normal.");
+        return;
+      }
+      player.sendMessage(mines2.goNormal(player));
+    });
+    form.divider();
+    form.header(`§b═══ §l§bLa Mine§r §b═══`);
+    form.label(
+      [
+        `§7Un monde §fentièrement creusé dans la pierre§7, en profondeur :`,
+        `§8· galeries croisées §f6 blocs de haut§8, grandes salles éclairées`,
+        `§8· minerais §fplus riches qu'en surface§8, sans excès`,
+        `§8· profondeur minable : §fy ${Y_STONE_MIN} à ${Y_STONE_MAX}§8 (${Y_STONE_MAX - Y_STONE_MIN + 1} couches)`
+      ].join("\n")
+    );
+    form.button(`§b§l⬥ Descendre dans la Mine`, () => {
+      if (inMines) {
+        player.sendMessage("§7[Mines] Tu es déjà dans la mine.");
+        return;
+      }
+      player.sendMessage(mines2.goMines(player));
+    });
+    form.divider();
+    form.label(
+      `§8Minerais de la mine : ${ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join("§8, ")}`
+    );
+  }).catch(
+    (error) => console.warn(`[Mines] Erreur menu monde : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+
 // src/territories/commands.ts
 function registerCommands(manager, db2, modules2, permissions2, mines2) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
@@ -5199,7 +5771,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
     if (permissions2 === void 0) return true;
     return permissions2.can(player.name, perm, player.playerPermissionLevel >= 2);
   };
-  system8.beforeEvents.startup.subscribe((event) => {
+  system9.beforeEvents.startup.subscribe((event) => {
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:create",
@@ -5218,7 +5790,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
         if (!allowed(player, "territories.create")) {
           return { status: CustomCommandStatus.Failure, message: "§c[Clans] Tu n'as pas la permission de fonder un clan." };
         }
-        system8.run(() => openCreateMenu(player, manager));
+        system9.run(() => openCreateMenu(player, manager));
         return { status: CustomCommandStatus.Success };
       }
     );
@@ -5234,7 +5806,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus.Failure, message: "Seuls les joueurs peuvent utiliser cette commande." };
         }
-        system8.run(() => openStatesMenu(player, manager));
+        system9.run(() => openStatesMenu(player, manager));
         return { status: CustomCommandStatus.Success };
       }
     );
@@ -5253,7 +5825,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
         if (!enabled()) {
           return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
         }
-        system8.run(() => {
+        system9.run(() => {
           const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
           if (territory === void 0) {
             player.sendMessage("§e[Clans] Tu n'as pas de clan. Fonde-le avec §f/sn:create§e.");
@@ -5289,7 +5861,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
         if (!enabled()) {
           return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
         }
-        system8.run(() => {
+        system9.run(() => {
           const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
           if (territory === void 0) {
             player.sendMessage("§e[Clans] Tu n'as pas de clan. Fonde-le avec §f/sn:create§e.");
@@ -5315,7 +5887,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
         if (!enabled()) {
           return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
         }
-        system8.run(() => {
+        system9.run(() => {
           const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
           if (territory === void 0) {
             player.sendMessage("§e[Clans] Tu n'as pas de clan.");
@@ -5353,7 +5925,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
           return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
         }
         let sent = CustomCommandStatus.Success;
-        system8.run(() => {
+        system9.run(() => {
           const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
           if (territory === void 0) {
             player.sendMessage("§e[Clans] Tu n'as pas de clan : fonde-le avec §f/sn:create§e.");
@@ -5365,7 +5937,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
             player.sendMessage("§c[Clans] Seul le chef ou un officier peut inviter.");
             return;
           }
-          const target = world8.getAllPlayers().find(
+          const target = world9.getAllPlayers().find(
             (candidate) => candidate.name.toLowerCase() === joueur.toLowerCase()
           );
           if (target === void 0) {
@@ -5399,7 +5971,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
         if (!enabled()) {
           return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
         }
-        system8.run(() => {
+        system9.run(() => {
           const territory = manager.findByMemberId(player.id);
           if (territory === void 0) {
             player.sendMessage("§e[Clans] Tu n'es membre d'aucun clan.");
@@ -5430,7 +6002,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
           if (!enabled()) {
             return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
           }
-          system8.run(() => {
+          system9.run(() => {
             const territory = manager.findByOwner(player.name) ?? manager.findByMemberId(player.id);
             if (territory === void 0) {
               player.sendMessage("§e[Clans] Tu n'as pas de clan.");
@@ -5461,7 +6033,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
     rankCommand("sn:demote", "member", "Rétrograde membre");
     event.customCommandRegistry.registerCommand(
       {
-        name: "sn:kick",
+        name: "sn:ckick",
         description: "Exclut un membre de ton clan",
         permissionLevel: CommandPermissionLevel.Any,
         cheatsRequired: false,
@@ -5475,7 +6047,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
         if (!enabled()) {
           return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
         }
-        system8.run(() => {
+        system9.run(() => {
           const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
           if (territory === void 0) {
             player.sendMessage("§e[Clans] Tu n'as pas de clan.");
@@ -5517,7 +6089,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
         if (!enabled()) {
           return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
         }
-        system8.run(() => {
+        system9.run(() => {
           const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
           if (territory === void 0) {
             player.sendMessage("§e[Clans] Tu n'as pas de clan.");
@@ -5548,7 +6120,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
         if (!enabled()) {
           return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
         }
-        system8.run(() => {
+        system9.run(() => {
           const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
           if (territory === void 0) {
             player.sendMessage("§e[Clans] Tu n'as pas de clan.");
@@ -5602,7 +6174,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:mine",
-        description: "Va dans la dimension minière (pierre et minerais à gogo) / reviens",
+        description: "Va dans la dimension minière / revient à ta dernière position",
         permissionLevel: CommandPermissionLevel.Any,
         cheatsRequired: false
       },
@@ -5614,10 +6186,29 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
         if (mines2 === void 0) {
           return { status: CustomCommandStatus.Failure, message: "Mines indisponibles." };
         }
-        system8.run(() => {
+        system9.run(() => {
           const message = mines2.toggle(player);
           player.sendMessage(message);
         });
+        return { status: CustomCommandStatus.Success };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:monde",
+        description: "Choisis ton monde : normal (surface) ou Mine",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        if (mines2 === void 0) {
+          return { status: CustomCommandStatus.Failure, message: "Mines indisponibles." };
+        }
+        system9.run(() => openWorldMenu(player, mines2));
         return { status: CustomCommandStatus.Success };
       }
     );
@@ -5640,7 +6231,7 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
         switch (action) {
           case "menu": {
             if (db2.loaded) {
-              system8.run(() => {
+              system9.run(() => {
                 void openDbMenu(db2, _origin.sourceEntity).catch(
                   (error) => console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`)
                 );
@@ -5700,9 +6291,9 @@ function registerCommands(manager, db2, modules2, permissions2, mines2) {
 }
 
 // src/territories/protection.ts
-import { world as world9, system as system9, GameMode as GameMode2, Player as Player3 } from "@minecraft/server";
+import { world as world10, system as system10, GameMode as GameMode3, Player as Player3 } from "@minecraft/server";
 function safeSend(player, message) {
-  system9.run(() => {
+  system10.run(() => {
     try {
       player.sendMessage(message);
     } catch {
@@ -5715,8 +6306,8 @@ var DENY_INTERACT = "§c[Clans] Chunk protégé : interaction impossible.";
 var DENY_COMBAT = "§c[Clans] Territoire de clan : ce joueur ne peut pas être attaqué ici.";
 var DENY_ITEM = "§c[Clans] Chunk protégé : objet inutilisable ici.";
 function isCreative(playerName) {
-  const player = world9.getAllPlayers().find((candidate) => candidate.name === playerName);
-  return player !== void 0 && player.getGameMode() === GameMode2.Creative;
+  const player = world10.getAllPlayers().find((candidate) => candidate.name === playerName);
+  return player !== void 0 && player.getGameMode() === GameMode3.Creative;
 }
 function isProtectedForId(block, player, manager) {
   const key = chunkKeyFromPosition(block.dimension.id, block.location.x, block.location.z);
@@ -5724,7 +6315,7 @@ function isProtectedForId(block, player, manager) {
 }
 function registerProtection(manager, modules2) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
-  world9.beforeEvents.playerBreakBlock.subscribe((event) => {
+  world10.beforeEvents.playerBreakBlock.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -5733,7 +6324,7 @@ function registerProtection(manager, modules2) {
       safeSend(player, DENY_BREAK);
     }
   });
-  world9.afterEvents.playerPlaceBlock.subscribe((event) => {
+  world10.afterEvents.playerPlaceBlock.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -5744,7 +6335,7 @@ function registerProtection(manager, modules2) {
     const x = Math.floor(location.x);
     const y = Math.floor(location.y);
     const z = Math.floor(location.z);
-    system9.run(() => {
+    system10.run(() => {
       try {
         dimension.runCommand(`setblock ${x} ${y} ${z} air`);
       } catch {
@@ -5752,7 +6343,7 @@ function registerProtection(manager, modules2) {
     });
     safeSend(player, DENY_PLACE);
   });
-  world9.beforeEvents.playerInteractWithBlock.subscribe((event) => {
+  world10.beforeEvents.playerInteractWithBlock.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -5761,7 +6352,7 @@ function registerProtection(manager, modules2) {
       safeSend(player, DENY_INTERACT);
     }
   });
-  world9.beforeEvents.itemUse.subscribe((event) => {
+  world10.beforeEvents.itemUse.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.source;
     if (isCreative(player.name)) return;
@@ -5771,7 +6362,7 @@ function registerProtection(manager, modules2) {
       safeSend(player, DENY_ITEM);
     }
   });
-  world9.beforeEvents.playerInteractWithEntity.subscribe((event) => {
+  world10.beforeEvents.playerInteractWithEntity.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -5781,7 +6372,7 @@ function registerProtection(manager, modules2) {
       safeSend(player, DENY_INTERACT);
     }
   });
-  world9.beforeEvents.entityHurt.subscribe((event) => {
+  world10.beforeEvents.entityHurt.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const attacker = event.damageSource.damagingEntity;
     if (!(attacker instanceof Player3)) return;
@@ -5805,7 +6396,7 @@ function registerProtection(manager, modules2) {
       safeSend(attacker, "§c[Clans] Chunk revendiqué : les créatures ici sont sous la protection du clan.");
     }
   });
-  world9.beforeEvents.explosion.subscribe((event) => {
+  world10.beforeEvents.explosion.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const impacted = event.getImpactedBlocks();
     const allowed = impacted.filter((block) => {
@@ -5823,17 +6414,17 @@ function registerProtection(manager, modules2) {
 }
 
 // src/territories/announce.ts
-import { system as system10, world as world10 } from "@minecraft/server";
+import { system as system11, world as world11 } from "@minecraft/server";
 var NO_TERRITORY_MESSAGE = "§7Zone libre";
 function registerAnnouncer(manager, modules2, intervalTicks = 10) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
   const lastKeyByPlayer = /* @__PURE__ */ new Map();
-  world10.afterEvents.playerLeave.subscribe((event) => {
+  world11.afterEvents.playerLeave.subscribe((event) => {
     lastKeyByPlayer.delete(event.playerName);
   });
-  system10.runInterval(() => {
+  system11.runInterval(() => {
     if (!manager.loaded || !enabled()) return;
-    for (const player of world10.getAllPlayers()) {
+    for (const player of world11.getAllPlayers()) {
       const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
       const previous = lastKeyByPlayer.get(player.name);
       if (previous === key) continue;
@@ -6299,7 +6890,7 @@ function openPrefixMenu(player, title, onDone) {
 }
 
 // src/permissions/players-ui.ts
-import { world as world11 } from "@minecraft/server";
+import { world as world12 } from "@minecraft/server";
 
 // src/players.ts
 function findPlayerById(db2, playerId) {
@@ -6362,7 +6953,7 @@ function allKnownPlayers(db2) {
 // src/permissions/players-ui.ts
 function openPlayersMenu(player, permissions2, db2) {
   void openWindow(player, "Joueurs", (form) => {
-    const online = world11.getAllPlayers();
+    const online = world12.getAllPlayers();
     form.header(`§b■ §lJoueurs`);
     form.label(
       `§a● En ligne : §f${online.length}
@@ -6420,7 +7011,7 @@ function openPlayerConfigMenu(player, targetName, permissions2, db2) {
   const member = permissions2.getMember(targetName);
   const roleLabel = member === void 0 ? "§7aucun" : `${permissions2.getRole(member.data.role)?.data.color ?? "§7"}${member.data.role}`;
   const prefixLabel = member?.data.customPrefix ?? "(défaut du rôle)";
-  const isOnline = world11.getAllPlayers().some((candidate) => candidate.name === targetName);
+  const isOnline = world12.getAllPlayers().some((candidate) => candidate.name === targetName);
   const record = db2 !== void 0 ? allKnownPlayers(db2).find((r) => r.data.name === targetName) : void 0;
   const classLabel = record?.data.class ? record.data.class : "§8pas encore choisie";
   void openWindow(player, targetName, (form) => {
@@ -6485,7 +7076,7 @@ import { CustomCommandStatus as CustomCommandStatus2, CommandPermissionLevel as 
 import { world as world16 } from "@minecraft/server";
 
 // src/moderation/ui.ts
-import { world as world13 } from "@minecraft/server";
+import { world as world14 } from "@minecraft/server";
 
 // src/moderation/manager.ts
 function formatDuration(minutes) {
@@ -6637,9 +7228,9 @@ var SanctionsManager = class {
 };
 
 // src/moderation/enforcement.ts
-import { world as world12, system as system11 } from "@minecraft/server";
+import { world as world13, system as system12 } from "@minecraft/server";
 function kickPlayer(playerName, reason) {
-  const player = world12.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world13.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return false;
   try {
     player.dimension.runCommand(`kick "${playerName}" ${reason.replace(/"/g, "")}`);
@@ -6649,7 +7240,7 @@ function kickPlayer(playerName, reason) {
   }
 }
 function registerEnforcement(sanctions2) {
-  world12.afterEvents.playerSpawn.subscribe((event) => {
+  world13.afterEvents.playerSpawn.subscribe((event) => {
     if (!event.initialSpawn || !sanctions2.loaded) return;
     const player = event.player;
     const ban = sanctions2.getBan(player.name);
@@ -6657,7 +7248,7 @@ function registerEnforcement(sanctions2) {
     const expiry = ban.expiresAt === 0 ? "§4BANNI PERMANENTLEMENT" : `§4BANNI§7 (encore ${Math.max(1, Math.ceil((ban.expiresAt - Date.now()) / 6e4))} min)`;
     player.sendMessage(`§c[NaLandia] ${expiry}
 §7Motif : §f${ban.reason}§7 — par §f${ban.by}`);
-    system11.run(() => {
+    system12.run(() => {
       kickPlayer(player.name, ban.reason);
     });
   });
@@ -6665,7 +7256,7 @@ function registerEnforcement(sanctions2) {
 
 // src/moderation/ui.ts
 function resolveTargetId(targetName) {
-  const online = world13.getAllPlayers().find((candidate) => candidate.name === targetName);
+  const online = world14.getAllPlayers().find((candidate) => candidate.name === targetName);
   return online?.id ?? null;
 }
 function openSanctionsMenu(player, sanctions2, permissions2) {
@@ -6907,25 +7498,32 @@ function xpBar(xp, perLevel) {
   return `§a${"█".repeat(filled)}§8${"░".repeat(10 - filled)}§r`;
 }
 var CLASS_TRAITS = {
-  guerrier: ["§c+ Dégâts au corps à corps", "§c+ Résistance au combat", "§7- Portée courte"],
-  mage: ["§5+ Puissance magique", "§5+ Potions renforcées", "§7- Fragile de près"],
-  archer: ["§a+ Précision à distance", "§a+ Déplacement rapide", "§7- Faible au mêlée"]
+  guerrier: ["§c✦ Dégâts au corps à corps", "§c✦ Résistance au combat", "§7✧ Portée courte"],
+  mage: ["§5✦ Puissance magique", "§5✦ Potions renforcées", "§7✧ Fragile de près"],
+  archer: ["§a✦ Précision à distance", "§a✦ Déplacement rapide", "§7✧ Faible au mêlée"]
 };
+function banner(info) {
+  return [
+    `${info.color}╔══════════════════════╗`,
+    `§f§l        ${info.name}`,
+    `${info.color}╚══════════════════════╝`
+  ].join("\n");
+}
 function classCard(player, classes2, info, isAdmin, backTo) {
   void openWindowRaw(player, windowTitle(info.name), (form) => {
-    form.header(`${info.color}━━━ §f§l${info.name} §r${info.color}━━━`);
+    form.label(banner(info));
     form.label(
       [
         `§f${info.description}`,
         ``,
         ...CLASS_TRAITS[info.id],
         ``,
-        `§8Route définitive de ta progression sur NaLandia.`
+        `§8Ta route définitive de progression sur NaLandia.`
       ].join("\n")
     );
     form.divider();
-    form.button(`§a§lChoisir ${info.name}`, () => confirmClassChoice(player, classes2, info, backTo));
-    form.button(`§7§lRevoir les autres classes`, backTo);
+    form.button(`§a§lChoisir la voie ${info.name}`, () => confirmClassChoice(player, classes2, info, backTo));
+    form.button(`§7§lRevoir les autres voies`, backTo);
     void isAdmin;
   }).catch(
     (error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`)
@@ -6935,22 +7533,25 @@ function myClassCard(player, classes2, info, xp, isAdmin) {
   const level = classLevel(xp);
   const progress = classProgress(xp);
   void openWindowRaw(player, windowTitle(info.name), (form) => {
-    form.header(`${info.color}━━━ §f§l${info.name} §r${info.color}━━━`);
+    form.label(banner(info));
     form.label(
       [
         `§f${info.description}`,
         ``,
-        `§7Niveau : §f${level}`,
+        ...CLASS_TRAITS[info.id],
+        ``,
+        `§7Niveau : §f§l${level}§r`,
         `§7Progression : ${xpBar(progress, XP_PER_LEVEL)}`,
-        `§7XP : §f${progress}§7/§f${XP_PER_LEVEL} §8(total : ${xp})`
+        `§7XP : §f${progress}§7/§f${XP_PER_LEVEL} §8(total : ${xp})`,
+        ``,
+        `§8Les bonus de voie et le catalogue seront complétés prochainement.`
       ].join("\n")
     );
     form.divider();
-    form.label("§8Le catalogue et les bonus de classe seront complétés prochainement.");
     if (isAdmin) {
       form.button("§c§lRéinitialiser (admin) §7— re-choisir librement", () => {
         if (classes2.clearClass(player.name)) {
-          player.sendMessage("§a[Classes] Classe réinitialisée — tu peux re-choisir.");
+          player.sendMessage("§a[Classes] Voie réinitialisée — tu peux re-choisir.");
         }
         openClassesMenu(player, classes2, isAdmin);
       });
@@ -6962,7 +7563,7 @@ function myClassCard(player, classes2, info, xp, isAdmin) {
 }
 function openClassesMenu(player, classes2, isAdmin = false) {
   void openWindow(player, "Classes", (form) => {
-    form.header(`§d§lVoies de NaLandia`);
+    form.header(`§d§lLes Voies de NaLandia`);
     form.divider();
     const selection = classes2.classOf(player.name);
     if (selection === void 0) {
@@ -6973,7 +7574,7 @@ il déterminera ta progression sur le serveur.`
       form.divider();
       for (const info2 of CLASS_CATALOG) {
         form.button(
-          `${info2.color}${info2.name} §7— ${info2.description}`,
+          `${info2.color}§l${info2.name}§r §7— ${info2.description}`,
           () => classCard(player, classes2, info2, isAdmin, () => openClassesMenu(player, classes2, isAdmin))
         );
       }
@@ -6981,13 +7582,13 @@ il déterminera ta progression sur le serveur.`
     }
     const info = CLASS_CATALOG.find((candidate) => candidate.id === selection.classId);
     if (info === void 0) {
-      form.label(`§cClasse inconnue (${selection.classId}) — contacte un admin.`);
+      form.label(`§cVoie inconnue (${selection.classId}) — contacte un admin.`);
       return;
     }
     form.label(`§7Ta voie actuelle :`);
     form.divider();
     form.button(
-      `${info.color}${info.name} §7— niveau ${classLevel(selection.xp)}`,
+      `${info.color}§l${info.name}§r §7— niveau ${classLevel(selection.xp)}`,
       () => myClassCard(player, classes2, info, selection.xp, isAdmin)
     );
   }).catch(
@@ -6996,7 +7597,7 @@ il déterminera ta progression sur le serveur.`
 }
 function confirmClassChoice(player, classes2, info, backTo) {
   void openWindowRaw(player, windowTitle("Confirmer"), (form) => {
-    form.header(`${info.color}━━━ §f§l${info.name} §r${info.color}━━━`);
+    form.label(banner(info));
     form.label(
       [
         `Tu choisis la voie ${info.color}§l${info.name}§r§f ?`,
@@ -7012,7 +7613,7 @@ function confirmClassChoice(player, classes2, info, backTo) {
         result.ok ? `§a[Classes] Bienvenue dans la voie ${info.color}§l${info.name}§r§a ! Ta progression commence maintenant.` : `§c[Classes] ${result.error}`
       );
     });
-    form.button(`§7§lRevoir les autres classes`, backTo);
+    form.button(`§7§lRevoir les autres voies`, backTo);
   }).catch(
     (error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`)
   );
@@ -7068,399 +7669,32 @@ function xpBar2(xp, perLevel) {
 }
 function openJobsMenu(player, jobs2) {
   void openWindow(player, "Métiers", (form) => {
-    form.header("§6■ §lMétiers");
-    form.divider();
+    form.label(
+      [
+        `§6╔══════════════════════╗`,
+        `§f§l        Métiers`,
+        `§6╚══════════════════════╝`
+      ].join("\n")
+    );
     const mine = jobs2.jobsOf(player.name);
     if (mine.length > 0) {
-      form.label("§7Tes métiers :");
       for (const job of mine) {
         const level = jobLevel(job.xp);
         const progress = job.xp % 50;
         form.label(
-          `§e■ §f${job.jobId} §7— niveau §f${level}
+          `§6✦ §f${job.jobId} §7— niveau §f§l${level}§r
 ${xpBar2(progress, 50)} §8(${progress}/50 XP)`
         );
       }
       form.divider();
+    } else {
+      form.label(`§7Tu n'exerces aucun métier pour l'instant.`);
+      form.divider();
     }
     form.label(
-      "§7Aucun métier n'est encore disponible.\n§8Le catalogue (bûcheron, mineur…) sera ajouté prochainement — les fondations sont prêtes."
+      "§7Aucun métier n'est encore ouvert au recrutement.\n§8Le registre (bûcheron, mineur…) sera complété prochainement — les fondations sont prêtes."
     );
   }).catch((error) => console.warn(`[Jobs] ${error instanceof Error ? error.message : String(error)}`));
-}
-
-// src/mines/manager.ts
-import { world as world14, system as system12, GameMode as GameMode3 } from "@minecraft/server";
-
-// src/mines/generator.ts
-function rng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = a + 1831565813 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-function hash(str) {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-// src/mines/manager.ts
-var MINES_DIMENSION_ID = "nalania:mines";
-var MINES_FLOOR_Y = 64;
-var MINES_HEIGHT = 24;
-var MINES_SPAWN_RADIUS = 6;
-var ORES = [
-  { block: "minecraft:coal_ore", vein: 10, tries: 26, yMin: MINES_FLOOR_Y, yMax: MINES_FLOOR_Y + MINES_HEIGHT },
-  { block: "minecraft:iron_ore", vein: 8, tries: 22, yMin: MINES_FLOOR_Y, yMax: MINES_FLOOR_Y + MINES_HEIGHT },
-  { block: "minecraft:copper_ore", vein: 9, tries: 18, yMin: MINES_FLOOR_Y, yMax: MINES_FLOOR_Y + MINES_HEIGHT },
-  { block: "minecraft:gold_ore", vein: 7, tries: 12, yMin: MINES_FLOOR_Y + 4, yMax: MINES_FLOOR_Y + MINES_HEIGHT },
-  { block: "minecraft:redstone_ore", vein: 8, tries: 12, yMin: MINES_FLOOR_Y, yMax: MINES_FLOOR_Y + 14 },
-  { block: "minecraft:lapis_ore", vein: 7, tries: 9, yMin: MINES_FLOOR_Y + 2, yMax: MINES_FLOOR_Y + 18 },
-  { block: "minecraft:emerald_ore", vein: 4, tries: 7, yMin: MINES_FLOOR_Y + 6, yMax: MINES_FLOOR_Y + MINES_HEIGHT },
-  { block: "minecraft:diamond_ore", vein: 5, tries: 8, yMin: MINES_FLOOR_Y, yMax: MINES_FLOOR_Y + 12 }
-];
-var ORES_PUBLIC = [
-  { label: "Charbon ×5", color: "§8" },
-  { label: "Fer ×5", color: "§f" },
-  { label: "Cuivre ×4", color: "§6" },
-  { label: "Or ×4", color: "§e" },
-  { label: "Redstone ×4", color: "§c" },
-  { label: "Lapis ×3", color: "§9" },
-  { label: "Émeraude ×3", color: "§a" },
-  { label: "Diamant ×3", color: "§b" }
-];
-var worldSeed = 1337;
-function setMinesSeed(seed) {
-  worldSeed = seed >>> 0;
-}
-var MinesManager = class {
-  /** Passe à true après le worldLoad (la dimension devient adressable). */
-  loaded = false;
-  /** État statique (fallback si aucun check live branché). */
-  enabled = true;
-  /**
-   * Check live branché par main.ts (module « mines » de /sn:modules) :
-   * permet au toggle du menu Modules d'agir instantanément.
-   */
-  enabledCheck;
-  generated = /* @__PURE__ */ new Set();
-  queue = [];
-  queueRunning = false;
-  constructor() {
-  }
-  /** Le module mines est-il actif ? (check live si branché) */
-  isUsable() {
-    return this.enabledCheck !== void 0 ? this.enabledCheck() : this.enabled;
-  }
-  markLoaded() {
-    this.loaded = true;
-  }
-  /** La dimension minière (undefined tant que non chargée/inexistante). */
-  dimension() {
-    if (!this.loaded) return void 0;
-    try {
-      return world14.getDimension(MINES_DIMENSION_ID);
-    } catch {
-      return void 0;
-    }
-  }
-  /** Le joueur est-il dans la dimension minière ? */
-  isInMines(player) {
-    return player.dimension.id === MINES_DIMENSION_ID;
-  }
-  /**
-   * Téléporte le joueur aux mines (aller) ou le ramène dans l'overworld
-   * à sa position d'entrée (retour). Renvoie le message de résultat.
-   */
-  toggle(player) {
-    if (!this.isUsable()) return "§c[Mines] Le module Mines est désactivé (/sn:modules).";
-    if (this.isInMines(player)) return this.exit(player);
-    return this.enter(player);
-  }
-  /** Aller : mémorise le retour, téléporte au spawn des mines. */
-  enter(player) {
-    const dimension = this.dimension();
-    if (dimension === void 0) {
-      return "§c[Mines] Dimension indisponible : vérifie que le pack déclare bien nalania:mines.";
-    }
-    try {
-      player.setDynamicProperty("nalania:mines_return", JSON.stringify({
-        dimensionId: player.dimension.id,
-        x: player.location.x,
-        y: player.location.y,
-        z: player.location.z
-      }));
-    } catch {
-    }
-    const x = 0.5;
-    const z = 0.5;
-    this.ensureChunk(0, 0, dimension);
-    player.teleport({ x, y: MINES_FLOOR_Y + 1, z }, { dimension });
-    try {
-      player.addEffect("night_vision", 20 * 90, { amplifier: 0, showParticles: false });
-    } catch {
-    }
-    this.scheduleChunkLoad(player);
-    return `§a[Mines] Bienvenue dans les mines ! §7Retour : §f/sn:mine§7 à nouveau.`;
-  }
-  /** Retour : restaure la position mémorisée. */
-  exit(player) {
-    let target;
-    try {
-      const raw = player.getDynamicProperty("nalania:mines_return");
-      if (typeof raw === "string") target = JSON.parse(raw);
-    } catch {
-      target = void 0;
-    }
-    const dimension = target !== void 0 ? world14.getDimension(target.dimensionId) : void 0;
-    if (dimension !== void 0 && target !== void 0) {
-      player.teleport({ x: target.x, y: target.y, z: target.z }, { dimension });
-    } else {
-      const overworld = world14.getDimension("minecraft:overworld");
-      player.teleport({ x: 0.5, y: 100, z: 0.5 }, { dimension: overworld });
-    }
-    return `§a[Mines] Tu es de retour à la surface.`;
-  }
-  /**
-   * Programme la génération des chunks autour du joueur (rayon 2) —
-   * chaque chunk est mis en file s'il n'est pas déjà généré.
-   */
-  scheduleChunkLoad(player) {
-    const dimension = this.dimension();
-    if (dimension === void 0) return;
-    const pcx = Math.floor(player.location.x / 16);
-    const pcz = Math.floor(player.location.z / 16);
-    for (let dx = -2; dx <= 2; dx++) {
-      for (let dz = -2; dz <= 2; dz++) {
-        this.ensureChunk(pcx + dx, pcz + dz, dimension);
-      }
-    }
-  }
-  /**
-   * Met un chunk en file de génération (idempotent). La génération réelle
-   * est étalée sur plusieurs ticks (budget BLOCKS_PER_TICK).
-   */
-  ensureChunk(cx, cz, dimension) {
-    const key = `${dimension.id}:${cx}:${cz}`;
-    if (this.generated.has(key)) return;
-    const seed = hash(`${key}#${worldSeed}`);
-    const random = rng(seed);
-    const steps = [];
-    steps.push(() => {
-      const yF = MINES_FLOOR_Y;
-      const yC = MINES_FLOOR_Y + MINES_HEIGHT;
-      for (let x = 0; x < 16; x++) {
-        for (let z = 0; z < 16; z++) {
-          const wx = cx * 16 + x;
-          const wz = cz * 16 + z;
-          dimension.getBlock({ x: wx, y: yF, z: wz })?.setType("minecraft:stone");
-          dimension.getBlock({ x: wx, y: yF - 1, z: wz })?.setType("minecraft:deepslate");
-          dimension.getBlock({ x: wx, y: yC, z: wz })?.setType("minecraft:stone");
-          dimension.getBlock({ x: wx, y: yC + 1, z: wz })?.setType("minecraft:bedrock");
-        }
-      }
-    });
-    steps.push(() => {
-      const air = "minecraft:air";
-      const clear = (x, y, z) => {
-        dimension.getBlock({ x, y, z })?.setType(air);
-      };
-      const yF = MINES_FLOOR_Y;
-      for (let t = 0; t < 16; t++) {
-        for (let w = -1; w <= 1; w++) {
-          for (let h = 1; h <= 3; h++) {
-            clear(cx * 16 + t, yF + h, cz * 16 + 8 + w);
-            clear(cx * 16 + 8 + w, yF + h, cz * 16 + t);
-          }
-        }
-      }
-      for (let x = 6; x <= 10; x++) {
-        for (let z = 6; z <= 10; z++) {
-          for (let h = 1; h <= 4; h++) {
-            clear(cx * 16 + x, yF + h, cz * 16 + z);
-          }
-        }
-      }
-      for (let p = 0; p < 4; p++) {
-        const px = Math.floor(random() * 16);
-        const pz = Math.floor(random() * 16);
-        const py = yF + 1 + Math.floor(random() * (MINES_HEIGHT - 2));
-        const r = 1 + Math.floor(random() * 2);
-        for (let dx = -r; dx <= r; dx++) {
-          for (let dy = -r; dy <= r; dy++) {
-            for (let dz = -r; dz <= r; dz++) {
-              if (dx * dx + dy * dy + dz * dz <= r * r + 1) {
-                clear(cx * 16 + px + dx, py + dy, cz * 16 + pz + dz);
-              }
-            }
-          }
-        }
-      }
-    });
-    steps.push(() => {
-      for (const ore of ORES) {
-        for (let t = 0; t < ore.tries; t++) {
-          const ox = cx * 16 + Math.floor(random() * 16);
-          const oz = cz * 16 + Math.floor(random() * 16);
-          const oy = ore.yMin + Math.floor(random() * (ore.yMax - ore.yMin));
-          const count = 2 + Math.floor(random() * ore.vein);
-          let px = ox;
-          let py = oy;
-          let pz = oz;
-          for (let b = 0; b < count; b++) {
-            const block = dimension.getBlock({ x: px, y: py, z: pz });
-            if (block !== void 0 && block.typeId === "minecraft:stone") {
-              block.setType(ore.block);
-            }
-            px += Math.floor(random() * 3) - 1;
-            py += Math.floor(random() * 3) - 1;
-            pz += Math.floor(random() * 3) - 1;
-          }
-        }
-      }
-    });
-    steps.push(() => {
-      const yF = MINES_FLOOR_Y;
-      const torches = [[8, 3], [8, 13], [3, 8], [13, 8]];
-      for (const [tx, tz] of torches) {
-        dimension.getBlock({ x: cx * 16 + tx, y: yF + 1, z: cz * 16 + tz })?.setType("minecraft:torch");
-      }
-      if (cx === 0 && cz === 0) {
-        for (let x = -MINES_SPAWN_RADIUS; x <= MINES_SPAWN_RADIUS; x++) {
-          for (let z = -MINES_SPAWN_RADIUS; z <= MINES_SPAWN_RADIUS; z++) {
-            if (x * x + z * z <= MINES_SPAWN_RADIUS * MINES_SPAWN_RADIUS) {
-              dimension.getBlock({ x, y: yF, z })?.setType("minecraft:polished_deepslate");
-              for (let h = 1; h <= 4; h++) {
-                dimension.getBlock({ x, y: yF + h, z })?.setType("minecraft:air");
-              }
-            }
-          }
-        }
-        for (let a = 0; a < 64; a++) {
-          const angle = a / 64 * Math.PI * 2;
-          const bx = Math.round(Math.cos(angle) * MINES_SPAWN_RADIUS);
-          const bz = Math.round(Math.sin(angle) * MINES_SPAWN_RADIUS);
-          dimension.getBlock({ x: bx, y: yF + 1, z: bz })?.setType("minecraft:stone_brick_wall");
-        }
-        for (const [lx, lz] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) {
-          dimension.getBlock({ x: lx, y: yF + 1, z: lz })?.setType("minecraft:lantern");
-          dimension.getBlock({ x: lx, y: yF + 2, z: lz })?.setType("minecraft:chain");
-        }
-      }
-    });
-    steps.push(() => {
-      this.generated.add(key);
-    });
-    this.queue.push({ cx, cz, steps });
-    this.pumpQueue();
-  }
-  /**
-  * Exécute la file de génération — UNE étape par tick (anti-lag) : un
-  * chunk complet prend 4 ticks (200 ms) ; le rayon exploré se remplit en
-  * ~2,5 s sans jamais figer le serveur.
-  */
-  pumpQueue() {
-    if (this.queueRunning) return;
-    this.queueRunning = true;
-    const run = () => {
-      if (this.queue.length === 0) {
-        this.queueRunning = false;
-        return;
-      }
-      const task = this.queue[0];
-      const step = task.steps.shift();
-      if (step !== void 0) {
-        try {
-          step();
-        } catch (error) {
-          log3.warn(`Mines : étape de génération échouée (${error instanceof Error ? error.message : String(error)})`);
-        }
-      }
-      if (task.steps.length === 0) this.queue.shift();
-      system12.run(run);
-    };
-    system12.run(run);
-  }
-  /**
-   * Boucle d'entretien : régénère les chunks autour des joueurs présents
-   * dans la dimension (si de nouveaux chunks sont explorés).
-   */
-  registerMaintenance(intervalTicks = 40) {
-    system12.runInterval(() => {
-      if (!this.loaded || !this.isUsable()) return;
-      const dimension = this.dimension();
-      if (dimension === void 0) return;
-      for (const player of world14.getAllPlayers()) {
-        if (player.dimension.id !== MINES_DIMENSION_ID) continue;
-        const pcx = Math.floor(player.location.x / 16);
-        const pcz = Math.floor(player.location.z / 16);
-        for (let dx = -2; dx <= 2; dx++) {
-          for (let dz = -2; dz <= 2; dz++) {
-            this.ensureChunk(pcx + dx, pcz + dz, dimension);
-          }
-        }
-      }
-    }, intervalTicks);
-  }
-  /** Sécurité : si un joueur tombe (faille), le ramène sur la plateforme. */
-  registerFallRescue(intervalTicks = 20) {
-    system12.runInterval(() => {
-      if (!this.loaded || !this.isUsable()) return;
-      for (const player of world14.getAllPlayers()) {
-        if (player.dimension.id !== MINES_DIMENSION_ID) continue;
-        if (player.location.y < MINES_FLOOR_Y - 12) {
-          player.teleport({ x: 0.5, y: MINES_FLOOR_Y + 1, z: 0.5 }, { dimension: this.dimension() });
-          player.sendMessage("§e[Mines] Tu es tombé dans le vide : ramené à la plateforme.");
-        }
-      }
-    }, intervalTicks);
-  }
-  /** Les créatifs et spectateurs ne déclenchent rien de spécial (compat). */
-  static isSurvivalLike(player) {
-    return player.getGameMode() === GameMode3.Survival || player.getGameMode() === GameMode3.Adventure;
-  }
-};
-
-// src/mines/ui.ts
-function openMineMenu(player, mines2) {
-  void openWindow(player, "Mines", (form) => {
-    const inMines = mines2.isInMines(player);
-    form.body(
-      [
-        `§b§lLa dimension minière§r`,
-        ``,
-        `§7Un monde souterrain de pierre creusé de galeries,`,
-        `§7bien plus riche en minerais que la surface :`,
-        ``,
-        ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join(`§7, `),
-        ``,
-        `§8Hauteur des galeries : §f${MINES_HEIGHT} blocs`,
-        `§8Retour : §f/sn:mine§8 à nouveau, ou la commande depuis ici.`
-      ].join("\n")
-    );
-    if (inMines) {
-      form.button(`§a§lRevenir à la surface`, () => {
-        player.sendMessage(mines2.toggle(player));
-      });
-    } else {
-      form.button(`§b§lDescendre aux mines`, () => {
-        player.sendMessage(mines2.toggle(player));
-      });
-    }
-    form.button(`§7§lRetour au menu`, () => {
-      player.sendMessage("§7[Mines] Utilise §f/sn:menu§7 pour revenir au hub.");
-    });
-  }).catch(
-    (error) => console.warn(`[Mines] ${error instanceof Error ? error.message : String(error)}`)
-  );
 }
 
 // src/ui/admin.ts
@@ -7482,7 +7716,7 @@ var MODULE_CATALOG = [
   {
     id: "mines",
     name: "Mines",
-    description: "Dimension minière custom, riche en minerais (/sn:mine)"
+    description: "Dimension minière en pierre, riche mais équilibrée (/sn:monde)"
   }
 ];
 var ModuleManager = class {
@@ -7634,7 +7868,7 @@ function openHubMenu(player, deps) {
     form.button(`§6États`, () => openStatesMenu(player, territories2));
     form.button(`§eMes infos`, () => openMyInfoMenu(player, deps));
     if (deps.mines !== void 0 && deps.mines.isUsable()) {
-      form.button(`§bMines`, () => openMineMenu(player, deps.mines));
+      form.button(`§bMonde`, () => openWorldMenu(player, deps.mines));
     }
     if (isMod) {
       form.divider();
@@ -7653,15 +7887,17 @@ function openMyInfoMenu(player, deps) {
   const selection = classes2?.classOf(player.name);
   const myJobs = jobs2?.jobsOf(player.name) ?? [];
   const record = db2 !== void 0 ? allKnownPlayers(db2).find((r) => r.data.name === player.name) : void 0;
+  const classLevelLabel = selection !== void 0 ? `§d${selection.classId} §7niv. ${Math.floor(selection.xp / 100) + 1}` : "§8non choisie";
   void openWindow(player, "Mes infos", (form) => {
     form.body(
       [
-        `§b§l${player.name}§r`,
+        `§6━━━ §f§l${player.name}§r §6━━━`,
         ``,
-        `§eRôle : ${roleLabel}`,
-        `§eClasse : ${selection !== void 0 ? `§d${selection.classId}§r §7(niv. ${Math.floor(selection.xp / 100) + 1})` : "§8non choisie"}`,
-        `§eClan : ${myClan !== void 0 ? `§a${myClan.data.name}` : "§8aucun"}`,
-        myJobs.length > 0 ? `§eMétiers : §f${myJobs.map((j) => j.jobId).join(", ")}` : `§eMétiers : §8aucun`,
+        `§eRôle      ${roleLabel}`,
+        `§eClasse    ${classLevelLabel}`,
+        `§eClan      ${myClan !== void 0 ? `§a${myClan.data.name}` : "§8aucun"}`,
+        `§eMétiers   ${myJobs.length > 0 ? `§f${myJobs.map((j) => j.jobId).join(", ")}` : "§8aucun"}`,
+        `§eDons      §8bientôt disponible`,
         ``,
         `§8────────────────────`,
         record !== void 0 ? `§7Sessions : §f${record.data.sessions}   §7Première visite : §f${formatDate(record.data.firstSeen)}` : `§7Sessions : §f?`
@@ -8098,10 +8334,8 @@ world19.afterEvents.worldLoad.subscribe(() => {
   jobs.markLoaded();
   mines.markLoaded();
   mines.enabledCheck = () => modules.isEnabled("mines");
-  if (modules.isEnabled("mines")) {
-    mines.registerMaintenance();
-    mines.registerFallRescue();
-  }
+  mines.registerMaintenance();
+  mines.registerFallRescue();
   permissions.bootstrapDefaultRoles();
   if (!permissions.hasAdmin()) {
     const operator = world19.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
@@ -8158,10 +8392,8 @@ system16.runInterval(() => {
     registerProtection(territories, modules);
     registerAnnouncer(territories, modules);
     mines.enabledCheck = () => modules.isEnabled("mines");
-    if (modules.isEnabled("mines")) {
-      mines.registerMaintenance();
-      mines.registerFallRescue();
-    }
+    mines.registerMaintenance();
+    mines.registerFallRescue();
     log3.warn("Activation par fallback (worldLoad non reçu) : protection active.");
   }
   worldReady = true;

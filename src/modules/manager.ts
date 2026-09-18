@@ -41,7 +41,7 @@ export const MODULE_CATALOG: ModuleInfo[] = [
   {
     id: "mines",
     name: "Mines",
-    description: "Dimension minière custom, riche en minerais (/sn:mine)",
+    description: "Dimension minière en pierre, riche mais équilibrée (/sn:monde)",
   },
 ];
 

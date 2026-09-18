@@ -12,7 +12,7 @@ import { openClassesMenu } from "../classes/ui";
 import type { ClassManager } from "../classes/manager";
 import { openJobsMenu } from "../jobs/ui";
 import type { JobManager } from "../jobs/manager";
-import { openMineMenu } from "../mines/ui";
+import { openWorldMenu } from "../mines/ui";
 import type { MinesManager } from "../mines/manager";
 import type { JsonDatabase } from "../db/database";
 import { allKnownPlayers } from "../players";
@@ -35,13 +35,14 @@ export interface HubDeps {
 }
 
 /**
- * Menu hub central (/sn:menu) — layout SIDEBAR. La section « États »
- * porte le système de clans (fondation, extension, membres).
+ * Menu hub central (/sn:menu) — layout SIDEBAR (design HUB/ADMIN conservé).
+ * La section « États » porte le système de clans (fondation, extension,
+ * membres).
  *
  * Grâce au JSON UI du RP (server_form.json), les BOUTONS d'un menu
  * ActionForm s'affichent dans la COLONNE DE GAUCHE et le TEXTE (body)
  * dans le grand panneau de droite :
- *  - sidebar : États · Mes infos · Modération (modo) · Admin (admin)
+ *  - sidebar : États · Mes infos · Monde (si mines actif) · Modération (modo) · Admin (admin)
  *  - panneau : accueil (bienvenue, ton rôle, stats du monde).
  */
 export function openHubMenu(player: Player, deps: HubDeps): void {
@@ -84,7 +85,7 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
     form.button(`§6États`, () => openStatesMenu(player, territories));
     form.button(`§eMes infos`, () => openMyInfoMenu(player, deps));
     if (deps.mines !== undefined && deps.mines.isUsable()) {
-      form.button(`§bMines`, () => openMineMenu(player, deps.mines as MinesManager));
+      form.button(`§bMonde`, () => openWorldMenu(player, deps.mines as MinesManager));
     }
 
     if (isMod) {
@@ -98,9 +99,10 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
 }
 
 /**
- * « Mes infos » : la fiche du joueur (rôle, classe, territoire, sessions).
- * Actions rapides : choisir/voir sa classe, gérer son territoire.
- * (La personnalisation de couleur — retirée : la couleur vient du rôle.)
+ * « Mes infos » : la fiche du joueur (rôle, classe, clan, métiers, dons).
+ * DESIGN DIFFÉRENCIÉ « fiche personnage » : bannière or du pseudo, rubrique
+ * en deux colonnes de libellés, puis cartes d'action basses.
+ * Actions rapides : classe, métiers, dons, clan.
  */
 export function openMyInfoMenu(player: Player, deps: HubDeps): void {
   const { permissions, territories, classes, jobs, db } = deps;
@@ -114,18 +116,20 @@ export function openMyInfoMenu(player: Player, deps: HubDeps): void {
   const selection = classes?.classOf(player.name);
   const myJobs = jobs?.jobsOf(player.name) ?? [];
   const record = db !== undefined ? allKnownPlayers(db).find((r) => r.data.name === player.name) : undefined;
+  const classLevelLabel =
+    selection !== undefined ? `§d${selection.classId} §7niv. ${Math.floor(selection.xp / 100) + 1}` : "§8non choisie";
 
   void openWindow(player, "Mes infos", (form) => {
+    // ---- Panneau de droite : la fiche ----
     form.body(
       [
-        `§b§l${player.name}§r`,
+        `§6━━━ §f§l${player.name}§r §6━━━`,
         ``,
-        `§eRôle : ${roleLabel}`,
-        `§eClasse : ${selection !== undefined ? `§d${selection.classId}§r §7(niv. ${Math.floor(selection.xp / 100) + 1})` : "§8non choisie"}`,
-        `§eClan : ${myClan !== undefined ? `§a${myClan.data.name}` : "§8aucun"}`,
-        myJobs.length > 0
-          ? `§eMétiers : §f${myJobs.map((j) => j.jobId).join(", ")}`
-          : `§eMétiers : §8aucun`,
+        `§eRôle      ${roleLabel}`,
+        `§eClasse    ${classLevelLabel}`,
+        `§eClan      ${myClan !== undefined ? `§a${myClan.data.name}` : "§8aucun"}`,
+        `§eMétiers   ${myJobs.length > 0 ? `§f${myJobs.map((j) => j.jobId).join(", ")}` : "§8aucun"}`,
+        `§eDons      §8bientôt disponible`,
         ``,
         `§8────────────────────`,
         record !== undefined
@@ -134,8 +138,8 @@ export function openMyInfoMenu(player: Player, deps: HubDeps): void {
       ].join("\n"),
     );
 
+    // ---- Sidebar : cartes d'action ----
     form.header(`§e§lActions`);
-
     form.button(`§dMa classe`, () => {
       if (classes !== undefined) openClassesMenu(player, classes, false);
     });

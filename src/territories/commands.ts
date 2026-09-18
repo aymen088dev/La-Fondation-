@@ -9,6 +9,7 @@ import type { PermissionManager } from "../permissions/manager";
 import { TERRITORY_COLORS } from "./types";
 import { openCreateMenu, openStatesMenu, openMyClanMenu, openFlagMenu, openDissolveMenu } from "./ui";
 import { MinesManager } from "../mines/manager";
+import { openWorldMenu } from "../mines/ui";
 
 /**
  * Enregistre les commandes custom /sn:create, /sn:info, /sn:db etc.
@@ -328,10 +329,11 @@ export function registerCommands(
     rankCommand("sn:promote", "officer", "Promeut officier");
     rankCommand("sn:demote", "member", "Rétrograde membre");
 
-    // /sn:kick <joueur> : exclut un membre (chef/officier).
+    // /sn:ckick <membre> : exclut un membre du clan (chef/officier).
+    // (Renommé : /sn:kick est la commande de modération — éjecte du monde.)
     event.customCommandRegistry.registerCommand(
       {
-        name: "sn:kick",
+        name: "sn:ckick",
         description: "Exclut un membre de ton clan",
         permissionLevel: CommandPermissionLevel.Any,
         cheatsRequired: false,
@@ -487,11 +489,12 @@ export function registerCommands(
     );
 
     // /sn:db : consultation de la base de données (réservé aux admins)
-    // /sn:mine : bascule entre la surface et la dimension minière.
+    // /sn:mine : bascule surface ↔ dimension minière (retour = dernière
+    // position du monde normal).
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:mine",
-        description: "Va dans la dimension minière (pierre et minerais à gogo) / reviens",
+        description: "Va dans la dimension minière / revient à ta dernière position",
         permissionLevel: CommandPermissionLevel.Any,
         cheatsRequired: false,
       },
@@ -508,6 +511,28 @@ export function registerCommands(
           const message = mines.toggle(player);
           player.sendMessage(message);
         });
+        return { status: CustomCommandStatus.Success };
+      },
+    );
+
+    // /sn:monde : menu de choix du monde (Monde normal / Mine).
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:monde",
+        description: "Choisis ton monde : normal (surface) ou Mine",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false,
+      },
+      (origin: CustomCommandOrigin) => {
+        const player = origin.sourceEntity as Player | undefined;
+        if (player === undefined || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        if (mines === undefined) {
+          return { status: CustomCommandStatus.Failure, message: "Mines indisponibles." };
+        }
+
+        system.run(() => openWorldMenu(player, mines));
         return { status: CustomCommandStatus.Success };
       },
     );
