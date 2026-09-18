@@ -1,21 +1,24 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v18 — SYSTÈME DE CLANS / ÉTATS + COINS NETS**.
+> Dernière mise à jour : **v18 — DIMENSION MINIÈRE + NATION COMPLÈTE + DRAPEAUX PERSO + CLASSES REDÉSIGNÉES**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
 
-## 🆕 v18 — Clans / États + coins nets (sept. 2026)
-- [x] **FIX « carrés chelous »** : les perles/arabesques des textures (boutons, grand cadre, panneaux internes) rendaient en crochets/carrés étirés aux coins — remplacées par des **onglets propres à 45°** (jointure de cadre or/argent). Plus aucun élément flottant
-- [x] **`/sn:create` = « Créer un clan »** : le formulaire fonde un clan (nom + couleur) et revendique le chunk où l'on se trouve comme **chunk fondateur** ; ouvre directement le menu « Mon clan » après la fondation
-- [x] **Règle d'extension 3×3** : le clan peut s'étendre jusqu'à un **carré de 3×3 chunks autour du chunk fondateur** (`CLAN_RADIUS = 1`, 9 chunks max) — toute revendication hors du carré est refusée avec le bon message
-- [x] **Section « États »** dans `/sn:menu` (remplace « Territoires ») : liste des États fondés (cliquables → fiche) + bouton contextuel **« Tu es ici : <clan> »** qui affiche les infos du clan dans lequel on se trouve (ou « zone libre »), + raccourci « Fonder mon clan » si on n'en a pas
-- [x] **Menu « Mon clan »** (`/sn:clan`) : rang affiché (Chef/Officier/Membre), **Revendiquer ce chunk** (chef/officier), **Membres**, **Drapeau** (chef), **Quitter** (membre) ou **Dissoudre** (chef, avec confirmation)
-- [x] **Sous-menu Membres** : liste chef + membres avec rangs, **inviter un joueur en ligne** (dropdown), **promouvoir/rétrograder officier**, **exclure** — fiche d'action par membre
-- [x] **Nouvelle commande `/sn:claim`** : revendique le chunk courant pour son clan (règle 3×3 appliquée) ; `/sn:setflag` réservé au chef ; fiche d'État renommée (« Chef », « Fondé le », « Capitale », « Territoire : x/9 chunks »)
-- [x] **Renommage global** : hub « États », admin « États : n », modules « États (clans) », messages `[Clans]`, annonce HUD « clan de … », catalogue DB « États (clans) », permission « Fonder un clan (État) »
-- [x] API manager : `addChunk`/`remove` (par id Bedrock v3)/`leave`/`withinBounds`/`canClaim`/`findOne` — **45/45 tests** (nouveaux tests 3×3, leave, remove par id)
-- [x] Packs bumpés **1.7.1 → 1.7.2** (cache Bedrock). Build + typecheck + JSON UI validé
+## 🆕 v18 — Mines, nation, drapeaux, classes (sept. 2026)
+- [x] **Dimension custom « nalania:mines »** (`BP/dimensions/nalania_mines.json`, schéma officiel 1.26.50 : générateur *void*, 384 blocs de haut) remplie par le module Mines : plateforme d'arrivée en deepslate poli avec lanternes et barrières, galeries croisées + salle centrale, poches creusées, **minerais ×3 à ×5 par rapport à la surface** (charbon, fer, cuivre, or, redstone, lapis, émeraude, diamant), torchères
+- [x] **`/sn:mine`** : téléportation aller (mémorise le point de retour + night vision 90 s) / retour à la position d'entrée ; génération **déterministe** (graine `sn:seed <n>` via /scriptevent), file **1 étape/tick** (anti-lag), retry automatique si les chunks n'étaient pas chargés, **secours anti-chute** dans le vide ; entrée « Mines » dans le hub (menu de présentation) ; module « Mines » activable/désactivable dans /sn:modules
+- [x] **Commandes de nation complètes** : `/sn:unclaim` (libère le chunk courant, jamais le fondateur), `/sn:invite <joueur>` (en ligne), `/sn:leave`, `/sn:promote <membre>` (officier), `/sn:demote <membre>`, `/sn:kick <membre>`, `/sn:disband` (confirmation via menu), `/sn:flag` (menu drapeau) — toutes avec les gardes chef/officier et des messages d'erreur clairs
+- [x] **Drapeaux personnalisés** : le menu Drapeau propose les 10 couleurs **+ 8 blasons importables** (`flag:1` … `flag:8`) ; il suffit de déposer `1.png` … `8.png` dans **`RP/textures/ui/flags/`** (README sur place, 64×64 conseillé) et de bumper le RP ; le choix est stocké en DB (`color: "flag:<n>"`)
+- [x] **Menu Classes redesigné** : catalogue en **cartes couleur** (nom blanc, bandeau `━━━` de la couleur de la classe, **points forts/faiblesses**), confirmation « Je confirme — Guerrier », carte de SA classe avec niveau + barre d'XP + traits
+- [x] **Reset de classe partout** : bouton admin dans le menu Classes, **nouvelle action « Réinitialiser une classe » dans /sn:db menu** (dropdown des joueurs classés) et **dans la fiche joueur** du menu Joueurs
+- [x] **ZÉRO message technique dans le chat** : la vraie source trouvée — le Logger bedrock-boost envoie **par défaut chaque log dans le chat** (`OutputType.Chat`) ; la config de sortie est maintenant nettoyée au boot (console uniquement) ; en plus `/sn:db stats/list/show/save` n'émettent plus rien dans le chat
+- [x] API : `MinesManager` (toggle/enter/exit/ensureChunk/maintenance/fallRescue/isUsable), `TerritoryManager.removeChunk`, `resetClassOf(db, joueur)` ; **49/49 tests** (nouveaux : déterminisme du générateur, limite 3×3)
+- [x] Packs bumpés **1.7.2 → 1.8.0**. Build + typecheck + JSON UI validés
+
+---
+
+> v17.2 (sept. 2026) : **SYSTÈME DE CLANS / ÉTATS + COINS NETS**. **FIX « carrés chelous »** : onglets à 45° aux coins des textures (les perles/arabesques rendaient en crochets étirés). **`/sn:create` = « Créer un clan »** (chunk fondateur) ; **extension carré 3×3** autour du fondateur ; **section « États »** dans /sn:menu avec « Tu es ici : <clan> » ; **menu « Mon clan »** (`/sn:clan`) : revendiquer, membres (invitation, rangs, exclusion), drapeau, quitter/dissoudre ; renommage global « Territoires » → « États/Clans » (messages `[Clans]`, hub, admin, modules, HUD).
 
 ---
 

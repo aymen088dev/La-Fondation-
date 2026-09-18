@@ -12,7 +12,7 @@ import { MODULES_COLLECTION } from "../db/collections";
 export { MODULES_COLLECTION };
 
 /** Identifiants des modules connus. */
-export const MODULE_IDS = ["territories", "moderation"] as const;
+export const MODULE_IDS = ["territories", "moderation", "mines"] as const;
 export type ModuleId = (typeof MODULE_IDS)[number];
 
 export interface ModuleState {
@@ -37,6 +37,11 @@ export const MODULE_CATALOG: ModuleInfo[] = [
     id: "moderation",
     name: "Modération",
     description: "Bans, mutes, warns et historique (/sn:mod, /sn:ban...)",
+  },
+  {
+    id: "mines",
+    name: "Mines",
+    description: "Dimension minière custom, riche en minerais (/sn:mine)",
   },
 ];
 

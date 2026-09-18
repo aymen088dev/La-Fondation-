@@ -12,12 +12,15 @@ import { openClassesMenu } from "../classes/ui";
 import type { ClassManager } from "../classes/manager";
 import { openJobsMenu } from "../jobs/ui";
 import type { JobManager } from "../jobs/manager";
+import type { MinesManager } from "../mines/manager";
 
 interface AdminContext {
   permissions: PermissionManager;
   modules: ModuleManager;
   territories: TerritoryManager;
   sanctions: SanctionsManager;
+  /** Module Mines (dimension minière). */
+  mines?: MinesManager;
   /** Index joueurs (menu Joueurs → onglet hors ligne). */
   db?: JsonDatabase;
   /** Module Classes (route de la première connexion). */

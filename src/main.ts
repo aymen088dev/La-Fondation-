@@ -12,9 +12,11 @@ import {
 } from "./moderation";
 import { ClassManager } from "./classes";
 import { JobManager } from "./jobs";
+import { MinesManager } from "./mines/manager";
 import { trackPlayerJoin } from "./players";
 import { log, logDb } from "./lib/log";
 import { setUiDesign, RP_PACK_ID } from "./ui/theme";
+import { setMinesSeed } from "./mines/manager";
 import { Timings } from "@bedrock-oss/bedrock-boost";
 /**
  * NaLandia (ex-OpenMontage) — point d'entrée du behavior pack (TypeScript).
@@ -49,10 +51,11 @@ const territories = new TerritoryManager(db);
 const sanctions = new SanctionsManager(db);
 const classes = new ClassManager(db);
 const jobs = new JobManager(db);
+const mines = new MinesManager();
 
 // Les commandes /sn:* doivent être enregistrées au plus tôt (early execution)
-registerCommands(territories, db, modules, permissions);
-registerAdminCommands({ permissions, modules, territories, sanctions, db, classes, jobs });
+registerCommands(territories, db, modules, permissions, mines);
+registerAdminCommands({ permissions, modules, territories, sanctions, db, classes, jobs, mines });
 registerModerationCommands({ sanctions, permissions, db });
 
 let protectionRegistered = false;
@@ -95,6 +98,15 @@ world.afterEvents.worldLoad.subscribe(() => {
   sanctions.markLoaded();
   classes.markLoaded();
   jobs.markLoaded();
+  mines.markLoaded();
+
+  // Dimension minière : check live sur le module "mines" (/sn:modules)
+  // + boucles d'entretien (génération, secours anti-chute).
+  mines.enabledCheck = () => modules.isEnabled("mines");
+  if (modules.isEnabled("mines")) {
+    mines.registerMaintenance();
+    mines.registerFallRescue();
+  }
 
   // Rôles par défaut ([Joueur], [Modo]) puis bootstrap admin :
   // le premier opérateur vanilla devient Admin si aucun admin n'existe
@@ -152,6 +164,7 @@ system.runInterval(() => {
     sanctions.markLoaded();
     classes.markLoaded();
     jobs.markLoaded();
+    mines.markLoaded();
 
     permissions.bootstrapDefaultRoles();
     if (!permissions.hasAdmin()) {
@@ -173,6 +186,11 @@ system.runInterval(() => {
     protectionRegistered = true;
     registerProtection(territories, modules);
     registerAnnouncer(territories, modules);
+    mines.enabledCheck = () => modules.isEnabled("mines");
+    if (modules.isEnabled("mines")) {
+      mines.registerMaintenance();
+      mines.registerFallRescue();
+    }
     log.warn("Activation par fallback (worldLoad non reçu) : protection active.");
   }
   worldReady = true;
@@ -248,6 +266,17 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
         ? "§a[NaLandia] Design UI activé (icônes)."
         : "§e[NaLandia] Design UI désactivé (menus sans image — mode compatibilité).",
     );
+  }
+});
+
+// Graine des mines : /scriptevent sn:seed <nombre> (avant la première
+// génération) — les mines deviennent reproductibles d'un monde à l'autre.
+system.afterEvents.scriptEventReceive.subscribe((event) => {
+  if (event.id !== "sn:seed") return;
+  const value = Number.parseInt(event.message.trim(), 10);
+  if (Number.isFinite(value)) {
+    setMinesSeed(value);
+    log.info(`Mines : graine fixée à ${value}.`);
   }
 });
 

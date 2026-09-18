@@ -12,6 +12,8 @@ import { openClassesMenu } from "../classes/ui";
 import type { ClassManager } from "../classes/manager";
 import { openJobsMenu } from "../jobs/ui";
 import type { JobManager } from "../jobs/manager";
+import { openMineMenu } from "../mines/ui";
+import type { MinesManager } from "../mines/manager";
 import type { JsonDatabase } from "../db/database";
 import { allKnownPlayers } from "../players";
 import { openAdminMenu } from "./admin";
@@ -28,6 +30,8 @@ export interface HubDeps {
   classes?: ClassManager;
   /** Module Métiers (base prête, catalogue à venir). */
   jobs?: JobManager;
+  /** Module Mines (dimension minière). */
+  mines?: MinesManager;
 }
 
 /**
@@ -79,6 +83,9 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
     // ---- Sidebar (colonne de gauche) : section États = système de clans. ----
     form.button(`§6États`, () => openStatesMenu(player, territories));
     form.button(`§eMes infos`, () => openMyInfoMenu(player, deps));
+    if (deps.mines !== undefined && deps.mines.isUsable()) {
+      form.button(`§bMines`, () => openMineMenu(player, deps.mines as MinesManager));
+    }
 
     if (isMod) {
       form.divider();

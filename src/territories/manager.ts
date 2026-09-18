@@ -294,6 +294,22 @@ export class TerritoryManager {
     return { ok: true };
   }
 
+  /** Retire un chunk d'un clan (jamais le chunk fondateur). */
+  removeChunk(territoryId: string, key: string): { ok: boolean; reason?: string } {
+    const territory = this.db.findOne<TerritoryData>(TERRITORY_COLLECTION, territoryId);
+    if (territory === undefined) return { ok: false, reason: "Clan introuvable." };
+    if (territory.data.chunkKeys[0] === key) {
+      return { ok: false, reason: "Impossible : c'est le chunk fondateur du clan." };
+    }
+    const index = territory.data.chunkKeys.indexOf(key);
+    if (index === -1) return { ok: false, reason: "Ce chunk n'appartient pas à ton clan." };
+
+    territory.data.chunkKeys.splice(index, 1);
+    territory.updatedAt = Date.now();
+    this.db.save();
+    return { ok: true };
+  }
+
   /** Dissout un clan (propriétaire uniquement, par id Bedrock ou pseudo compat v1). */
   remove(territoryId: string, requester: string, requesterId?: string): boolean {
     const territory = this.db.findOne<TerritoryData>(TERRITORY_COLLECTION, territoryId);

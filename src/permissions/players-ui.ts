@@ -6,6 +6,7 @@ import { openPrefixMenu } from "./ui";
 import { windowTitle, openWindow, openWindowRaw, obString } from "../ui/theme";
 import { allKnownPlayers } from "../players";
 import type { JsonDatabase } from "../db/database";
+import { resetClassOf } from "../db/menu";
 
 /** Confirmation avant une action (placeholder conservé pour compat). */
 export function confirmDialog(_player: Player, _title: string, _body: string): Promise<boolean> {
@@ -113,6 +114,14 @@ export function openPlayerConfigMenu(
         player.sendMessage(result.ok ? "§a[Rôles] Prefix mis à jour." : `§c[Rôles] ${result.error}`);
       }),
     );
+    if (db !== undefined && record?.data.class) {
+      form.button(`§d■ §lRéinitialiser la classe §7(${record.data.class})`, () => {
+        if (resetClassOf(db, targetName)) {
+          db.save();
+          player.sendMessage(`§a[Classes] Classe de ${targetName} réinitialisée — il re-choisira librement.`);
+        }
+      });
+    }
     if (member !== undefined) {
       form.button(`§c■ §lRetirer tous les rôles`, () => {
         permissions.removeRole(targetName);

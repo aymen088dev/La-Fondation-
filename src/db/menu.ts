@@ -9,8 +9,17 @@
 
 import type { Player } from "@minecraft/server";
 import { windowTitle, openWindow, openWindowRaw, obString, obBool } from "../ui/theme";
-import { collectionLabel, SECTION_ORDER } from "./collections";
+import { collectionLabel, SECTION_ORDER, CLASSES_COLLECTION } from "./collections";
 import type { JsonDatabase, StoredDocument } from "./index";
+
+/**
+ * Reset de classe (v18) : supprime le choix de classe d'un joueur pour
+ * qu'il re-choisisse librement. Disponible ici (admin) et via la fiche
+ * joueur du menu Classes.
+ */
+export function resetClassOf(db: JsonDatabase, playerName: string): boolean {
+  return db.delete(CLASSES_COLLECTION, playerName);
+}
 
 /** Résumé court d'un document pour les listes. */
 function summarize(doc: StoredDocument<Record<string, unknown>>): string {
@@ -64,8 +73,42 @@ export async function openDbMenu(db: JsonDatabase, player: Player): Promise<void
       db.save(true);
       // v17.1 : plus aucun retour DB dans le chat (console uniquement).
     });
+
+    // ---- v18 : actions rapides d'administration ----
+    form.button(`§d■ §lRéinitialiser une classe`, () => {
+      void openResetClassMenu(db, player);
+    });
   }).catch((error: unknown) =>
     console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`),
+  );
+}
+
+/**
+ * Reset de classe : dropdown des joueurs ayant une classe → suppression
+ * du choix (le joueur re-choisira librement). Silencieux côté chat.
+ */
+async function openResetClassMenu(db: JsonDatabase, player: Player): Promise<void> {
+  const docs = db.find<{ classId?: string }>(CLASSES_COLLECTION);
+  if (docs.length === 0) {
+    console.log("[DB] Aucune classe à réinitialiser.");
+    return;
+  }
+
+  await openWindowRaw(player, windowTitle("Reset de classe"), (form) => {
+    form.header(`§d§lRéinitialiser une classe`);
+    form.label(`§7Le joueur choisira une nouvelle voie à la prochaine ouverture de §f/sn:classes§7.`);
+    form.divider();
+    for (const doc of docs) {
+      form.button(`§f${doc.id} §7— §d${doc.data.classId ?? "?"}`, () => {
+        if (resetClassOf(db, doc.id)) {
+          db.save();
+          console.log(`[DB] Classe de "${doc.id}" réinitialisée par ${player.name}.`);
+        }
+        void openResetClassMenu(db, player);
+      });
+    }
+  }).catch((error: unknown) =>
+    console.warn(`[DB] Erreur menu reset classe : ${error instanceof Error ? error.message : String(error)}`),
   );
 }
 

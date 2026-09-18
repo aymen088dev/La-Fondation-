@@ -1,5 +1,5 @@
 // src/main.ts
-import { world as world17, system as system15 } from "@minecraft/server";
+import { world as world19, system as system16 } from "@minecraft/server";
 
 // src/db/types.ts
 var DB_SCHEMA_VERSION = 3;
@@ -633,6 +633,20 @@ var TerritoryManager = class {
     this.db.save();
     return { ok: true };
   }
+  /** Retire un chunk d'un clan (jamais le chunk fondateur). */
+  removeChunk(territoryId, key) {
+    const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+    if (territory === void 0) return { ok: false, reason: "Clan introuvable." };
+    if (territory.data.chunkKeys[0] === key) {
+      return { ok: false, reason: "Impossible : c'est le chunk fondateur du clan." };
+    }
+    const index = territory.data.chunkKeys.indexOf(key);
+    if (index === -1) return { ok: false, reason: "Ce chunk n'appartient pas à ton clan." };
+    territory.data.chunkKeys.splice(index, 1);
+    territory.updatedAt = Date.now();
+    this.db.save();
+    return { ok: true };
+  }
   /** Dissout un clan (propriétaire uniquement, par id Bedrock ou pseudo compat v1). */
   remove(territoryId, requester, requesterId) {
     const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
@@ -659,7 +673,7 @@ var TerritoryManager = class {
 };
 
 // src/territories/commands.ts
-import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system8 } from "@minecraft/server";
+import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system8, world as world8 } from "@minecraft/server";
 
 // node_modules/@bedrock-oss/bedrock-boost/dist/index.mjs
 import {
@@ -1872,6 +1886,13 @@ try {
   sourceMapping = globalSourceMapping;
 } catch (e) {
 }
+var OutputType = /* @__PURE__ */ ((OutputType2) => {
+  OutputType2[OutputType2["Chat"] = 0] = "Chat";
+  OutputType2[OutputType2["ConsoleInfo"] = 1] = "ConsoleInfo";
+  OutputType2[OutputType2["ConsoleWarn"] = 2] = "ConsoleWarn";
+  OutputType2[OutputType2["ConsoleError"] = 3] = "ConsoleError";
+  return OutputType2;
+})(OutputType || {});
 var LogLevel = class _LogLevel {
   /**
    * The constructor for each log level.
@@ -4184,6 +4205,11 @@ var DirectionUtils = class {
 var log2 = Logger.getLogger("itemUtils", "bedrock-boost", "itemUtils");
 
 // src/lib/log.ts
+var OUTPUT_CONFIG = Logger.getOutputConfig();
+for (const key of Object.keys(OUTPUT_CONFIG)) {
+  const level = Number(key);
+  OUTPUT_CONFIG[level] = (OUTPUT_CONFIG[level] ?? []).filter((output) => output !== OutputType.Chat);
+}
 var log3 = Logger.getLogger("NaLandia");
 var logDb = Logger.getLogger("NaLandia", "db");
 var logTerr = Logger.getLogger("NaLandia", "territories");
@@ -4603,6 +4629,9 @@ function openWindowRaw(player, title, build) {
 }
 
 // src/db/menu.ts
+function resetClassOf(db2, playerName) {
+  return db2.delete(CLASSES_COLLECTION, playerName);
+}
 function summarize(doc) {
   const data = doc.data ?? {};
   if (typeof data.name === "string" && data.name !== "") {
@@ -4645,8 +4674,34 @@ async function openDbMenu(db2, player) {
     form.button(`§a■ §lForcer la sauvegarde`, () => {
       db2.save(true);
     });
+    form.button(`§d■ §lRéinitialiser une classe`, () => {
+      void openResetClassMenu(db2, player);
+    });
   }).catch(
     (error) => console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+async function openResetClassMenu(db2, player) {
+  const docs = db2.find(CLASSES_COLLECTION);
+  if (docs.length === 0) {
+    console.log("[DB] Aucune classe à réinitialiser.");
+    return;
+  }
+  await openWindowRaw(player, windowTitle("Reset de classe"), (form) => {
+    form.header(`§d§lRéinitialiser une classe`);
+    form.label(`§7Le joueur choisira une nouvelle voie à la prochaine ouverture de §f/sn:classes§7.`);
+    form.divider();
+    for (const doc of docs) {
+      form.button(`§f${doc.id} §7— §d${doc.data.classId ?? "?"}`, () => {
+        if (resetClassOf(db2, doc.id)) {
+          db2.save();
+          console.log(`[DB] Classe de "${doc.id}" réinitialisée par ${player.name}.`);
+        }
+        void openResetClassMenu(db2, player);
+      });
+    }
+  }).catch(
+    (error) => console.warn(`[DB] Erreur menu reset classe : ${error instanceof Error ? error.message : String(error)}`)
   );
 }
 async function openSectionMenu(db2, player, section) {
@@ -5079,23 +5134,32 @@ function openInviteMenu(player, manager, territory) {
   );
 }
 function openFlagMenu(player, manager, territory) {
+  const apply = (flagValue, label) => {
+    const fresh = manager.findOne(territory.id);
+    if (fresh === void 0) {
+      say(player, "§c[Clans] Ce clan n'existe plus.");
+      return;
+    }
+    fresh.data.color = flagValue;
+    fresh.updatedAt = Date.now();
+    manager.save();
+    say(player, `§a[Clans] Drapeau changé : ${label}`);
+    openMyClanMenu(player, manager, territory);
+  };
   void openWindowRaw(player, windowTitle("Drapeau"), (form) => {
+    const current = territory.data.color;
     form.header(`§6§lDrapeau de ${territory.data.name}`);
-    form.label(`§7Choisis la couleur de ta bannière :`);
+    form.label(`§7Actuel : §f${current.startsWith("flag:") ? current.slice(5) : current}`);
     form.divider();
     for (const candidate of TERRITORY_COLORS) {
-      form.button(`${candidate.code}${candidate.id}`, () => {
-        const fresh = manager.findOne(territory.id);
-        if (fresh === void 0) {
-          say(player, "§c[Clans] Ce clan n'existe plus.");
-          return;
-        }
-        fresh.data.color = candidate.id;
-        fresh.updatedAt = Date.now();
-        manager.save();
-        say(player, `§a[Clans] Drapeau changé : ${candidate.code}${candidate.id}`);
-        openMyClanMenu(player, manager, territory);
-      });
+      form.button(`${candidate.code}${candidate.id}`, () => apply(candidate.id, candidate.code + candidate.id));
+    }
+    form.divider();
+    form.label(`§7— blasons personnalisés —
+§8Dépose tes PNG dans §fRP/textures/ui/flags/§8 (1.png, 2.png…) puis choisis :`);
+    for (let n = 1; n <= 8; n++) {
+      const flagValue = `flag:${n}`;
+      form.button(`§bBlason ${n}`, () => apply(flagValue, `Blason ${n}`));
     }
     form.divider();
     form.button(`§7§lRetour`, () => openMyClanMenu(player, manager, territory));
@@ -5129,7 +5193,7 @@ function openDissolveMenu(player, manager, territory) {
 }
 
 // src/territories/commands.ts
-function registerCommands(manager, db2, modules2, permissions2) {
+function registerCommands(manager, db2, modules2, permissions2, mines2) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
   const allowed = (player, perm) => {
     if (permissions2 === void 0) return true;
@@ -5238,6 +5302,270 @@ function registerCommands(manager, db2, modules2, permissions2) {
     );
     event.customCommandRegistry.registerCommand(
       {
+        name: "sn:unclaim",
+        description: "Libère le chunk où tu te trouves (chef/officier)",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        if (!enabled()) {
+          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+        }
+        system8.run(() => {
+          const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
+          if (territory === void 0) {
+            player.sendMessage("§e[Clans] Tu n'as pas de clan.");
+            return;
+          }
+          const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
+          const rank = territory.data.members.find((m) => m.playerId === player.id)?.rank;
+          if (!isOwner && rank !== "officer") {
+            player.sendMessage("§c[Clans] Seul le chef ou un officier peut libérer un chunk.");
+            return;
+          }
+          const key = `${player.dimension.id}:${Math.floor(player.location.x / 16)}:${Math.floor(player.location.z / 16)}`;
+          const result = manager.removeChunk(territory.id, key);
+          player.sendMessage(
+            result.ok ? `§a[Clans] Chunk libéré. §7${territory.data.chunkKeys.length} chunk(s) restant(s).` : `§c[Clans] ${result.reason ?? "Action impossible."}`
+          );
+        });
+        return { status: CustomCommandStatus.Success };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:invite",
+        description: "Invite un joueur en ligne dans ton clan",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [{ name: "joueur", type: CustomCommandParamType.String }]
+      },
+      (origin, joueur) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        if (!enabled()) {
+          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+        }
+        let sent = CustomCommandStatus.Success;
+        system8.run(() => {
+          const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
+          if (territory === void 0) {
+            player.sendMessage("§e[Clans] Tu n'as pas de clan : fonde-le avec §f/sn:create§e.");
+            return;
+          }
+          const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
+          const rank = territory.data.members.find((m) => m.playerId === player.id)?.rank;
+          if (!isOwner && rank !== "officer") {
+            player.sendMessage("§c[Clans] Seul le chef ou un officier peut inviter.");
+            return;
+          }
+          const target = world8.getAllPlayers().find(
+            (candidate) => candidate.name.toLowerCase() === joueur.toLowerCase()
+          );
+          if (target === void 0) {
+            player.sendMessage(`§c[Clans] "§f${joueur}§c" n'est pas en ligne.`);
+            return;
+          }
+          const result = manager.addMember(territory.id, target.id, target.name);
+          if (result.ok) {
+            player.sendMessage(`§a[Clans] ${target.name} a rejoint §f${territory.data.name}§a !`);
+            target.sendMessage(`§a[Clans] Tu as rejoint le clan §f${territory.data.name}§a !`);
+          } else {
+            player.sendMessage(`§c[Clans] ${result.error ?? "Invitation impossible."}`);
+            sent = CustomCommandStatus.Failure;
+          }
+        });
+        return { status: sent };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:leave",
+        description: "Quitte ton clan",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        if (!enabled()) {
+          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+        }
+        system8.run(() => {
+          const territory = manager.findByMemberId(player.id);
+          if (territory === void 0) {
+            player.sendMessage("§e[Clans] Tu n'es membre d'aucun clan.");
+            return;
+          }
+          const ok = manager.leave(territory.id, player.id);
+          player.sendMessage(
+            ok ? `§e[Clans] Tu as quitté §f${territory.data.name}§e.` : "§c[Clans] Impossible de quitter le clan (le chef doit le dissoudre : /sn:disband)."
+          );
+        });
+        return { status: CustomCommandStatus.Success };
+      }
+    );
+    const rankCommand = (name, rank, verb) => {
+      event.customCommandRegistry.registerCommand(
+        {
+          name,
+          description: `${verb} un membre de ton clan (chef uniquement)`,
+          permissionLevel: CommandPermissionLevel.Any,
+          cheatsRequired: false,
+          mandatoryParameters: [{ name: "membre", type: CustomCommandParamType.String }]
+        },
+        (origin, membre) => {
+          const player = origin.sourceEntity;
+          if (player === void 0 || player.typeId !== "minecraft:player") {
+            return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+          }
+          if (!enabled()) {
+            return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+          }
+          system8.run(() => {
+            const territory = manager.findByOwner(player.name) ?? manager.findByMemberId(player.id);
+            if (territory === void 0) {
+              player.sendMessage("§e[Clans] Tu n'as pas de clan.");
+              return;
+            }
+            const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
+            if (!isOwner) {
+              player.sendMessage("§c[Clans] Seul le chef du clan peut gérer les rangs.");
+              return;
+            }
+            const member = territory.data.members.find(
+              (m) => m.name.toLowerCase() === membre.toLowerCase()
+            );
+            if (member === void 0) {
+              player.sendMessage(`§c[Clans] "§f${membre}§c" n'est pas membre de ton clan.`);
+              return;
+            }
+            const result = manager.setMemberRank(territory.id, member.playerId, rank);
+            player.sendMessage(
+              result.ok ? rank === "officer" ? `§a[Clans] ${member.name} est désormais §bofficier§a.` : `§a[Clans] ${member.name} est redevenu §7membre§a.` : `§c[Clans] ${result.error ?? "Action impossible."}`
+            );
+          });
+          return { status: CustomCommandStatus.Success };
+        }
+      );
+    };
+    rankCommand("sn:promote", "officer", "Promeut officier");
+    rankCommand("sn:demote", "member", "Rétrograde membre");
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:kick",
+        description: "Exclut un membre de ton clan",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false,
+        mandatoryParameters: [{ name: "membre", type: CustomCommandParamType.String }]
+      },
+      (origin, membre) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        if (!enabled()) {
+          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+        }
+        system8.run(() => {
+          const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
+          if (territory === void 0) {
+            player.sendMessage("§e[Clans] Tu n'as pas de clan.");
+            return;
+          }
+          const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
+          const rank = territory.data.members.find((m) => m.playerId === player.id)?.rank;
+          if (!isOwner && rank !== "officer") {
+            player.sendMessage("§c[Clans] Seul le chef ou un officier peut exclure.");
+            return;
+          }
+          const member = territory.data.members.find(
+            (m) => m.name.toLowerCase() === membre.toLowerCase()
+          );
+          if (member === void 0) {
+            player.sendMessage(`§c[Clans] "§f${membre}§c" n'est pas membre de ton clan.`);
+            return;
+          }
+          const result = manager.removeMember(territory.id, member.playerId);
+          player.sendMessage(
+            result.ok ? `§a[Clans] ${member.name} a été exclu du clan.` : `§c[Clans] ${result.error ?? "Action impossible."}`
+          );
+        });
+        return { status: CustomCommandStatus.Success };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:disband",
+        description: "Dissout ton clan (chef uniquement)",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        if (!enabled()) {
+          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+        }
+        system8.run(() => {
+          const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
+          if (territory === void 0) {
+            player.sendMessage("§e[Clans] Tu n'as pas de clan.");
+            return;
+          }
+          const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
+          if (!isOwner) {
+            player.sendMessage("§c[Clans] Seul le chef peut dissoudre le clan (pour partir : /sn:leave).");
+            return;
+          }
+          openDissolveMenu(player, manager, territory);
+        });
+        return { status: CustomCommandStatus.Success };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:flag",
+        description: "Choisis le drapeau de ton clan (chef)",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        if (!enabled()) {
+          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+        }
+        system8.run(() => {
+          const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
+          if (territory === void 0) {
+            player.sendMessage("§e[Clans] Tu n'as pas de clan.");
+            return;
+          }
+          const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
+          if (!isOwner) {
+            player.sendMessage("§c[Clans] Seul le chef peut changer le drapeau.");
+            return;
+          }
+          openFlagMenu(player, manager, territory);
+        });
+        return { status: CustomCommandStatus.Success };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
         name: "sn:setflag",
         description: "Change la couleur du drapeau de ton clan",
         permissionLevel: CommandPermissionLevel.Any,
@@ -5269,6 +5597,28 @@ function registerCommands(manager, db2, modules2, permissions2) {
         db2?.markDirty();
         manager.save();
         return { status: CustomCommandStatus.Success, message: `Drapeau changé : ${color.code}${color.id}` };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:mine",
+        description: "Va dans la dimension minière (pierre et minerais à gogo) / reviens",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        if (mines2 === void 0) {
+          return { status: CustomCommandStatus.Failure, message: "Mines indisponibles." };
+        }
+        system8.run(() => {
+          const message = mines2.toggle(player);
+          player.sendMessage(message);
+        });
+        return { status: CustomCommandStatus.Success };
       }
     );
     event.customCommandRegistry.registerCommand(
@@ -5305,10 +5655,8 @@ function registerCommands(manager, db2, modules2, permissions2) {
           case "stats": {
             const stats = db2.stats();
             const collections = Object.entries(stats.collections).map(([name, count]) => `${name}=${count}`).join(", ");
-            return {
-              status: CustomCommandStatus.Success,
-              message: `§a[DB] ${stats.documents} docs, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"} §7{${collections}}`
-            };
+            console.log(`[DB] ${stats.documents} docs, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"} {${collections}}`);
+            return { status: CustomCommandStatus.Success };
           }
           case "list": {
             if (arg1 === void 0) {
@@ -5316,13 +5664,12 @@ function registerCommands(manager, db2, modules2, permissions2) {
             }
             const docs = db2.find(arg1);
             if (docs.length === 0) {
-              return { status: CustomCommandStatus.Success, message: `§7[DB] Collection "${arg1}" vide ou inexistante.` };
+              console.log(`[DB] Collection "${arg1}" vide ou inexistante.`);
+              return { status: CustomCommandStatus.Success };
             }
-            const preview = docs.slice(0, 10).map((doc) => `§f${doc.id}§7(${Math.round(JSON.stringify(doc).length / 1024 * 10) / 10}ko)`).join(", ");
-            return {
-              status: CustomCommandStatus.Success,
-              message: `§a[DB] ${docs.length} doc(s) dans "${arg1}" : ${preview}${docs.length > 10 ? " …" : ""}`
-            };
+            const preview = docs.slice(0, 10).map((doc) => `${doc.id}(${Math.round(JSON.stringify(doc).length / 1024 * 10) / 10}ko)`).join(", ");
+            console.log(`[DB] ${docs.length} doc(s) dans "${arg1}" : ${preview}${docs.length > 10 ? " …" : ""}`);
+            return { status: CustomCommandStatus.Success };
           }
           case "show": {
             if (arg1 === void 0 || arg2 === void 0) {
@@ -5330,13 +5677,16 @@ function registerCommands(manager, db2, modules2, permissions2) {
             }
             const doc = db2.findOne(arg1, arg2);
             if (doc === void 0) {
-              return { status: CustomCommandStatus.Failure, message: `§c[DB] "${arg2}" introuvable dans "${arg1}".` };
+              console.warn(`[DB] "${arg2}" introuvable dans "${arg1}".`);
+              return { status: CustomCommandStatus.Success };
             }
-            return { status: CustomCommandStatus.Success, message: ColorJSON.DEFAULT.stringify(doc) };
+            console.log(ColorJSON.DEFAULT.stringify(doc));
+            return { status: CustomCommandStatus.Success };
           }
           case "save": {
             const wrote = db2.save(true);
-            return { status: CustomCommandStatus.Success, message: wrote ? "§a[DB] Sauvegardée." : "§7[DB] Rien à sauvegarder." };
+            console.log(wrote ? "[DB] Sauvegardée." : "[DB] Rien à sauvegarder.");
+            return { status: CustomCommandStatus.Success };
           }
           default:
             return {
@@ -5350,7 +5700,7 @@ function registerCommands(manager, db2, modules2, permissions2) {
 }
 
 // src/territories/protection.ts
-import { world as world8, system as system9, GameMode as GameMode2, Player as Player3 } from "@minecraft/server";
+import { world as world9, system as system9, GameMode as GameMode2, Player as Player3 } from "@minecraft/server";
 function safeSend(player, message) {
   system9.run(() => {
     try {
@@ -5365,7 +5715,7 @@ var DENY_INTERACT = "§c[Clans] Chunk protégé : interaction impossible.";
 var DENY_COMBAT = "§c[Clans] Territoire de clan : ce joueur ne peut pas être attaqué ici.";
 var DENY_ITEM = "§c[Clans] Chunk protégé : objet inutilisable ici.";
 function isCreative(playerName) {
-  const player = world8.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world9.getAllPlayers().find((candidate) => candidate.name === playerName);
   return player !== void 0 && player.getGameMode() === GameMode2.Creative;
 }
 function isProtectedForId(block, player, manager) {
@@ -5374,7 +5724,7 @@ function isProtectedForId(block, player, manager) {
 }
 function registerProtection(manager, modules2) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
-  world8.beforeEvents.playerBreakBlock.subscribe((event) => {
+  world9.beforeEvents.playerBreakBlock.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -5383,7 +5733,7 @@ function registerProtection(manager, modules2) {
       safeSend(player, DENY_BREAK);
     }
   });
-  world8.afterEvents.playerPlaceBlock.subscribe((event) => {
+  world9.afterEvents.playerPlaceBlock.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -5402,7 +5752,7 @@ function registerProtection(manager, modules2) {
     });
     safeSend(player, DENY_PLACE);
   });
-  world8.beforeEvents.playerInteractWithBlock.subscribe((event) => {
+  world9.beforeEvents.playerInteractWithBlock.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -5411,7 +5761,7 @@ function registerProtection(manager, modules2) {
       safeSend(player, DENY_INTERACT);
     }
   });
-  world8.beforeEvents.itemUse.subscribe((event) => {
+  world9.beforeEvents.itemUse.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.source;
     if (isCreative(player.name)) return;
@@ -5421,7 +5771,7 @@ function registerProtection(manager, modules2) {
       safeSend(player, DENY_ITEM);
     }
   });
-  world8.beforeEvents.playerInteractWithEntity.subscribe((event) => {
+  world9.beforeEvents.playerInteractWithEntity.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -5431,7 +5781,7 @@ function registerProtection(manager, modules2) {
       safeSend(player, DENY_INTERACT);
     }
   });
-  world8.beforeEvents.entityHurt.subscribe((event) => {
+  world9.beforeEvents.entityHurt.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const attacker = event.damageSource.damagingEntity;
     if (!(attacker instanceof Player3)) return;
@@ -5455,7 +5805,7 @@ function registerProtection(manager, modules2) {
       safeSend(attacker, "§c[Clans] Chunk revendiqué : les créatures ici sont sous la protection du clan.");
     }
   });
-  world8.beforeEvents.explosion.subscribe((event) => {
+  world9.beforeEvents.explosion.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const impacted = event.getImpactedBlocks();
     const allowed = impacted.filter((block) => {
@@ -5473,17 +5823,17 @@ function registerProtection(manager, modules2) {
 }
 
 // src/territories/announce.ts
-import { system as system10, world as world9 } from "@minecraft/server";
+import { system as system10, world as world10 } from "@minecraft/server";
 var NO_TERRITORY_MESSAGE = "§7Zone libre";
 function registerAnnouncer(manager, modules2, intervalTicks = 10) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
   const lastKeyByPlayer = /* @__PURE__ */ new Map();
-  world9.afterEvents.playerLeave.subscribe((event) => {
+  world10.afterEvents.playerLeave.subscribe((event) => {
     lastKeyByPlayer.delete(event.playerName);
   });
   system10.runInterval(() => {
     if (!manager.loaded || !enabled()) return;
-    for (const player of world9.getAllPlayers()) {
+    for (const player of world10.getAllPlayers()) {
       const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
       const previous = lastKeyByPlayer.get(player.name);
       if (previous === key) continue;
@@ -5949,7 +6299,7 @@ function openPrefixMenu(player, title, onDone) {
 }
 
 // src/permissions/players-ui.ts
-import { world as world10 } from "@minecraft/server";
+import { world as world11 } from "@minecraft/server";
 
 // src/players.ts
 function findPlayerById(db2, playerId) {
@@ -6012,7 +6362,7 @@ function allKnownPlayers(db2) {
 // src/permissions/players-ui.ts
 function openPlayersMenu(player, permissions2, db2) {
   void openWindow(player, "Joueurs", (form) => {
-    const online = world10.getAllPlayers();
+    const online = world11.getAllPlayers();
     form.header(`§b■ §lJoueurs`);
     form.label(
       `§a● En ligne : §f${online.length}
@@ -6070,7 +6420,7 @@ function openPlayerConfigMenu(player, targetName, permissions2, db2) {
   const member = permissions2.getMember(targetName);
   const roleLabel = member === void 0 ? "§7aucun" : `${permissions2.getRole(member.data.role)?.data.color ?? "§7"}${member.data.role}`;
   const prefixLabel = member?.data.customPrefix ?? "(défaut du rôle)";
-  const isOnline = world10.getAllPlayers().some((candidate) => candidate.name === targetName);
+  const isOnline = world11.getAllPlayers().some((candidate) => candidate.name === targetName);
   const record = db2 !== void 0 ? allKnownPlayers(db2).find((r) => r.data.name === targetName) : void 0;
   const classLabel = record?.data.class ? record.data.class : "§8pas encore choisie";
   void openWindow(player, targetName, (form) => {
@@ -6092,6 +6442,14 @@ function openPlayerConfigMenu(player, targetName, permissions2, db2) {
         player.sendMessage(result.ok ? "§a[Rôles] Prefix mis à jour." : `§c[Rôles] ${result.error}`);
       })
     );
+    if (db2 !== void 0 && record?.data.class) {
+      form.button(`§d■ §lRéinitialiser la classe §7(${record.data.class})`, () => {
+        if (resetClassOf(db2, targetName)) {
+          db2.save();
+          player.sendMessage(`§a[Classes] Classe de ${targetName} réinitialisée — il re-choisira librement.`);
+        }
+      });
+    }
     if (member !== void 0) {
       form.button(`§c■ §lRetirer tous les rôles`, () => {
         permissions2.removeRole(targetName);
@@ -6121,13 +6479,13 @@ function openAssignRoleMenu(player, targetName, permissions2, db2) {
 }
 
 // src/permissions/commands.ts
-import { CustomCommandStatus as CustomCommandStatus2, CommandPermissionLevel as CommandPermissionLevel2, system as system12, PlayerPermissionLevel } from "@minecraft/server";
+import { CustomCommandStatus as CustomCommandStatus2, CommandPermissionLevel as CommandPermissionLevel2, system as system13, PlayerPermissionLevel } from "@minecraft/server";
 
 // src/ui/hub.ts
-import { world as world14 } from "@minecraft/server";
+import { world as world16 } from "@minecraft/server";
 
 // src/moderation/ui.ts
-import { world as world12 } from "@minecraft/server";
+import { world as world13 } from "@minecraft/server";
 
 // src/moderation/manager.ts
 function formatDuration(minutes) {
@@ -6279,9 +6637,9 @@ var SanctionsManager = class {
 };
 
 // src/moderation/enforcement.ts
-import { world as world11, system as system11 } from "@minecraft/server";
+import { world as world12, system as system11 } from "@minecraft/server";
 function kickPlayer(playerName, reason) {
-  const player = world11.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world12.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return false;
   try {
     player.dimension.runCommand(`kick "${playerName}" ${reason.replace(/"/g, "")}`);
@@ -6291,7 +6649,7 @@ function kickPlayer(playerName, reason) {
   }
 }
 function registerEnforcement(sanctions2) {
-  world11.afterEvents.playerSpawn.subscribe((event) => {
+  world12.afterEvents.playerSpawn.subscribe((event) => {
     if (!event.initialSpawn || !sanctions2.loaded) return;
     const player = event.player;
     const ban = sanctions2.getBan(player.name);
@@ -6307,7 +6665,7 @@ function registerEnforcement(sanctions2) {
 
 // src/moderation/ui.ts
 function resolveTargetId(targetName) {
-  const online = world12.getAllPlayers().find((candidate) => candidate.name === targetName);
+  const online = world13.getAllPlayers().find((candidate) => candidate.name === targetName);
   return online?.id ?? null;
 }
 function openSanctionsMenu(player, sanctions2, permissions2) {
@@ -6548,66 +6906,116 @@ function xpBar(xp, perLevel) {
   const filled = Math.floor(xp / perLevel * 10);
   return `§a${"█".repeat(filled)}§8${"░".repeat(10 - filled)}§r`;
 }
-function openClassesMenu(player, classes2, isAdmin = false) {
-  void openWindow(player, "Classes", (form) => {
-    form.header("§d■ §lClasses");
-    form.divider();
-    const selection = classes2.classOf(player.name);
-    if (selection === void 0) {
-      form.label("§7Choisis ta §lroute§r§7. Ce choix est §lDÉFINITIF§r§7 :\nil déterminera ta progression sur le serveur.");
-      form.divider();
-      for (const info2 of CLASS_CATALOG) {
-        form.button(
-          `${info2.color}■ §l${info2.name}§r §7— ${info2.description}`,
-          () => confirmClassChoice(player, classes2, info2.id, info2.name, info2.color),
-          void 0,
-          info2.icon
-        );
-      }
-      return;
-    }
-    const info = CLASS_CATALOG.find((candidate) => candidate.id === selection.classId);
-    const level = classLevel(selection.xp);
-    const progress = classProgress(selection.xp);
-    const name = info?.name ?? selection.classId;
-    const color = info?.color ?? "§f";
+var CLASS_TRAITS = {
+  guerrier: ["§c+ Dégâts au corps à corps", "§c+ Résistance au combat", "§7- Portée courte"],
+  mage: ["§5+ Puissance magique", "§5+ Potions renforcées", "§7- Fragile de près"],
+  archer: ["§a+ Précision à distance", "§a+ Déplacement rapide", "§7- Faible au mêlée"]
+};
+function classCard(player, classes2, info, isAdmin, backTo) {
+  void openWindowRaw(player, windowTitle(info.name), (form) => {
+    form.header(`${info.color}━━━ §f§l${info.name} §r${info.color}━━━`);
     form.label(
-      `${color}■ §l${name}§r
-
-§7Niveau : §f${level}
-§7Progression : ${xpBar(progress, XP_PER_LEVEL)}
-§7XP : §f${progress}§7/§f${XP_PER_LEVEL} §8(total : ${selection.xp})`
+      [
+        `§f${info.description}`,
+        ``,
+        ...CLASS_TRAITS[info.id],
+        ``,
+        `§8Route définitive de ta progression sur NaLandia.`
+      ].join("\n")
+    );
+    form.divider();
+    form.button(`§a§lChoisir ${info.name}`, () => confirmClassChoice(player, classes2, info, backTo));
+    form.button(`§7§lRevoir les autres classes`, backTo);
+    void isAdmin;
+  }).catch(
+    (error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+function myClassCard(player, classes2, info, xp, isAdmin) {
+  const level = classLevel(xp);
+  const progress = classProgress(xp);
+  void openWindowRaw(player, windowTitle(info.name), (form) => {
+    form.header(`${info.color}━━━ §f§l${info.name} §r${info.color}━━━`);
+    form.label(
+      [
+        `§f${info.description}`,
+        ``,
+        `§7Niveau : §f${level}`,
+        `§7Progression : ${xpBar(progress, XP_PER_LEVEL)}`,
+        `§7XP : §f${progress}§7/§f${XP_PER_LEVEL} §8(total : ${xp})`
+      ].join("\n")
     );
     form.divider();
     form.label("§8Le catalogue et les bonus de classe seront complétés prochainement.");
     if (isAdmin) {
-      form.button("§c■ §lRéinitialiser (admin)§r §7— le joueur pourra re-choisir", () => {
+      form.button("§c§lRéinitialiser (admin) §7— re-choisir librement", () => {
         if (classes2.clearClass(player.name)) {
           player.sendMessage("§a[Classes] Classe réinitialisée — tu peux re-choisir.");
         }
         openClassesMenu(player, classes2, isAdmin);
       });
     }
-  }).catch((error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`));
+    form.button(`§7§lRetour`, () => openClassesMenu(player, classes2, isAdmin));
+  }).catch(
+    (error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`)
+  );
 }
-function confirmClassChoice(player, classes2, classId, className, color) {
-  void openWindowRaw(player, windowTitle("Confirmer la classe"), (form) => {
-    form.header(`${color}⚠ §lChoix définitif`);
+function openClassesMenu(player, classes2, isAdmin = false) {
+  void openWindow(player, "Classes", (form) => {
+    form.header(`§d§lVoies de NaLandia`);
+    form.divider();
+    const selection = classes2.classOf(player.name);
+    if (selection === void 0) {
+      form.label(
+        `§7Choisis ta §lroute§r§7. Ce choix est §lDÉFINITIF§r§7 :
+il déterminera ta progression sur le serveur.`
+      );
+      form.divider();
+      for (const info2 of CLASS_CATALOG) {
+        form.button(
+          `${info2.color}${info2.name} §7— ${info2.description}`,
+          () => classCard(player, classes2, info2, isAdmin, () => openClassesMenu(player, classes2, isAdmin))
+        );
+      }
+      return;
+    }
+    const info = CLASS_CATALOG.find((candidate) => candidate.id === selection.classId);
+    if (info === void 0) {
+      form.label(`§cClasse inconnue (${selection.classId}) — contacte un admin.`);
+      return;
+    }
+    form.label(`§7Ta voie actuelle :`);
+    form.divider();
+    form.button(
+      `${info.color}${info.name} §7— niveau ${classLevel(selection.xp)}`,
+      () => myClassCard(player, classes2, info, selection.xp, isAdmin)
+    );
+  }).catch(
+    (error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+function confirmClassChoice(player, classes2, info, backTo) {
+  void openWindowRaw(player, windowTitle("Confirmer"), (form) => {
+    form.header(`${info.color}━━━ §f§l${info.name} §r${info.color}━━━`);
     form.label(
-      `Tu choisis la classe ${color}§l${className}§r§f ?
-
-§7Ce choix est §lpermanent§r§7 : il faudra
-qu'un admin te réinitialise pour changer.`
+      [
+        `Tu choisis la voie ${info.color}§l${info.name}§r§f ?`,
+        ``,
+        `§7Ce choix est §lpermanent§r§7 : seul un admin`,
+        `§7pourra le réinitialiser (via §f/sn:db§7).`
+      ].join("\n")
     );
     form.divider();
-    form.button("§a■ §lConfirmer mon choix", () => {
-      const result = classes2.selectClass(player.name, classId);
+    form.button(`§a§lJe confirme — ${info.name}`, () => {
+      const result = classes2.selectClass(player.name, info.id);
       player.sendMessage(
-        result.ok ? `§a[Classes] Bienvenue dans la voie ${color}§l${className}§r§a ! Ta progression commence maintenant.` : `§c[Classes] ${result.error}`
+        result.ok ? `§a[Classes] Bienvenue dans la voie ${info.color}§l${info.name}§r§a ! Ta progression commence maintenant.` : `§c[Classes] ${result.error}`
       );
     });
-    form.button("§7■ §lRevenir au choix", () => openClassesMenu(player, classes2));
-  }).catch((error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`));
+    form.button(`§7§lRevoir les autres classes`, backTo);
+  }).catch(
+    (error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`)
+  );
 }
 
 // src/jobs/manager.ts
@@ -6681,11 +7089,385 @@ ${xpBar2(progress, 50)} §8(${progress}/50 XP)`
   }).catch((error) => console.warn(`[Jobs] ${error instanceof Error ? error.message : String(error)}`));
 }
 
+// src/mines/manager.ts
+import { world as world14, system as system12, GameMode as GameMode3 } from "@minecraft/server";
+
+// src/mines/generator.ts
+function rng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = a + 1831565813 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hash(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+// src/mines/manager.ts
+var MINES_DIMENSION_ID = "nalania:mines";
+var MINES_FLOOR_Y = 64;
+var MINES_HEIGHT = 24;
+var MINES_SPAWN_RADIUS = 6;
+var ORES = [
+  { block: "minecraft:coal_ore", vein: 10, tries: 26, yMin: MINES_FLOOR_Y, yMax: MINES_FLOOR_Y + MINES_HEIGHT },
+  { block: "minecraft:iron_ore", vein: 8, tries: 22, yMin: MINES_FLOOR_Y, yMax: MINES_FLOOR_Y + MINES_HEIGHT },
+  { block: "minecraft:copper_ore", vein: 9, tries: 18, yMin: MINES_FLOOR_Y, yMax: MINES_FLOOR_Y + MINES_HEIGHT },
+  { block: "minecraft:gold_ore", vein: 7, tries: 12, yMin: MINES_FLOOR_Y + 4, yMax: MINES_FLOOR_Y + MINES_HEIGHT },
+  { block: "minecraft:redstone_ore", vein: 8, tries: 12, yMin: MINES_FLOOR_Y, yMax: MINES_FLOOR_Y + 14 },
+  { block: "minecraft:lapis_ore", vein: 7, tries: 9, yMin: MINES_FLOOR_Y + 2, yMax: MINES_FLOOR_Y + 18 },
+  { block: "minecraft:emerald_ore", vein: 4, tries: 7, yMin: MINES_FLOOR_Y + 6, yMax: MINES_FLOOR_Y + MINES_HEIGHT },
+  { block: "minecraft:diamond_ore", vein: 5, tries: 8, yMin: MINES_FLOOR_Y, yMax: MINES_FLOOR_Y + 12 }
+];
+var ORES_PUBLIC = [
+  { label: "Charbon ×5", color: "§8" },
+  { label: "Fer ×5", color: "§f" },
+  { label: "Cuivre ×4", color: "§6" },
+  { label: "Or ×4", color: "§e" },
+  { label: "Redstone ×4", color: "§c" },
+  { label: "Lapis ×3", color: "§9" },
+  { label: "Émeraude ×3", color: "§a" },
+  { label: "Diamant ×3", color: "§b" }
+];
+var worldSeed = 1337;
+function setMinesSeed(seed) {
+  worldSeed = seed >>> 0;
+}
+var MinesManager = class {
+  /** Passe à true après le worldLoad (la dimension devient adressable). */
+  loaded = false;
+  /** État statique (fallback si aucun check live branché). */
+  enabled = true;
+  /**
+   * Check live branché par main.ts (module « mines » de /sn:modules) :
+   * permet au toggle du menu Modules d'agir instantanément.
+   */
+  enabledCheck;
+  generated = /* @__PURE__ */ new Set();
+  queue = [];
+  queueRunning = false;
+  constructor() {
+  }
+  /** Le module mines est-il actif ? (check live si branché) */
+  isUsable() {
+    return this.enabledCheck !== void 0 ? this.enabledCheck() : this.enabled;
+  }
+  markLoaded() {
+    this.loaded = true;
+  }
+  /** La dimension minière (undefined tant que non chargée/inexistante). */
+  dimension() {
+    if (!this.loaded) return void 0;
+    try {
+      return world14.getDimension(MINES_DIMENSION_ID);
+    } catch {
+      return void 0;
+    }
+  }
+  /** Le joueur est-il dans la dimension minière ? */
+  isInMines(player) {
+    return player.dimension.id === MINES_DIMENSION_ID;
+  }
+  /**
+   * Téléporte le joueur aux mines (aller) ou le ramène dans l'overworld
+   * à sa position d'entrée (retour). Renvoie le message de résultat.
+   */
+  toggle(player) {
+    if (!this.isUsable()) return "§c[Mines] Le module Mines est désactivé (/sn:modules).";
+    if (this.isInMines(player)) return this.exit(player);
+    return this.enter(player);
+  }
+  /** Aller : mémorise le retour, téléporte au spawn des mines. */
+  enter(player) {
+    const dimension = this.dimension();
+    if (dimension === void 0) {
+      return "§c[Mines] Dimension indisponible : vérifie que le pack déclare bien nalania:mines.";
+    }
+    try {
+      player.setDynamicProperty("nalania:mines_return", JSON.stringify({
+        dimensionId: player.dimension.id,
+        x: player.location.x,
+        y: player.location.y,
+        z: player.location.z
+      }));
+    } catch {
+    }
+    const x = 0.5;
+    const z = 0.5;
+    this.ensureChunk(0, 0, dimension);
+    player.teleport({ x, y: MINES_FLOOR_Y + 1, z }, { dimension });
+    try {
+      player.addEffect("night_vision", 20 * 90, { amplifier: 0, showParticles: false });
+    } catch {
+    }
+    this.scheduleChunkLoad(player);
+    return `§a[Mines] Bienvenue dans les mines ! §7Retour : §f/sn:mine§7 à nouveau.`;
+  }
+  /** Retour : restaure la position mémorisée. */
+  exit(player) {
+    let target;
+    try {
+      const raw = player.getDynamicProperty("nalania:mines_return");
+      if (typeof raw === "string") target = JSON.parse(raw);
+    } catch {
+      target = void 0;
+    }
+    const dimension = target !== void 0 ? world14.getDimension(target.dimensionId) : void 0;
+    if (dimension !== void 0 && target !== void 0) {
+      player.teleport({ x: target.x, y: target.y, z: target.z }, { dimension });
+    } else {
+      const overworld = world14.getDimension("minecraft:overworld");
+      player.teleport({ x: 0.5, y: 100, z: 0.5 }, { dimension: overworld });
+    }
+    return `§a[Mines] Tu es de retour à la surface.`;
+  }
+  /**
+   * Programme la génération des chunks autour du joueur (rayon 2) —
+   * chaque chunk est mis en file s'il n'est pas déjà généré.
+   */
+  scheduleChunkLoad(player) {
+    const dimension = this.dimension();
+    if (dimension === void 0) return;
+    const pcx = Math.floor(player.location.x / 16);
+    const pcz = Math.floor(player.location.z / 16);
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dz = -2; dz <= 2; dz++) {
+        this.ensureChunk(pcx + dx, pcz + dz, dimension);
+      }
+    }
+  }
+  /**
+   * Met un chunk en file de génération (idempotent). La génération réelle
+   * est étalée sur plusieurs ticks (budget BLOCKS_PER_TICK).
+   */
+  ensureChunk(cx, cz, dimension) {
+    const key = `${dimension.id}:${cx}:${cz}`;
+    if (this.generated.has(key)) return;
+    const seed = hash(`${key}#${worldSeed}`);
+    const random = rng(seed);
+    const steps = [];
+    steps.push(() => {
+      const yF = MINES_FLOOR_Y;
+      const yC = MINES_FLOOR_Y + MINES_HEIGHT;
+      for (let x = 0; x < 16; x++) {
+        for (let z = 0; z < 16; z++) {
+          const wx = cx * 16 + x;
+          const wz = cz * 16 + z;
+          dimension.getBlock({ x: wx, y: yF, z: wz })?.setType("minecraft:stone");
+          dimension.getBlock({ x: wx, y: yF - 1, z: wz })?.setType("minecraft:deepslate");
+          dimension.getBlock({ x: wx, y: yC, z: wz })?.setType("minecraft:stone");
+          dimension.getBlock({ x: wx, y: yC + 1, z: wz })?.setType("minecraft:bedrock");
+        }
+      }
+    });
+    steps.push(() => {
+      const air = "minecraft:air";
+      const clear = (x, y, z) => {
+        dimension.getBlock({ x, y, z })?.setType(air);
+      };
+      const yF = MINES_FLOOR_Y;
+      for (let t = 0; t < 16; t++) {
+        for (let w = -1; w <= 1; w++) {
+          for (let h = 1; h <= 3; h++) {
+            clear(cx * 16 + t, yF + h, cz * 16 + 8 + w);
+            clear(cx * 16 + 8 + w, yF + h, cz * 16 + t);
+          }
+        }
+      }
+      for (let x = 6; x <= 10; x++) {
+        for (let z = 6; z <= 10; z++) {
+          for (let h = 1; h <= 4; h++) {
+            clear(cx * 16 + x, yF + h, cz * 16 + z);
+          }
+        }
+      }
+      for (let p = 0; p < 4; p++) {
+        const px = Math.floor(random() * 16);
+        const pz = Math.floor(random() * 16);
+        const py = yF + 1 + Math.floor(random() * (MINES_HEIGHT - 2));
+        const r = 1 + Math.floor(random() * 2);
+        for (let dx = -r; dx <= r; dx++) {
+          for (let dy = -r; dy <= r; dy++) {
+            for (let dz = -r; dz <= r; dz++) {
+              if (dx * dx + dy * dy + dz * dz <= r * r + 1) {
+                clear(cx * 16 + px + dx, py + dy, cz * 16 + pz + dz);
+              }
+            }
+          }
+        }
+      }
+    });
+    steps.push(() => {
+      for (const ore of ORES) {
+        for (let t = 0; t < ore.tries; t++) {
+          const ox = cx * 16 + Math.floor(random() * 16);
+          const oz = cz * 16 + Math.floor(random() * 16);
+          const oy = ore.yMin + Math.floor(random() * (ore.yMax - ore.yMin));
+          const count = 2 + Math.floor(random() * ore.vein);
+          let px = ox;
+          let py = oy;
+          let pz = oz;
+          for (let b = 0; b < count; b++) {
+            const block = dimension.getBlock({ x: px, y: py, z: pz });
+            if (block !== void 0 && block.typeId === "minecraft:stone") {
+              block.setType(ore.block);
+            }
+            px += Math.floor(random() * 3) - 1;
+            py += Math.floor(random() * 3) - 1;
+            pz += Math.floor(random() * 3) - 1;
+          }
+        }
+      }
+    });
+    steps.push(() => {
+      const yF = MINES_FLOOR_Y;
+      const torches = [[8, 3], [8, 13], [3, 8], [13, 8]];
+      for (const [tx, tz] of torches) {
+        dimension.getBlock({ x: cx * 16 + tx, y: yF + 1, z: cz * 16 + tz })?.setType("minecraft:torch");
+      }
+      if (cx === 0 && cz === 0) {
+        for (let x = -MINES_SPAWN_RADIUS; x <= MINES_SPAWN_RADIUS; x++) {
+          for (let z = -MINES_SPAWN_RADIUS; z <= MINES_SPAWN_RADIUS; z++) {
+            if (x * x + z * z <= MINES_SPAWN_RADIUS * MINES_SPAWN_RADIUS) {
+              dimension.getBlock({ x, y: yF, z })?.setType("minecraft:polished_deepslate");
+              for (let h = 1; h <= 4; h++) {
+                dimension.getBlock({ x, y: yF + h, z })?.setType("minecraft:air");
+              }
+            }
+          }
+        }
+        for (let a = 0; a < 64; a++) {
+          const angle = a / 64 * Math.PI * 2;
+          const bx = Math.round(Math.cos(angle) * MINES_SPAWN_RADIUS);
+          const bz = Math.round(Math.sin(angle) * MINES_SPAWN_RADIUS);
+          dimension.getBlock({ x: bx, y: yF + 1, z: bz })?.setType("minecraft:stone_brick_wall");
+        }
+        for (const [lx, lz] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) {
+          dimension.getBlock({ x: lx, y: yF + 1, z: lz })?.setType("minecraft:lantern");
+          dimension.getBlock({ x: lx, y: yF + 2, z: lz })?.setType("minecraft:chain");
+        }
+      }
+    });
+    steps.push(() => {
+      this.generated.add(key);
+    });
+    this.queue.push({ cx, cz, steps });
+    this.pumpQueue();
+  }
+  /**
+  * Exécute la file de génération — UNE étape par tick (anti-lag) : un
+  * chunk complet prend 4 ticks (200 ms) ; le rayon exploré se remplit en
+  * ~2,5 s sans jamais figer le serveur.
+  */
+  pumpQueue() {
+    if (this.queueRunning) return;
+    this.queueRunning = true;
+    const run = () => {
+      if (this.queue.length === 0) {
+        this.queueRunning = false;
+        return;
+      }
+      const task = this.queue[0];
+      const step = task.steps.shift();
+      if (step !== void 0) {
+        try {
+          step();
+        } catch (error) {
+          log3.warn(`Mines : étape de génération échouée (${error instanceof Error ? error.message : String(error)})`);
+        }
+      }
+      if (task.steps.length === 0) this.queue.shift();
+      system12.run(run);
+    };
+    system12.run(run);
+  }
+  /**
+   * Boucle d'entretien : régénère les chunks autour des joueurs présents
+   * dans la dimension (si de nouveaux chunks sont explorés).
+   */
+  registerMaintenance(intervalTicks = 40) {
+    system12.runInterval(() => {
+      if (!this.loaded || !this.isUsable()) return;
+      const dimension = this.dimension();
+      if (dimension === void 0) return;
+      for (const player of world14.getAllPlayers()) {
+        if (player.dimension.id !== MINES_DIMENSION_ID) continue;
+        const pcx = Math.floor(player.location.x / 16);
+        const pcz = Math.floor(player.location.z / 16);
+        for (let dx = -2; dx <= 2; dx++) {
+          for (let dz = -2; dz <= 2; dz++) {
+            this.ensureChunk(pcx + dx, pcz + dz, dimension);
+          }
+        }
+      }
+    }, intervalTicks);
+  }
+  /** Sécurité : si un joueur tombe (faille), le ramène sur la plateforme. */
+  registerFallRescue(intervalTicks = 20) {
+    system12.runInterval(() => {
+      if (!this.loaded || !this.isUsable()) return;
+      for (const player of world14.getAllPlayers()) {
+        if (player.dimension.id !== MINES_DIMENSION_ID) continue;
+        if (player.location.y < MINES_FLOOR_Y - 12) {
+          player.teleport({ x: 0.5, y: MINES_FLOOR_Y + 1, z: 0.5 }, { dimension: this.dimension() });
+          player.sendMessage("§e[Mines] Tu es tombé dans le vide : ramené à la plateforme.");
+        }
+      }
+    }, intervalTicks);
+  }
+  /** Les créatifs et spectateurs ne déclenchent rien de spécial (compat). */
+  static isSurvivalLike(player) {
+    return player.getGameMode() === GameMode3.Survival || player.getGameMode() === GameMode3.Adventure;
+  }
+};
+
+// src/mines/ui.ts
+function openMineMenu(player, mines2) {
+  void openWindow(player, "Mines", (form) => {
+    const inMines = mines2.isInMines(player);
+    form.body(
+      [
+        `§b§lLa dimension minière§r`,
+        ``,
+        `§7Un monde souterrain de pierre creusé de galeries,`,
+        `§7bien plus riche en minerais que la surface :`,
+        ``,
+        ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join(`§7, `),
+        ``,
+        `§8Hauteur des galeries : §f${MINES_HEIGHT} blocs`,
+        `§8Retour : §f/sn:mine§8 à nouveau, ou la commande depuis ici.`
+      ].join("\n")
+    );
+    if (inMines) {
+      form.button(`§a§lRevenir à la surface`, () => {
+        player.sendMessage(mines2.toggle(player));
+      });
+    } else {
+      form.button(`§b§lDescendre aux mines`, () => {
+        player.sendMessage(mines2.toggle(player));
+      });
+    }
+    form.button(`§7§lRetour au menu`, () => {
+      player.sendMessage("§7[Mines] Utilise §f/sn:menu§7 pour revenir au hub.");
+    });
+  }).catch(
+    (error) => console.warn(`[Mines] ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+
 // src/ui/admin.ts
-import { world as world13 } from "@minecraft/server";
+import { world as world15 } from "@minecraft/server";
 
 // src/modules/manager.ts
-var MODULE_IDS = ["territories", "moderation"];
+var MODULE_IDS = ["territories", "moderation", "mines"];
 var MODULE_CATALOG = [
   {
     id: "territories",
@@ -6696,6 +7478,11 @@ var MODULE_CATALOG = [
     id: "moderation",
     name: "Modération",
     description: "Bans, mutes, warns et historique (/sn:mod, /sn:ban...)"
+  },
+  {
+    id: "mines",
+    name: "Mines",
+    description: "Dimension minière custom, riche en minerais (/sn:mine)"
   }
 ];
 var ModuleManager = class {
@@ -6783,7 +7570,7 @@ function openAdminMenu(player, deps) {
     return;
   }
   const stats = db2?.stats();
-  const online = world13.getAllPlayers().length;
+  const online = world15.getAllPlayers().length;
   const roleCount = permissions2.allRoles().length;
   const stateCount = territories2.all().length;
   const moduleCount = modules2.enabledCount();
@@ -6822,7 +7609,7 @@ function openHubMenu(player, deps) {
   const isAdmin = canUseAdminPanel(player, permissions2);
   const isMod = permissions2.can(player.name, "mod.panel", isOp);
   const hasRole = permissions2.getMember(player.name) !== void 0;
-  const online = world14.getAllPlayers().length;
+  const online = world16.getAllPlayers().length;
   const stateCount = territories2.all().length;
   const knownCount = db2 !== void 0 ? allKnownPlayers(db2).length : 0;
   const myClan = territories2.findByMemberId(player.id) ?? territories2.findByOwner(player.name);
@@ -6846,6 +7633,9 @@ function openHubMenu(player, deps) {
     );
     form.button(`§6États`, () => openStatesMenu(player, territories2));
     form.button(`§eMes infos`, () => openMyInfoMenu(player, deps));
+    if (deps.mines !== void 0 && deps.mines.isUsable()) {
+      form.button(`§bMines`, () => openMineMenu(player, deps.mines));
+    }
     if (isMod) {
       form.divider();
       form.button(`§4Modération`, () => openSanctionsMenu(player, sanctions2, permissions2));
@@ -6897,7 +7687,7 @@ function canUseAdminPanel(player, permissions2) {
   return permissions2.levelOf(player.name) >= 100 || player.playerPermissionLevel >= PlayerPermissionLevel.Operator;
 }
 function registerAdminCommands(ctx) {
-  system12.beforeEvents.startup.subscribe((event) => {
+  system13.beforeEvents.startup.subscribe((event) => {
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:roles",
@@ -6910,7 +7700,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system12.run(() => {
+        system13.run(() => {
           if (canUseAdminPanel(player, ctx.permissions)) {
             openRolesMenu(player, ctx.permissions);
             return;
@@ -6936,7 +7726,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system12.run(() => openHubMenu(player, ctx));
+        system13.run(() => openHubMenu(player, ctx));
         return { status: CustomCommandStatus2.Success };
       }
     );
@@ -6952,7 +7742,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system12.run(() => openAdminMenu(player, ctx));
+        system13.run(() => openAdminMenu(player, ctx));
         return { status: CustomCommandStatus2.Success };
       }
     );
@@ -6968,7 +7758,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system12.run(() => {
+        system13.run(() => {
           if (ctx.classes === void 0) {
             player.sendMessage("§c[Classes] Module indisponible.");
             return;
@@ -6991,7 +7781,7 @@ function registerAdminCommands(ctx) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
         }
-        system12.run(() => {
+        system13.run(() => {
           if (ctx.jobs === void 0) {
             player.sendMessage("§c[Métiers] Module indisponible.");
             return;
@@ -7005,7 +7795,7 @@ function registerAdminCommands(ctx) {
 }
 
 // src/permissions/chat.ts
-import { world as world15, system as system13 } from "@minecraft/server";
+import { world as world17, system as system14 } from "@minecraft/server";
 function stripFormatting(raw) {
   return raw.replace(/§/g, "");
 }
@@ -7044,7 +7834,7 @@ function formatChatMessage(permissions2, playerName, message, isVanillaOp = fals
 }
 function registerChat(deps) {
   const { permissions: permissions2, getMute } = deps;
-  world15.beforeEvents.chatSend.subscribe((event) => {
+  world17.beforeEvents.chatSend.subscribe((event) => {
     if (!permissions2.loaded) return;
     const sender = event.sender;
     const isVanillaOp = sender.playerPermissionLevel >= 2;
@@ -7052,7 +7842,7 @@ function registerChat(deps) {
     if (mute !== void 0) {
       event.cancel = true;
       const remaining = mute.expiresAt === 0 ? "permanent" : `${Math.max(1, Math.ceil((mute.expiresAt - Date.now()) / 6e4))} min`;
-      system13.run(() => {
+      system14.run(() => {
         sender.sendMessage(
           `§c[Modération] Tu es muet (${remaining}). §7Motif : §f${mute.reason}§7 — par §f${mute.by}`
         );
@@ -7062,9 +7852,9 @@ function registerChat(deps) {
     event.cancel = true;
     const message = sanitizeMessage(event.message);
     const formatted = formatChatMessage(permissions2, sender.name, message, isVanillaOp);
-    system13.run(() => {
+    system14.run(() => {
       for (const line of formatted.split("\n")) {
-        world15.sendMessage(line);
+        world17.sendMessage(line);
       }
     });
   });
@@ -7075,26 +7865,26 @@ import {
   CustomCommandParamType as CustomCommandParamType2,
   CustomCommandStatus as CustomCommandStatus3,
   CommandPermissionLevel as CommandPermissionLevel3,
-  system as system14
+  system as system15
 } from "@minecraft/server";
-import { world as world16 } from "@minecraft/server";
+import { world as world18 } from "@minecraft/server";
 var NOT_PLAYER = "§c[Modération] Réservé aux joueurs.";
 function requires(player, permissions2, perm) {
   return permissions2.can(player.name, perm, player.playerPermissionLevel >= 2);
 }
 function notifyTarget(targetName, message) {
-  const target = world16.getAllPlayers().find((candidate) => candidate.name === targetName);
-  if (target !== void 0) system14.run(() => target.sendMessage(message));
+  const target = world18.getAllPlayers().find((candidate) => candidate.name === targetName);
+  if (target !== void 0) system15.run(() => target.sendMessage(message));
 }
 function resolveTargetId2(targetName, db2) {
-  const online = world16.getAllPlayers().find((candidate) => candidate.name === targetName);
+  const online = world18.getAllPlayers().find((candidate) => candidate.name === targetName);
   if (online !== void 0) return online.id;
   if (db2 !== void 0) return resolvePlayer(db2, targetName)?.data.playerId ?? null;
   return null;
 }
 function registerModerationCommands(deps) {
   const { sanctions: sanctions2, permissions: permissions2, db: db2 } = deps;
-  system14.beforeEvents.startup.subscribe((event) => {
+  system15.beforeEvents.startup.subscribe((event) => {
     const guardAndRun = (origin, action) => {
       const player = origin.sourceEntity;
       if (player === void 0 || player.typeId !== "minecraft:player") {
@@ -7103,7 +7893,7 @@ function registerModerationCommands(deps) {
       if (!requires(player, permissions2, "mod.panel")) {
         return { status: CustomCommandStatus3.Failure, message: "§c[Modération] Permission manquante (mod.panel)." };
       }
-      system14.run(() => action(player));
+      system15.run(() => action(player));
       return { status: CustomCommandStatus3.Success };
     };
     const guardPerm = (origin, perm, action) => {
@@ -7114,7 +7904,7 @@ function registerModerationCommands(deps) {
       if (!requires(player, permissions2, perm)) {
         return { status: CustomCommandStatus3.Failure, message: `§c[Modération] Permission manquante (${perm}).` };
       }
-      system14.run(() => action(player));
+      system15.run(() => action(player));
       return { status: CustomCommandStatus3.Success };
     };
     const stringParam = (name) => ({ name, type: CustomCommandParamType2.String });
@@ -7170,7 +7960,7 @@ function registerModerationCommands(deps) {
           `§a[Modération] ${target} banni (${formatDuration(duration)}). Raison : ${reason}`
         );
         notifyTarget(target, `§4[Modération] Tu es banni (${formatDuration(duration)}) : ${reason}`);
-        system14.run(() => kickPlayer(target, reason));
+        system15.run(() => kickPlayer(target, reason));
       })
     );
     event.customCommandRegistry.registerCommand(
@@ -7274,8 +8064,9 @@ var territories = new TerritoryManager(db);
 var sanctions = new SanctionsManager(db);
 var classes = new ClassManager(db);
 var jobs = new JobManager(db);
-registerCommands(territories, db, modules, permissions);
-registerAdminCommands({ permissions, modules, territories, sanctions, db, classes, jobs });
+var mines = new MinesManager();
+registerCommands(territories, db, modules, permissions, mines);
+registerAdminCommands({ permissions, modules, territories, sanctions, db, classes, jobs, mines });
 registerModerationCommands({ sanctions, permissions, db });
 var protectionRegistered = false;
 var chatRegistered = false;
@@ -7289,14 +8080,14 @@ function registerChatOnce() {
   registerEnforcement(sanctions);
 }
 function applyNameTag(playerName) {
-  const player = world17.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world19.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return;
   try {
     player.nameTag = permissions.nameTagFor(playerName);
   } catch {
   }
 }
-world17.afterEvents.worldLoad.subscribe(() => {
+world19.afterEvents.worldLoad.subscribe(() => {
   Timings.begin("worldLoad");
   db.load();
   permissions.markLoaded();
@@ -7305,18 +8096,24 @@ world17.afterEvents.worldLoad.subscribe(() => {
   sanctions.markLoaded();
   classes.markLoaded();
   jobs.markLoaded();
+  mines.markLoaded();
+  mines.enabledCheck = () => modules.isEnabled("mines");
+  if (modules.isEnabled("mines")) {
+    mines.registerMaintenance();
+    mines.registerFallRescue();
+  }
   permissions.bootstrapDefaultRoles();
   if (!permissions.hasAdmin()) {
-    const operator = world17.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+    const operator = world19.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
     if (operator !== void 0) {
       permissions.bootstrapAdmin(operator.name);
       log3.info(`Bootstrap : ${operator.name} est promu Admin.`);
     }
   }
-  for (const player of world17.getAllPlayers()) {
+  for (const player of world19.getAllPlayers()) {
     permissions.ensureDefaultRole(player.name, player.id);
   }
-  for (const player of world17.getAllPlayers()) {
+  for (const player of world19.getAllPlayers()) {
     applyNameTag(player.name);
   }
   registerChatOnce();
@@ -7333,9 +8130,9 @@ world17.afterEvents.worldLoad.subscribe(() => {
   log3.info(`UI images : pack_id=${RP_PACK_ID} (doit matcher l'UUID du RP actif).`);
 });
 var worldReady = false;
-system15.runInterval(() => {
+system16.runInterval(() => {
   if (worldReady) return;
-  if (world17.getAllPlayers().length === 0) return;
+  if (world19.getAllPlayers().length === 0) return;
   if (!territories.loaded) {
     db.load();
     permissions.markLoaded();
@@ -7344,12 +8141,13 @@ system15.runInterval(() => {
     sanctions.markLoaded();
     classes.markLoaded();
     jobs.markLoaded();
+    mines.markLoaded();
     permissions.bootstrapDefaultRoles();
     if (!permissions.hasAdmin()) {
-      const operator = world17.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+      const operator = world19.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
       if (operator !== void 0) permissions.bootstrapAdmin(operator.name);
     }
-    for (const player of world17.getAllPlayers()) {
+    for (const player of world19.getAllPlayers()) {
       permissions.ensureDefaultRole(player.name, player.id);
       applyNameTag(player.name);
     }
@@ -7359,11 +8157,16 @@ system15.runInterval(() => {
     protectionRegistered = true;
     registerProtection(territories, modules);
     registerAnnouncer(territories, modules);
+    mines.enabledCheck = () => modules.isEnabled("mines");
+    if (modules.isEnabled("mines")) {
+      mines.registerMaintenance();
+      mines.registerFallRescue();
+    }
     log3.warn("Activation par fallback (worldLoad non reçu) : protection active.");
   }
   worldReady = true;
 }, 40);
-world17.afterEvents.playerSpawn.subscribe((event) => {
+world19.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
   const player = event.player;
   permissions.ensureDefaultRole(player.name, player.id);
@@ -7395,13 +8198,13 @@ world17.afterEvents.playerSpawn.subscribe((event) => {
   }
   player.onScreenDisplay.setTitle("§6NaLandia §f✔");
 });
-system15.runInterval(() => {
+system16.runInterval(() => {
   if (!permissions.loaded) return;
-  for (const player of world17.getAllPlayers()) {
+  for (const player of world19.getAllPlayers()) {
     applyNameTag(player.name);
   }
 }, 100);
-system15.afterEvents.scriptEventReceive.subscribe((event) => {
+system16.afterEvents.scriptEventReceive.subscribe((event) => {
   if (event.id !== "sn:ui" || event.sourceEntity === void 0) return;
   if (event.sourceEntity.typeId !== "minecraft:player") return;
   const player = event.sourceEntity;
@@ -7414,7 +8217,15 @@ system15.afterEvents.scriptEventReceive.subscribe((event) => {
     );
   }
 });
-system15.runInterval(() => {
+system16.afterEvents.scriptEventReceive.subscribe((event) => {
+  if (event.id !== "sn:seed") return;
+  const value = Number.parseInt(event.message.trim(), 10);
+  if (Number.isFinite(value)) {
+    setMinesSeed(value);
+    log3.info(`Mines : graine fixée à ${value}.`);
+  }
+});
+system16.runInterval(() => {
   const stats = db.stats();
   logDb.info(
     `${stats.documents} documents, ${stats.bytes} octets, ${stats.dirty ? "non sauvegardée" : "à jour"}`

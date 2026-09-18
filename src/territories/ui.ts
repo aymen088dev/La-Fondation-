@@ -473,30 +473,50 @@ function openInviteMenu(
 // Drapeau + dissolution (chef uniquement)
 // ---------------------------------------------------------------------------
 
-/** Menu Drapeau : un bouton par couleur (aperçu immédiat). */
-function openFlagMenu(
+/**
+ * Menu Drapeau : couleurs prêtes à l'emploi + blasons personnalisés.
+ *
+ * Les blasons personnalisés sont des PNG posés dans
+ * RP/textures/ui/flags/1.png … 8.png (l'utilisateur les importe lui-même :
+ * il lui suffit de déposer ses fichiers). Tant que les fichiers ne sont
+ * pas là, les entrées correspondantes affichent leur numéro — le jeu
+ * rend un damier transparent si la texture manque (sans crash).
+ */
+export function openFlagMenu(
   player: Player,
   manager: TerritoryManager,
   territory: StoredDocument<TerritoryData>,
 ): void {
-  void openWindowRaw(player, windowTitle("Drapeau"), (form) => {
-    form.header(`§6§lDrapeau de ${territory.data.name}`);
-    form.label(`§7Choisis la couleur de ta bannière :`);
-    form.divider();
-    for (const candidate of TERRITORY_COLORS) {
-      form.button(`${candidate.code}${candidate.id}`, () => {
-        const fresh = manager.findOne(territory.id);
-        if (fresh === undefined) {
-          say(player, "§c[Clans] Ce clan n'existe plus.");
-          return;
-        }
-        fresh.data.color = candidate.id;
-        fresh.updatedAt = Date.now();
-        manager.save();
-        say(player, `§a[Clans] Drapeau changé : ${candidate.code}${candidate.id}`);
-        openMyClanMenu(player, manager, territory);
-      });
+  const apply = (flagValue: string, label: string): void => {
+    const fresh = manager.findOne(territory.id);
+    if (fresh === undefined) {
+      say(player, "§c[Clans] Ce clan n'existe plus.");
+      return;
     }
+    fresh.data.color = flagValue;
+    fresh.updatedAt = Date.now();
+    manager.save();
+    say(player, `§a[Clans] Drapeau changé : ${label}`);
+    openMyClanMenu(player, manager, territory);
+  };
+
+  void openWindowRaw(player, windowTitle("Drapeau"), (form) => {
+    const current = territory.data.color;
+    form.header(`§6§lDrapeau de ${territory.data.name}`);
+    form.label(`§7Actuel : §f${current.startsWith("flag:") ? current.slice(5) : current}`);
+    form.divider();
+
+    for (const candidate of TERRITORY_COLORS) {
+      form.button(`${candidate.code}${candidate.id}`, () => apply(candidate.id, candidate.code + candidate.id));
+    }
+
+    form.divider();
+    form.label(`§7— blasons personnalisés —\n§8Dépose tes PNG dans §fRP/textures/ui/flags/§8 (1.png, 2.png…) puis choisis :`);
+    for (let n = 1; n <= 8; n++) {
+      const flagValue = `flag:${n}`;
+      form.button(`§bBlason ${n}`, () => apply(flagValue, `Blason ${n}`));
+    }
+
     form.divider();
     form.button(`§7§lRetour`, () => openMyClanMenu(player, manager, territory));
   }).catch((error: unknown) =>
@@ -504,8 +524,8 @@ function openFlagMenu(
   );
 }
 
-/** Confirmation de dissolution (définitif). */
-function openDissolveMenu(
+/** Confirmation de dissolution (définitif). Utilisée par /sn:disband. */
+export function openDissolveMenu(
   player: Player,
   manager: TerritoryManager,
   territory: StoredDocument<TerritoryData>,
