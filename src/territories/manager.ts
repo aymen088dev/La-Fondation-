@@ -161,6 +161,17 @@ export class TerritoryManager {
     return { ok: true };
   }
 
+  /** Met à jour la bio publique du clan. */
+  updateDescription(territoryId: string, description: string): boolean {
+    const territory = this.db.findOne<TerritoryData>(TERRITORY_COLLECTION, territoryId);
+    if (territory === undefined) return false;
+    territory.data.description = description.trim().slice(0, 140);
+    territory.updatedAt = Date.now();
+    this.touch();
+    this.db.save();
+    return true;
+  }
+
   /** Sauvegarde immédiate de la DB sous-jacente. */
   save(): void {
     this.db.save();
@@ -265,6 +276,7 @@ export class TerritoryManager {
         ownerName: owner,
         members: [],
         color: colorId,
+        description: "Un nouvel État prend forme.",
         chunkKeys: [key],
         createdAt: Date.now(),
       },

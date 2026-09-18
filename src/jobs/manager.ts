@@ -15,10 +15,23 @@ import { JOBS_COLLECTION } from "../db/collections";
 /** Collection DB des métiers exercés (un document par métier exercé). */
 export { JOBS_COLLECTION };
 
+export interface JobInfo {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+}
+
+export const JOB_CATALOG: readonly JobInfo[] = [
+  { id: "mineur", name: "Mineur", description: "Extraire les ressources et révéler les strates.", color: "§b" },
+  { id: "explorateur", name: "Explorateur", description: "Découvrir les mondes et les frontières de NaLandia.", color: "§e" },
+  { id: "bâtisseur", name: "Bâtisseur", description: "Donner forme aux territoires et aux capitales.", color: "§6" },
+];
+
 export interface JobSelection {
   /** Pseudo du joueur (les managers du projet sont indexés par pseudo). */
   playerName: string;
-  /** id du métier (catalogue vide à la création de cette base). */
+  /** id du métier. */
   jobId: string;
   xp: number;
   startedAt: number;
@@ -54,13 +67,30 @@ export class JobManager {
       .map((doc) => doc.data);
   }
 
+  /** Catalogue public, utilisé par le menu et les futures récompenses. */
+  catalog(): readonly JobInfo[] {
+    return JOB_CATALOG;
+  }
+
+  /** Commence un métier. Plusieurs métiers peuvent être actifs. */
+  startJob(playerName: string, jobId: string): boolean {
+    if (!JOB_CATALOG.some((job) => job.id === jobId) || this.hasJob(playerName, jobId)) return false;
+    this.db.insert<JobSelection>(JOBS_COLLECTION, {
+      playerName,
+      jobId,
+      xp: 0,
+      startedAt: Date.now(),
+    }, `${playerName}:${jobId}`);
+    return true;
+  }
+
   /** Exerce-t-il déjà ce métier ? */
   hasJob(playerName: string, jobId: string): boolean {
     return this.jobDoc(playerName, jobId) !== undefined;
   }
 
   /** Document DB d'un métier précis (usage interne). */
-  private jobDoc(playerName: string, jobId: string) {
+  private jobDoc(playerName: string, jobId: string): import("../db").StoredDocument<JobSelection> | undefined {
     return this.db
       .find<JobSelection>(JOBS_COLLECTION, (doc) => doc.data.playerName === playerName && doc.data.jobId === jobId)
       .at(0);

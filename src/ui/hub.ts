@@ -18,6 +18,8 @@ import type { JsonDatabase } from "../db/database";
 import { allKnownPlayers } from "../players";
 import { openAdminMenu } from "./admin";
 import { formatDate } from "../territories/manager";
+import type { QuestManager } from "../quests/manager";
+import { openQuestMenu } from "../quests/ui";
 
 export interface HubDeps {
   permissions: PermissionManager;
@@ -32,6 +34,8 @@ export interface HubDeps {
   jobs?: JobManager;
   /** Module Mines (dimension minière). */
   mines?: MinesManager;
+  /** Journal et progression des quêtes. */
+  quests?: QuestManager;
 }
 
 /**
@@ -83,6 +87,9 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
     // ---- Sidebar (colonne de gauche) : section États = système de clans. ----
     form.button(`§6États`, () => openStatesMenu(player, territories));
     form.button(`§eMes infos`, () => openMyInfoMenu(player, deps));
+    if (deps.quests !== undefined) {
+      form.button(`§6Quêtes`, () => openQuestMenu(player, deps.quests as QuestManager, classes, deps.jobs));
+    }
     if (deps.mines !== undefined && deps.mines.isUsable()) {
       form.button(`§bMonde`, () => openWorldMenu(player, deps.mines as MinesManager, () => openHubMenu(player, deps)));
     }

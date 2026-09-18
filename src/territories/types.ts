@@ -54,6 +54,8 @@ export interface TerritoryData {
   members: TerritoryMember[];
   /** Identifiant de la couleur du drapeau (voir TERRITORY_COLORS). */
   color: string;
+  /** Bio courte affichée dans la fiche publique du clan. */
+  description: string;
   /** Clés des chunks contrôlés : `${dimensionId}:${cx}:${cz}`. */
   chunkKeys: string[];
   createdAt: number;

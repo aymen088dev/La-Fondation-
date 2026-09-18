@@ -96,7 +96,11 @@ export const UI_TITLE_TAG = "";
  * en carrés abscons sur la police Bedrock) et les marqueurs internes §h.
  */
 function plain(text: string): string {
-  return text.replace(/§h/g, "").replace(/[■≡⬥✦]\s?/g, "").trim();
+  return text
+    .replace(/§h/g, "")
+    // Bedrock's fallback font renders many box-drawing symbols as squares.
+    .replace(/[■≡⬥✦╔╗╚╝█░▓━→←↔·]\s?/g, "")
+    .trim();
 }
 
 /** Construit un titre de fenêtre normalisé : "NaLandia » <title>". */
@@ -283,6 +287,7 @@ function Banner({
 }): JSX.Element {
   const spec = DESIGNS[design];
   const section = title.startsWith(TITLE_PREFIX) ? title.slice(TITLE_PREFIX.length) : title;
+  const clanHeader = section === "Mon clan";
   return (
     <Panel
       width={"100%"}
@@ -293,11 +298,13 @@ function Banner({
       background={spec.banner}
     >
       {onBack ? <BackArrow onBack={onBack} /> : <Panel width={22} height={22} />}
-      <Panel width={"100%"} flexDirection={"row"} justifyContent={"center"} alignItems={"center"}>
+      {clanHeader ? <Panel width={28} height={22} /> : null}
+      <Panel flexGrow={1} flexDirection={"row"} justifyContent={"center"} alignItems={"center"}>
         <Text scale={spec.titleScale} maxLines={1} overflow={"ellipsis"} shadow={true}>
           {`§l§6${section}`}
         </Text>
       </Panel>
+      {clanHeader ? <Text scale={0.8} maxLines={1}>{"§eDrapeau"}</Text> : null}
       {onClose ? <CloseCross onClose={onClose} /> : <Panel width={22} height={22} />}
     </Panel>
   );
@@ -475,24 +482,38 @@ function ActionsScreen(props: RootProps): JSX.Element {
   const exit = useExit();
 
   const content: JSX.Element[] = [];
+  const navigation: JSX.Element[] = [];
+  const details: JSX.Element[] = [];
   for (const el of props.elements) {
     switch (el.kind) {
-      case "header":
-        content.push(<GroupHeader text={el.text} scale={spec.scale * 1.1} />);
+      case "header": {
+        const node = <GroupHeader text={el.text} scale={spec.scale * 1.1} />;
+        content.push(node);
+        details.push(node);
         break;
-      case "label":
-        content.push(<Text>{`§7${el.text}`}</Text>);
+      }
+      case "label": {
+        const node = <Text>{`§7${el.text}`}</Text>;
+        content.push(node);
+        details.push(node);
         break;
-      case "body":
-        content.push(<Text>{`§f${el.text}`}</Text>);
+      }
+      case "body": {
+        const node = <Text>{`§f${el.text}`}</Text>;
+        content.push(node);
+        details.push(node);
         break;
-      case "divider":
-        content.push(<Sep />);
+      }
+      case "divider": {
+        const node = <Sep />;
+        content.push(node);
+        details.push(node);
         break;
+      }
       case "button": {
         if (el.text === BUTTON_BACK_MARKER) break;
         const onClick = el.onClick;
-        content.push(
+        const node = (
           <Row
             design={props.design}
             label={el.text}
@@ -500,8 +521,10 @@ function ActionsScreen(props: RootProps): JSX.Element {
               props.onAction(onClick);
               exit();
             }}
-          />,
+          />
         );
+        content.push(node);
+        navigation.push(node);
         break;
       }
       case "field":
@@ -526,9 +549,20 @@ function ActionsScreen(props: RootProps): JSX.Element {
         onClose={(): void => exit()}
       />
       <Scroll flexGrow={1}>
-        <Panel width={"100%"} flexDirection={"column"} gap={spec.rowGap} padding={2}>
-          {content}
-        </Panel>
+        {props.design === "console" ? (
+          <Panel width={"100%"} flexDirection={"row"} gap={6} padding={3}>
+            <Panel width={112} flexDirection={"column"} gap={4} padding={3} background={PANE_TEXTURE}>
+              {navigation}
+            </Panel>
+            <Panel flexGrow={1} flexDirection={"column"} gap={spec.rowGap} padding={3}>
+              {details}
+            </Panel>
+          </Panel>
+        ) : (
+          <Panel width={"100%"} flexDirection={"column"} gap={spec.rowGap} padding={3}>
+            {content}
+          </Panel>
+        )}
       </Scroll>
     </Panel>
   );
@@ -589,7 +623,7 @@ function FieldsScreen(props: RootProps): JSX.Element {
           <Panel width={"100%"} flexDirection={"column"} gap={3}>
             {fieldNodes}
           </Panel>
-          {showBack ? <Form.Button type={"exit"} label={"← Retour"} /> : null}
+          {showBack ? <Form.Button type={"exit"} label={"Retour"} /> : null}
           <Form.Button type={"submit"} label={submitLabel} />
         </Panel>
       </Form>

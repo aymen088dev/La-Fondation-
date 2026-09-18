@@ -40,6 +40,7 @@ export function migrateDatabase(file: DatabaseFile): DatabaseFile {
   if (from >= DB_SCHEMA_VERSION) return file;
   if (from < 2) migrateV1ToV2(file);
   if (from < 3) migrateV2ToV3(file);
+  if (from < 4) migrateV3ToV4(file);
 
   file.schemaVersion = DB_SCHEMA_VERSION;
   return file;
@@ -97,6 +98,14 @@ function migrateV1ToV2(file: DatabaseFile): void {
       }
       if (!Array.isArray(data.members)) data.members = [];
     }
+  }
+}
+
+/** Migration v3 → v4 : ajoute une bio de clan sans toucher aux données existantes. */
+function migrateV3ToV4(file: DatabaseFile): void {
+  for (const doc of file.collections["territories"] ?? []) {
+    const data = doc.data as Record<string, unknown>;
+    if (typeof data["description"] !== "string") data["description"] = "Un nouvel État prend forme.";
   }
 }
 

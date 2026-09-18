@@ -12,6 +12,7 @@ import {
 } from "./moderation";
 import { ClassManager } from "./classes";
 import { JobManager } from "./jobs";
+import { QuestManager } from "./quests";
 import { MinesManager } from "./mines/manager";
 import { trackPlayerJoin } from "./players";
 import { log, logDb } from "./lib/log";
@@ -51,11 +52,12 @@ const territories = new TerritoryManager(db);
 const sanctions = new SanctionsManager(db);
 const classes = new ClassManager(db);
 const jobs = new JobManager(db);
+const quests = new QuestManager(db);
 const mines = new MinesManager();
 
 // Les commandes /sn:* doivent être enregistrées au plus tôt (early execution)
 registerCommands(territories, db, modules, permissions, mines);
-registerAdminCommands({ permissions, modules, territories, sanctions, db, classes, jobs, mines });
+registerAdminCommands({ permissions, modules, territories, sanctions, db, classes, jobs, mines, quests });
 registerModerationCommands({ sanctions, permissions, db });
 
 let protectionRegistered = false;
@@ -88,6 +90,30 @@ function applyNameTag(playerName: string): void {
   }
 }
 
+/**
+ * Transforme les systèmes de gameplay en événements de quêtes.
+ * Le polling est volontairement léger et idempotent : une action déjà validée
+ * ne peut plus créer de récompense supplémentaire, mais une reconnexion
+ * reprend toujours la progression persistée.
+ */
+function syncQuestEvents(player: Player): void {
+  const events = [
+    classes.classOf(player.name) !== undefined ? ("choose_class" as const) : undefined,
+    mines.isInMines(player) ? ("enter_mines" as const) : undefined,
+    territories.findByMemberId(player.id) !== undefined ? ("found_clan" as const) : undefined,
+    jobs.jobsOf(player.name).length > 0 ? ("start_job" as const) : undefined,
+  ];
+
+  for (const event of events) {
+    if (event === undefined) continue;
+    for (const quest of quests.record(player.name, event)) {
+      player.sendMessage(
+        `§6[Quêtes] Objectif terminé : §f${quest.title}§6. Ouvre §f/sn:quests§6 pour récupérer ta récompense.`,
+      );
+    }
+  }
+}
+
 world.afterEvents.worldLoad.subscribe(() => {
   // Lecture de la DB : getDynamicProperty n'est autorisé qu'après worldLoad
   Timings.begin("worldLoad");
@@ -98,6 +124,7 @@ world.afterEvents.worldLoad.subscribe(() => {
   sanctions.markLoaded();
   classes.markLoaded();
   jobs.markLoaded();
+  quests.markLoaded();
   mines.markLoaded();
 
   // Dimension minière : check live sur le module "mines" (/sn:modules)
@@ -201,6 +228,7 @@ world.afterEvents.playerSpawn.subscribe((event) => {
   const player = event.player;
   // Tout nouveau joueur reçoit le rôle [Joueur] (gris) avant le tracking.
   permissions.ensureDefaultRole(player.name, player.id);
+  quests.stateOf(player.name);
   trackPlayerJoin(
     db,
     player.id,
@@ -233,7 +261,10 @@ world.afterEvents.playerSpawn.subscribe((event) => {
   // Route de la première connexion : invite au choix de classe si absent.
   if (classes.classOf(player.name) === undefined) {
     player.sendMessage("§d[Classes]§r Choisis ta route avec §f/sn:classes§r — c'est définitif !");
+  } else {
+    quests.record(player.name, "choose_class");
   }
+  syncQuestEvents(player);
 
   // Le titre « ✔ » au spawn confirme que le script est chargé.
   player.onScreenDisplay.setTitle("§6NaLandia");
@@ -244,6 +275,7 @@ system.runInterval(() => {
   if (!permissions.loaded) return;
   for (const player of world.getAllPlayers()) {
     applyNameTag(player.name);
+    syncQuestEvents(player);
   }
 }, 100);
 

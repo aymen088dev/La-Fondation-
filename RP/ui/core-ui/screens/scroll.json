@@ -84,7 +84,7 @@
 				"binding_condition": "once"
 			}
 		],
-		"scroll_speed": 15,
+		"scroll_speed": 20,
 		"scrollbar_track_button": "button.scrollbar_skip_track",
 		"scrollbar_touch_button": "button.scrollbar_touch",
 		"always_listen_to_input": true,
@@ -272,7 +272,7 @@
 	"scrollbar": {
 		"type": "panel",
 		"size": [
-			"6px",
+			"14px",
 			"100%"
 		],
 		/* Barre à GAUCHE (demande utilisateur) : ancrée au bord gauche du
@@ -284,7 +284,7 @@
 				"track": {
 					"type": "scroll_track",
 					"size": [
-						"6px",
+						"14px",
 						"100%"
 					],
 					"anchor_from": "center",
@@ -310,7 +310,7 @@
 				"box": {
 					"type": "scrollbar_box",
 					"size": [
-						"6px",
+						"14px",
 						"20%"
 					],
 					"anchor_from": "top_middle",

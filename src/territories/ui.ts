@@ -207,9 +207,9 @@ export function showStateInfo(
     form.back(() => openStatesMenu(player, manager));
     form.label(
       [
-        `${color.code}╔══════════════════════╗`,
-        `§f§l        ${data.name}`,
-        `${color.code}╚══════════════════════╝`,
+        `${color.code}======================`,
+        `§f§l${data.name}`,
+        `${color.code}======================`,
       ].join("\n"),
     );
     form.label(
@@ -220,6 +220,8 @@ export function showStateInfo(
         `§eTerritoire  §f${extentLine(data.chunkKeys.length)}`,
         `§eCapitale    §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
         `§eMembres     §f${data.members.length}`,
+        ``,
+        `§7${data.description ?? "Un nouvel État prend forme."}`,
       ].join("\n"),
     );
     form.divider();
@@ -261,9 +263,9 @@ export function openMyClanMenu(
     form.back(() => openStatesMenu(player, manager));
     form.label(
       [
-        `${color.code}╔══════════════════════╗`,
-        `§f§l        ${data.name}`,
-        `${color.code}╚══════════════════════╝`,
+        `${color.code}======================`,
+        `§f§l${data.name}`,
+        `${color.code}======================`,
       ].join("\n"),
     );
     form.label(
@@ -271,10 +273,13 @@ export function openMyClanMenu(
         `§eTon rang      §r${rankLabel}`,
         `§eTerritoire    §f${extentLine(data.chunkKeys.length)}`,
         `§eMembres       §f${data.members.length + 1} §7(chef inclus)`,
+        ``,
+        `§f${data.description ?? "Un nouvel État prend forme."}`,
       ].join("\n"),
     );
     form.divider();
 
+    form.button(`§eModifier la bio`, () => openClanBioMenu(player, manager, territory));
     form.button(`§a§lRevendiquer ce chunk`, () => {
       claimHere(player, manager, territory);
     });
@@ -331,6 +336,27 @@ function claimHere(
   }
 }
 
+function openClanBioMenu(
+  player: Player,
+  manager: TerritoryManager,
+  territory: StoredDocument<TerritoryData>,
+): void {
+  const bio = obString(territory.data.description ?? "");
+  void openWindowRaw(player, windowTitle("Bio du clan"), (form) => {
+    form.back(() => openMyClanMenu(player, manager, territory));
+    form.header(`§6§lBio de ${territory.data.name}`);
+    form.label("§7Une phrase courte qui représente ton État. 140 caractères maximum.");
+    form.textField("§eDescription", bio, { placeholder: "Notre histoire commence ici…" });
+    form.button("§aEnregistrer la bio", () => {
+      manager.updateDescription(territory.id, bio.getData());
+      player.sendMessage("§a[Clans] Bio mise à jour.");
+      openMyClanMenu(player, manager, territory);
+    });
+  }).catch((error: unknown) =>
+    console.warn(`[Clans] Erreur bio : ${error instanceof Error ? error.message : String(error)}`),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Membres
 // ---------------------------------------------------------------------------
@@ -362,7 +388,7 @@ export function openMembersMenu(
           (m) =>
             `§8· §f${m.name} §7(${m.rank === "officer" ? "§bofficier" : "membre"}§7)`,
         ),
-        ...(data.members.length === 0 ? [`§8· §o(aucun membre pour l'instant)`] : []),
+        ...(data.members.length === 0 ? [`§8- §o(aucun membre pour l'instant)`] : []),
       ].join("\n"),
     );
     form.divider();

@@ -4,7 +4,7 @@
 
 > **NaLandia** (anciennement « OpenMontage ») : l'add-on de serveur avec territoires/États, clans, rôles, modération, classes, métiers et une dimension minière dédiée — le tout dans **des menus dessinés en JSX** (or & argent, surbrillance au survol) et **trois familles visuelles nettement différentes** selon le menu.
 
-**Packs actuels : 2.0.0** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
+**Packs actuels : 2.2.0** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
 
 ## C'est quoi ce repo ?
 
@@ -25,7 +25,7 @@ Persistée dans le monde via les Dynamic Properties Bedrock :
 ### 🚩 Territoires, États & clans
 - `/sn:create` — fonde un État/clan sur le chunk courant (nom + drapeau) ; extension **carré 3×3** autour du fondateur
 - `/sn:info` — liste cliquable de tous les États + fiche détaillée (« parchemin »)
-- `/sn:clan` — **Mon clan** : revendiquer, membres (invitation, rangs officier/membre, exclusion), drapeau, quitter/dissoudre
+- `/sn:clan` — **Mon clan** : bio éditable, emplacement réservé à la future banque, drapeau en tête, revendication, membres (invitation, rangs officier/membre, exclusion), quitter/dissoudre
 - `/sn:invite`, `/sn:kick`, `/sn:promote`, `/sn:demote`, `/sn:leave`, `/sn:unclaim`, `/sn:disband`, `/sn:flag <couleur|blason>`
 - Drapeaux personnalisés : 10 couleurs + 8 blasons importables (`RP/textures/ui/flags/1.png` … `8.png`)
 - **Protection totale** : casse/pose, coffres, objets, entités, explosions, PvP (avec légitime défense)
@@ -41,7 +41,8 @@ Persistée dans le monde via les Dynamic Properties Bedrock :
 
 ### 🎭 Classes & métiers
 - **Classes** `/sn:classes` : trois voies (Guerrier, Mage, Archer), choix **définitif** avec confirmation solennelle, niveau + barre d'XP, réinitialisation admin (`/sn:db` ou fiche joueur)
-- **Métiers** `/sn:jobs` : bases posées (manager + menu + fiche) pour la suite
+- **Métiers** `/sn:jobs` : atelier distinct des classes, disciplines multiples, progression XP, actions de parcours et classement préparés
+- **Quêtes** `/sn:quests` : journal persistant connecté aux classes, mines, clans et métiers, avec récompenses récupérables
 - Menu **Modules** `/sn:modules` : activer/désactiver chaque module à chaud
 
 ### ⛏️ Mines & monde
@@ -132,7 +133,7 @@ bun run typecheck   # vérifier les types
 bun run textures    # régénérer les textures du Resource Pack
 ```
 
-**Tests : 76 tests unitaires** (DB + migrations, territoires, permissions, modération, classes, générateur de mine, **contrat d'habillage ↔ moteur** : render pack déclaré, toolchain JSX, familles distinctes, textures et nineslice).
+**Tests : 79 tests unitaires** (DB + migrations, territoires, permissions, modération, classes, générateur de mine, **contrat d'habillage ↔ moteur** : render pack déclaré, toolchain JSX, familles distinctes, textures et nineslice).
 
 ## Installer l'add-on en jeu
 
@@ -142,6 +143,10 @@ bun run textures    # régénérer les textures du Resource Pack
 4. Vérifie `/sn:menu` ; si l'UI n'a pas changé, **bump la version du RP** (`RP/manifest.json`) et recharge : Bedrock met les packs en cache
 
 > ℹ️ Le **render pack** qui peint les menus est embarqué dans `RP/ui/core-ui/` : il n'y a **rien de plus à installer** que le Resource Pack habituel. Si les menus s'affichent mais **sans habillage** (ou vides), c'est que le RP n'est pas activé — ou qu'il est resté en cache.
+
+## Base de données et compatibilité
+
+Le schéma DB est maintenant en **v4**. La migration ajoute automatiquement la bio des clans aux mondes existants sans supprimer ni réinitialiser les collections précédentes. Les sauvegardes restent gérées par les Dynamic Properties Bedrock et l'autosave.
 
 ## Roadmap (idées en vrac)
 

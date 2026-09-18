@@ -22,7 +22,7 @@ import { openWindow, openWindowRaw, windowTitle } from "../ui/theme";
 /** Barre de progression ASCII (10 crans) colorée. */
 function xpBar(xp: number, perLevel: number): string {
   const filled = Math.floor((xp / perLevel) * 10);
-  return `§a${"█".repeat(filled)}§8${"░".repeat(10 - filled)}§r`;
+  return `§a[${"|".repeat(filled)}§8${".".repeat(10 - filled)}§a]§r`;
 }
 
 /** Points forts/faibles affichés sur la fiche de chaque voie. */
@@ -35,9 +35,9 @@ const CLASS_TRAITS: Record<string, string[]> = {
 /** Grande bannière d'une voie : bandeaux couleur + NOM BLANC centré. */
 function banner(info: ClassInfo): string {
   return [
-    `${info.color}╔══════════════════════╗`,
-    `§f§l        ${info.name}`,
-    `${info.color}╚══════════════════════╝`,
+    `${info.color}======================`,
+    `§f§l${info.name}`,
+    `${info.color}======================`,
   ].join("\n");
 }
 
@@ -131,7 +131,7 @@ export function openClassesMenu(player: Player, classes: ClassManager, isAdmin =
       form.divider();
       for (const info of CLASS_CATALOG) {
         form.button(
-          `${info.color}§l${info.name}§r §7— ${info.description}`,
+          `${info.color}§l${info.name}§r §7| ${info.description}`,
           () => classCard(player, classes, info, isAdmin, () => openClassesMenu(player, classes, isAdmin)),
         );
       }
@@ -144,10 +144,11 @@ export function openClassesMenu(player: Player, classes: ClassManager, isAdmin =
       form.label(`§cVoie inconnue (${selection.classId}) — contacte un admin.`);
       return;
     }
-    form.label(`§7Ta voie actuelle :`);
+    form.label(`§7Ta voie actuelle`);
+    form.body(`§f${info.description}\n§7Une route unique, construite par tes actions.`);
     form.divider();
     form.button(
-      `${info.color}§l${info.name}§r §7— niveau ${classLevel(selection.xp)}`,
+      `${info.color}§l${info.name}§r §7| niveau ${classLevel(selection.xp)}`,
       () => myClassCard(player, classes, info, selection.xp, isAdmin),
     );
   }).catch((error: unknown) =>

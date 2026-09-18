@@ -235,12 +235,12 @@
 		   bet: descendants (content + all L cells) of a hidden scroll_view stop
 		   evaluating → measurable open-time drop on StressDemo (3 of 4 slots used). */
 		"visible": "#visible",
-		"scroll_speed": 15,
+		"scroll_speed": 20,
 		"scrollbar_track_button": "button.scrollbar_skip_track",
 		"scrollbar_touch_button": "button.scrollbar_touch",
 		"always_listen_to_input": true,
 		"always_handle_pointer": true,
-		"always_handle_scrolling": false,
+		"always_handle_scrolling": true,
 		"scroll_content": "scrolling_content",
 		"scroll_view_port": "scrolling_view_port",
 		"scrollbar_track": "track",

@@ -12,6 +12,8 @@ import { openClassesMenu } from "../classes/ui";
 import type { ClassManager } from "../classes/manager";
 import { openJobsMenu } from "../jobs/ui";
 import type { JobManager } from "../jobs/manager";
+import type { QuestManager } from "../quests/manager";
+import { openQuestMenu } from "../quests/ui";
 import type { MinesManager } from "../mines/manager";
 
 interface AdminContext {
@@ -25,8 +27,10 @@ interface AdminContext {
   db?: JsonDatabase;
   /** Module Classes (route de la première connexion). */
   classes?: ClassManager;
-  /** Module Métiers (catalogue à venir). */
+  /** Module Métiers. */
   jobs?: JobManager;
+  /** Journal de quêtes. */
+  quests?: QuestManager;
 }
 
 /** Le joueur est-il autorisé à ouvrir la GUI d'admin ? (rôle >= 100 OU opérateur vanilla) */
@@ -135,7 +139,28 @@ export function registerAdminCommands(ctx: AdminContext): void {
       },
     );
 
-    // /sn:jobs : métiers (base prête, catalogue à venir)
+    // /sn:quests : journal de progression et récompenses
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:quests",
+        description: "Ouvre le journal des quêtes",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false,
+      },
+      (origin: CustomCommandOrigin) => {
+        const player = origin.sourceEntity as Player | undefined;
+        if (player === undefined || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        system.run(() => {
+          if (ctx.quests === undefined) player.sendMessage("§c[Quêtes] Module indisponible.");
+          else openQuestMenu(player, ctx.quests, ctx.classes, ctx.jobs);
+        });
+        return { status: CustomCommandStatus.Success };
+      },
+    );
+
+    // /sn:jobs : métiers
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:jobs",

@@ -2,7 +2,7 @@
 import { world as world19, system as system16 } from "@minecraft/server";
 
 // src/db/types.ts
-var DB_SCHEMA_VERSION = 3;
+var DB_SCHEMA_VERSION = 4;
 var DB_STORAGE_PARTITION = "openmontage_db";
 
 // src/db/storage.ts
@@ -54,6 +54,7 @@ function migrateDatabase(file) {
   if (from >= DB_SCHEMA_VERSION) return file;
   if (from < 2) migrateV1ToV2(file);
   if (from < 3) migrateV2ToV3(file);
+  if (from < 4) migrateV3ToV4(file);
   file.schemaVersion = DB_SCHEMA_VERSION;
   return file;
 }
@@ -103,6 +104,12 @@ function migrateV1ToV2(file) {
       }
       if (!Array.isArray(data.members)) data.members = [];
     }
+  }
+}
+function migrateV3ToV4(file) {
+  for (const doc of file.collections["territories"] ?? []) {
+    const data = doc.data;
+    if (typeof data["description"] !== "string") data["description"] = "Un nouvel État prend forme.";
   }
 }
 function migrateV2ToV3(file) {
@@ -372,6 +379,7 @@ var INFRACTIONS_COLLECTION = "infractions";
 var MODULES_COLLECTION = "modules";
 var CLASSES_COLLECTION = "classes";
 var JOBS_COLLECTION = "jobs";
+var QUESTS_COLLECTION = "quests";
 var COLLECTION_META = {
   players_index: { label: "Joueurs", hint: "sessions, grade, première/dernière connexion" },
   territories: { label: "États (clans)", hint: "chunks, drapeau, membres" },
@@ -383,7 +391,8 @@ var COLLECTION_META = {
   infractions: { label: "Journal", hint: "historique de toutes les actions de modération" },
   modules: { label: "Modules", hint: "activation des fonctionnalités" },
   classes: { label: "Classes", hint: "route choisie par le joueur (définitive) + XP" },
-  jobs: { label: "Métiers", hint: "métiers exercés et leur progression" }
+  jobs: { label: "Métiers", hint: "métiers exercés et leur progression" },
+  quests: { label: "Quêtes", hint: "objectifs, progression et récompenses" }
 };
 var SECTION_ORDER = Object.keys(COLLECTION_META);
 function collectionLabel(collection) {
@@ -524,6 +533,16 @@ var TerritoryManager = class {
     }
     return { ok: true };
   }
+  /** Met à jour la bio publique du clan. */
+  updateDescription(territoryId, description) {
+    const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+    if (territory === void 0) return false;
+    territory.data.description = description.trim().slice(0, 140);
+    territory.updatedAt = Date.now();
+    this.touch();
+    this.db.save();
+    return true;
+  }
   /** Sauvegarde immédiate de la DB sous-jacente. */
   save() {
     this.db.save();
@@ -607,6 +626,7 @@ var TerritoryManager = class {
         ownerName: owner,
         members: [],
         color: colorId,
+        description: "Un nouvel État prend forme.",
         chunkKeys: [key],
         createdAt: Date.now()
       },
@@ -8617,8 +8637,8 @@ var DESIGN_SPECS = {
     row: "textures/ui/om_btn",
     rowHover: "textures/ui/om_btn_hover",
     rowPress: "textures/ui/om_btn_press",
-    rowHeight: 22,
-    rowGap: 2,
+    rowHeight: 32,
+    rowGap: 5,
     scale: 1,
     titleScale: 1.1
   },
@@ -8630,8 +8650,8 @@ var DESIGN_SPECS = {
     row: "textures/ui/om_card",
     rowHover: "textures/ui/om_card_hover",
     rowPress: "textures/ui/om_card_press",
-    rowHeight: 36,
-    rowGap: 4,
+    rowHeight: 46,
+    rowGap: 6,
     scale: 1.3,
     titleScale: 1.35
   },
@@ -8643,8 +8663,8 @@ var DESIGN_SPECS = {
     row: "textures/ui/ore-styled/button/secondary/background",
     rowHover: "textures/ui/ore-styled/button/secondary/background_hover",
     rowPress: "textures/ui/ore-styled/button/secondary/background_pressed",
-    rowHeight: 24,
-    rowGap: 3,
+    rowHeight: 34,
+    rowGap: 5,
     scale: 1,
     titleScale: 1.2
   }
@@ -8662,6 +8682,7 @@ var CARD_SECTIONS = [
 var PARCHMENT_SECTIONS = [
   "Clan",
   "Mon clan",
+  "Bio du clan",
   "Membres du clan",
   "Membre",
   "Inviter",
@@ -8702,7 +8723,7 @@ function setUiDesign(enabled) {
   uiDesignEnabled = enabled;
 }
 function plain(text) {
-  return text.replace(/§h/g, "").replace(/[■≡⬥✦]\s?/g, "").trim();
+  return text.replace(/§h/g, "").replace(/[■≡⬥✦╔╗╚╝█░▓━→←↔·]\s?/g, "").trim();
 }
 function windowTitle(section) {
   return `${TITLE_PREFIX}${section}`;
@@ -8808,6 +8829,7 @@ function Banner({
 }) {
   const spec = DESIGNS[design];
   const section = title.startsWith(TITLE_PREFIX) ? title.slice(TITLE_PREFIX.length) : title;
+  const clanHeader = section === "Mon clan";
   return /* @__PURE__ */ jsxs(
     Panel,
     {
@@ -8819,7 +8841,9 @@ function Banner({
       background: spec.banner,
       children: [
         onBack ? /* @__PURE__ */ jsx(BackArrow, { onBack }) : /* @__PURE__ */ jsx(Panel, { width: 22, height: 22 }),
-        /* @__PURE__ */ jsx(Panel, { width: "100%", flexDirection: "row", justifyContent: "center", alignItems: "center", children: /* @__PURE__ */ jsx(Text, { scale: spec.titleScale, maxLines: 1, overflow: "ellipsis", shadow: true, children: `§l§6${section}` }) }),
+        clanHeader ? /* @__PURE__ */ jsx(Panel, { width: 28, height: 22 }) : null,
+        /* @__PURE__ */ jsx(Panel, { flexGrow: 1, flexDirection: "row", justifyContent: "center", alignItems: "center", children: /* @__PURE__ */ jsx(Text, { scale: spec.titleScale, maxLines: 1, overflow: "ellipsis", shadow: true, children: `§l§6${section}` }) }),
+        clanHeader ? /* @__PURE__ */ jsx(Text, { scale: 0.8, maxLines: 1, children: "§eDrapeau" }) : null,
         onClose ? /* @__PURE__ */ jsx(CloseCross, { onClose }) : /* @__PURE__ */ jsx(Panel, { width: 22, height: 22 })
       ]
     }
@@ -8946,36 +8970,50 @@ function ActionsScreen(props) {
   useCloseOnUnmount(props.onClose);
   const exit = useExit();
   const content = [];
+  const navigation = [];
+  const details = [];
   for (const el of props.elements) {
     switch (el.kind) {
-      case "header":
-        content.push(/* @__PURE__ */ jsx(GroupHeader, { text: el.text, scale: spec.scale * 1.1 }));
+      case "header": {
+        const node = /* @__PURE__ */ jsx(GroupHeader, { text: el.text, scale: spec.scale * 1.1 });
+        content.push(node);
+        details.push(node);
         break;
-      case "label":
-        content.push(/* @__PURE__ */ jsx(Text, { children: `§7${el.text}` }));
+      }
+      case "label": {
+        const node = /* @__PURE__ */ jsx(Text, { children: `§7${el.text}` });
+        content.push(node);
+        details.push(node);
         break;
-      case "body":
-        content.push(/* @__PURE__ */ jsx(Text, { children: `§f${el.text}` }));
+      }
+      case "body": {
+        const node = /* @__PURE__ */ jsx(Text, { children: `§f${el.text}` });
+        content.push(node);
+        details.push(node);
         break;
-      case "divider":
-        content.push(/* @__PURE__ */ jsx(Sep, {}));
+      }
+      case "divider": {
+        const node = /* @__PURE__ */ jsx(Sep, {});
+        content.push(node);
+        details.push(node);
         break;
+      }
       case "button": {
         if (el.text === BUTTON_BACK_MARKER) break;
         const onClick = el.onClick;
-        content.push(
-          /* @__PURE__ */ jsx(
-            Row,
-            {
-              design: props.design,
-              label: el.text,
-              onPress: () => {
-                props.onAction(onClick);
-                exit();
-              }
+        const node = /* @__PURE__ */ jsx(
+          Row,
+          {
+            design: props.design,
+            label: el.text,
+            onPress: () => {
+              props.onAction(onClick);
+              exit();
             }
-          )
+          }
         );
+        content.push(node);
+        navigation.push(node);
         break;
       }
       case "field":
@@ -8996,7 +9034,10 @@ function ActionsScreen(props) {
         onClose: () => exit()
       }
     ),
-    /* @__PURE__ */ jsx(Scroll, { flexGrow: 1, children: /* @__PURE__ */ jsx(Panel, { width: "100%", flexDirection: "column", gap: spec.rowGap, padding: 2, children: content }) })
+    /* @__PURE__ */ jsx(Scroll, { flexGrow: 1, children: props.design === "console" ? /* @__PURE__ */ jsxs(Panel, { width: "100%", flexDirection: "row", gap: 6, padding: 3, children: [
+      /* @__PURE__ */ jsx(Panel, { width: 112, flexDirection: "column", gap: 4, padding: 3, background: PANE_TEXTURE, children: navigation }),
+      /* @__PURE__ */ jsx(Panel, { flexGrow: 1, flexDirection: "column", gap: spec.rowGap, padding: 3, children: details })
+    ] }) : /* @__PURE__ */ jsx(Panel, { width: "100%", flexDirection: "column", gap: spec.rowGap, padding: 3, children: content }) })
   ] });
 }
 function FieldsScreen(props) {
@@ -9039,7 +9080,7 @@ function FieldsScreen(props) {
         children: /* @__PURE__ */ jsxs(Panel, { width: "100%", flexDirection: "column", gap: 4, padding: 6, background: PANE_TEXTURE, children: [
           /* @__PURE__ */ jsx(Panel, { width: "100%", flexDirection: "column", gap: 3, children: headerNodes }),
           /* @__PURE__ */ jsx(Panel, { width: "100%", flexDirection: "column", gap: 3, children: fieldNodes }),
-          showBack ? /* @__PURE__ */ jsx(Form.Button, { type: "exit", label: "← Retour" }) : null,
+          showBack ? /* @__PURE__ */ jsx(Form.Button, { type: "exit", label: "Retour" }) : null,
           /* @__PURE__ */ jsx(Form.Button, { type: "submit", label: submitLabel })
         ] })
       }
@@ -9633,9 +9674,9 @@ function showStateInfo(player, territory, manager) {
     form.back(() => openStatesMenu(player, manager));
     form.label(
       [
-        `${color.code}╔══════════════════════╗`,
-        `§f§l        ${data.name}`,
-        `${color.code}╚══════════════════════╝`
+        `${color.code}======================`,
+        `§f§l${data.name}`,
+        `${color.code}======================`
       ].join("\n")
     );
     form.label(
@@ -9645,7 +9686,9 @@ function showStateInfo(player, territory, manager) {
         `§eFondé le    §f${formatDate(data.createdAt)}`,
         `§eTerritoire  §f${extentLine(data.chunkKeys.length)}`,
         `§eCapitale    §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
-        `§eMembres     §f${data.members.length}`
+        `§eMembres     §f${data.members.length}`,
+        ``,
+        `§7${data.description ?? "Un nouvel État prend forme."}`
       ].join("\n")
     );
     form.divider();
@@ -9672,19 +9715,22 @@ function openMyClanMenu(player, manager, territory) {
     form.back(() => openStatesMenu(player, manager));
     form.label(
       [
-        `${color.code}╔══════════════════════╗`,
-        `§f§l        ${data.name}`,
-        `${color.code}╚══════════════════════╝`
+        `${color.code}======================`,
+        `§f§l${data.name}`,
+        `${color.code}======================`
       ].join("\n")
     );
     form.label(
       [
         `§eTon rang      §r${rankLabel}`,
         `§eTerritoire    §f${extentLine(data.chunkKeys.length)}`,
-        `§eMembres       §f${data.members.length + 1} §7(chef inclus)`
+        `§eMembres       §f${data.members.length + 1} §7(chef inclus)`,
+        ``,
+        `§f${data.description ?? "Un nouvel État prend forme."}`
       ].join("\n")
     );
     form.divider();
+    form.button(`§eModifier la bio`, () => openClanBioMenu(player, manager, territory));
     form.button(`§a§lRevendiquer ce chunk`, () => {
       claimHere(player, manager, territory);
     });
@@ -9727,6 +9773,22 @@ function claimHere(player, manager, territory) {
     say(player, `§c[Clans] ${result.reason ?? "Revendication impossible."}`);
   }
 }
+function openClanBioMenu(player, manager, territory) {
+  const bio = obString(territory.data.description ?? "");
+  void openWindowRaw(player, windowTitle("Bio du clan"), (form) => {
+    form.back(() => openMyClanMenu(player, manager, territory));
+    form.header(`§6§lBio de ${territory.data.name}`);
+    form.label("§7Une phrase courte qui représente ton État. 140 caractères maximum.");
+    form.textField("§eDescription", bio, { placeholder: "Notre histoire commence ici…" });
+    form.button("§aEnregistrer la bio", () => {
+      manager.updateDescription(territory.id, bio.getData());
+      player.sendMessage("§a[Clans] Bio mise à jour.");
+      openMyClanMenu(player, manager, territory);
+    });
+  }).catch(
+    (error) => console.warn(`[Clans] Erreur bio : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
 function openMembersMenu(player, manager, territory) {
   const fresh = manager.findOne(territory.id);
   if (fresh === void 0) {
@@ -9747,7 +9809,7 @@ function openMembersMenu(player, manager, territory) {
         ...data.members.map(
           (m) => `§8· §f${m.name} §7(${m.rank === "officer" ? "§bofficier" : "membre"}§7)`
         ),
-        ...data.members.length === 0 ? [`§8· §o(aucun membre pour l'instant)`] : []
+        ...data.members.length === 0 ? [`§8- §o(aucun membre pour l'instant)`] : []
       ].join("\n")
     );
     form.divider();
@@ -10421,9 +10483,9 @@ function openWorldMenu(player, mines2, back) {
     form.label(
       [
         `§7Un monde §fentièrement massé dans la pierre§7, en profondeur :`,
-        `§8· §f70 couches§8 à miner entre deux lits de bedrock`,
-        `§8· à toi de creuser tes galeries, façon vrai minage`,
-        `§8· minerais §fplus riches qu'en surface§8, sans excès`
+        `§8- §f70 couches§8 à miner entre deux lits de bedrock`,
+        `§8- à toi de creuser tes galeries, façon vrai minage`,
+        `§8- minerais §fplus riches qu'en surface§8, sans excès`
       ].join("\n")
     );
     form.button(`§b§lDescendre dans la Mine`, () => {
@@ -10435,7 +10497,7 @@ function openWorldMenu(player, mines2, back) {
     });
     form.divider();
     form.label(
-      `§8Strates : ${ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join("§8 · ")}`
+      `§8Strates : ${ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join("§8 - ")}`
     );
   }).catch(
     (error) => console.warn(`[Mines] Erreur menu monde : ${error instanceof Error ? error.message : String(error)}`)
@@ -12173,7 +12235,7 @@ var ClassManager = class {
 // src/classes/ui.ts
 function xpBar(xp, perLevel) {
   const filled = Math.floor(xp / perLevel * 10);
-  return `§a${"█".repeat(filled)}§8${"░".repeat(10 - filled)}§r`;
+  return `§a[${"|".repeat(filled)}§8${".".repeat(10 - filled)}§a]§r`;
 }
 var CLASS_TRAITS = {
   guerrier: ["§c+ Dégâts au corps à corps", "§c+ Résistance au combat", "§7- Portée courte"],
@@ -12182,9 +12244,9 @@ var CLASS_TRAITS = {
 };
 function banner(info) {
   return [
-    `${info.color}╔══════════════════════╗`,
-    `§f§l        ${info.name}`,
-    `${info.color}╚══════════════════════╝`
+    `${info.color}======================`,
+    `§f§l${info.name}`,
+    `${info.color}======================`
   ].join("\n");
 }
 function classCard(player, classes2, info, _isAdmin, backTo) {
@@ -12248,7 +12310,7 @@ il déterminera ta progression sur le serveur.`
       form.divider();
       for (const info2 of CLASS_CATALOG) {
         form.button(
-          `${info2.color}§l${info2.name}§r §7— ${info2.description}`,
+          `${info2.color}§l${info2.name}§r §7| ${info2.description}`,
           () => classCard(player, classes2, info2, isAdmin, () => openClassesMenu(player, classes2, isAdmin))
         );
       }
@@ -12259,10 +12321,12 @@ il déterminera ta progression sur le serveur.`
       form.label(`§cVoie inconnue (${selection.classId}) — contacte un admin.`);
       return;
     }
-    form.label(`§7Ta voie actuelle :`);
+    form.label(`§7Ta voie actuelle`);
+    form.body(`§f${info.description}
+§7Une route unique, construite par tes actions.`);
     form.divider();
     form.button(
-      `${info.color}§l${info.name}§r §7— niveau ${classLevel(selection.xp)}`,
+      `${info.color}§l${info.name}§r §7| niveau ${classLevel(selection.xp)}`,
       () => myClassCard(player, classes2, info, selection.xp, isAdmin)
     );
   }).catch(
@@ -12293,6 +12357,11 @@ function confirmClassChoice(player, classes2, info, backTo) {
 }
 
 // src/jobs/manager.ts
+var JOB_CATALOG = [
+  { id: "mineur", name: "Mineur", description: "Extraire les ressources et révéler les strates.", color: "§b" },
+  { id: "explorateur", name: "Explorateur", description: "Découvrir les mondes et les frontières de NaLandia.", color: "§e" },
+  { id: "bâtisseur", name: "Bâtisseur", description: "Donner forme aux territoires et aux capitales.", color: "§6" }
+];
 var JOB_XP_PER_LEVEL = 50;
 function jobLevel(xp) {
   return Math.floor(xp / JOB_XP_PER_LEVEL) + 1;
@@ -12309,6 +12378,21 @@ var JobManager = class {
   /** Les métiers exercés par le joueur (vide = aucun). */
   jobsOf(playerName) {
     return this.db.find(JOBS_COLLECTION, (doc) => doc.data.playerName === playerName).map((doc) => doc.data);
+  }
+  /** Catalogue public, utilisé par le menu et les futures récompenses. */
+  catalog() {
+    return JOB_CATALOG;
+  }
+  /** Commence un métier. Plusieurs métiers peuvent être actifs. */
+  startJob(playerName, jobId) {
+    if (!JOB_CATALOG.some((job) => job.id === jobId) || this.hasJob(playerName, jobId)) return false;
+    this.db.insert(JOBS_COLLECTION, {
+      playerName,
+      jobId,
+      xp: 0,
+      startedAt: Date.now()
+    }, `${playerName}:${jobId}`);
+    return true;
   }
   /** Exerce-t-il déjà ce métier ? */
   hasJob(playerName, jobId) {
@@ -12337,31 +12421,56 @@ var JobManager = class {
 
 // src/jobs/ui.ts
 function xpBar2(xp, perLevel) {
-  const filled = Math.floor(xp / perLevel * 10);
-  return `§a${"█".repeat(filled)}§8${"░".repeat(10 - filled)}§r`;
+  const filled = Math.min(10, Math.floor(xp / perLevel * 10));
+  return `§a[${"|".repeat(filled)}§8${".".repeat(10 - filled)}§a]§r`;
 }
 function openJobsMenu(player, jobs2) {
   void openWindow(player, "Métiers", (form) => {
-    form.header(`§f§lMétiers`);
     const mine = jobs2.jobsOf(player.name);
+    form.header("§b§lAtelier des métiers");
+    form.body(
+      [
+        "§7Les métiers sont des disciplines parallèles à ta classe.",
+        "§7Chaque métier possède sa propre progression et son propre rythme.",
+        `§7Disciplines actives : §f${mine.length}/${jobs2.catalog().length}`
+      ].join("\n")
+    );
+    form.divider();
     if (mine.length > 0) {
+      form.header("§e§lMétiers actifs");
       for (const job of mine) {
-        const level = jobLevel(job.xp);
-        const progress = job.xp % 50;
-        form.label(
-          `§6- §f${job.jobId} §7— niveau §f§l${level}§r
-${xpBar2(progress, 50)} §8(${progress}/50 XP)`
+        const info = jobs2.catalog().find((candidate) => candidate.id === job.jobId);
+        form.button(
+          `${info?.color ?? "§f"}§l${info?.name ?? job.jobId}§r §7| niveau ${jobLevel(job.xp)} ${xpBar2(job.xp % JOB_XP_PER_LEVEL, JOB_XP_PER_LEVEL)}`,
+          () => {
+            if (jobs2.quitJob(player.name, job.jobId)) {
+              player.sendMessage(`§e[Métiers] Tu quittes le métier ${info?.name ?? job.jobId}.`);
+            }
+            openJobsMenu(player, jobs2);
+          }
         );
       }
       form.divider();
-    } else {
-      form.label(`§7Tu n'exerces aucun métier pour l'instant.`);
-      form.divider();
     }
-    form.label(
-      "§7Aucun métier n'est encore ouvert au recrutement.\n§8Le registre (bûcheron, mineur…) sera complété prochainement — les fondations sont prêtes."
-    );
-  }).catch((error) => console.warn(`[Jobs] ${error instanceof Error ? error.message : String(error)}`));
+    form.header("§6§lChoisir une discipline");
+    for (const info of jobs2.catalog()) {
+      if (jobs2.hasJob(player.name, info.id)) continue;
+      form.button(`${info.color}§l${info.name}§r §7| ${info.description}`, () => {
+        if (jobs2.startJob(player.name, info.id)) {
+          player.sendMessage(`§a[Métiers] Métier commencé : ${info.name}.`);
+        }
+        openJobsMenu(player, jobs2);
+      });
+    }
+    form.divider();
+    form.header("§e§lOutils du parcours");
+    form.button("§eVoir ma progression", () => {
+      player.sendMessage("§e[Métiers] Ta progression détaillée est affichée sur chaque discipline active.");
+    });
+    form.button("§6Classement des métiers", () => {
+      player.sendMessage("§6[Métiers] Le classement sera alimenté quand les actions de métier seront branchées.");
+    });
+  }).catch((error) => console.warn(`[Métiers] ${error instanceof Error ? error.message : String(error)}`));
 }
 
 // src/ui/admin.ts
@@ -12503,6 +12612,195 @@ function openAdminMenu(player, deps) {
   }).catch((error) => console.warn(`[Admin] ${error instanceof Error ? error.message : String(error)}`));
 }
 
+// src/quests/manager.ts
+var QUEST_CATALOG = [
+  {
+    id: "first_route",
+    title: "Trouver sa voie",
+    category: "origins",
+    description: "Choisis une classe et engage ton aventure.",
+    event: "choose_class",
+    target: 1,
+    reward: { classXp: 25 }
+  },
+  {
+    id: "under_the_stone",
+    title: "Sous la pierre",
+    category: "mastery",
+    description: "Entre dans la dimension minière et découvre ses strates.",
+    event: "enter_mines",
+    target: 1,
+    reward: { classXp: 20 }
+  },
+  {
+    id: "a_place_to_belong",
+    title: "Un endroit à soi",
+    category: "territory",
+    description: "Fonde ou rejoins un clan pour avoir une place sur la carte.",
+    event: "found_clan",
+    target: 1,
+    reward: { classXp: 30 }
+  },
+  {
+    id: "learn_a_trade",
+    title: "Le premier métier",
+    category: "mastery",
+    description: "Commence un métier et donne une direction à tes récoltes.",
+    event: "start_job",
+    target: 1,
+    reward: { jobXp: 15 }
+  }
+];
+function definitionOf(id) {
+  return QUEST_CATALOG.find((quest) => quest.id === id);
+}
+var QuestManager = class {
+  constructor(db2) {
+    this.db = db2;
+  }
+  loaded = false;
+  markLoaded() {
+    this.loaded = true;
+  }
+  stateOf(playerName) {
+    const existing = this.db.findOne(QUESTS_COLLECTION, playerName);
+    if (existing !== void 0) return existing.data;
+    const state = {
+      playerName,
+      active: [],
+      progress: {},
+      completed: [],
+      claimed: []
+    };
+    this.db.insert(QUESTS_COLLECTION, state, playerName);
+    return state;
+  }
+  questOf(id) {
+    return definitionOf(id);
+  }
+  active(playerName) {
+    const state = this.stateOf(playerName);
+    return state.active.map(definitionOf).filter((quest) => quest !== void 0);
+  }
+  progressOf(playerName, questId) {
+    return this.stateOf(playerName).progress[questId] ?? 0;
+  }
+  isCompleted(playerName, questId) {
+    return this.stateOf(playerName).completed.includes(questId);
+  }
+  start(playerName, questId) {
+    const quest = definitionOf(questId);
+    if (quest === void 0) return { ok: false, error: "Quête inconnue." };
+    const state = this.stateOf(playerName);
+    if (state.claimed.includes(questId)) return { ok: false, error: "Cette quête est déjà terminée." };
+    if (state.active.includes(questId)) return { ok: false, error: "Cette quête est déjà suivie." };
+    state.active.push(questId);
+    state.progress[questId] ??= 0;
+    this.touch(state);
+    return { ok: true, state };
+  }
+  /** Enregistre une action de gameplay et valide les quêtes concernées. */
+  record(playerName, event, amount = 1) {
+    if (amount <= 0) return [];
+    const state = this.stateOf(playerName);
+    const completedNow = [];
+    for (const quest of QUEST_CATALOG) {
+      if (quest.event !== event || state.claimed.includes(quest.id)) continue;
+      if (!state.active.includes(quest.id)) state.active.push(quest.id);
+      const before = state.progress[quest.id] ?? 0;
+      const after = Math.min(quest.target, before + amount);
+      state.progress[quest.id] = after;
+      if (after >= quest.target && !state.completed.includes(quest.id)) {
+        state.completed.push(quest.id);
+        completedNow.push(quest);
+      }
+    }
+    this.touch(state);
+    return completedNow;
+  }
+  claim(playerName, questId) {
+    const quest = definitionOf(questId);
+    if (quest === void 0) return { ok: false, error: "Quête inconnue." };
+    const state = this.stateOf(playerName);
+    if (!state.completed.includes(questId)) return { ok: false, error: "La quête n'est pas encore terminée." };
+    if (state.claimed.includes(questId)) return { ok: false, error: "Récompense déjà récupérée." };
+    state.claimed.push(questId);
+    state.active = state.active.filter((id) => id !== questId);
+    this.touch(state);
+    return { ok: true, state, reward: quest.reward };
+  }
+  touch(state) {
+    const doc = this.db.findOne(QUESTS_COLLECTION, state.playerName);
+    if (doc !== void 0) doc.updatedAt = Date.now();
+    this.db.markDirty();
+  }
+};
+
+// src/quests/ui.ts
+function rewardLabel(questId, quests2) {
+  const reward = quests2.questOf(questId)?.reward;
+  if (reward?.classXp !== void 0) return `+${reward.classXp} XP de classe`;
+  if (reward?.jobXp !== void 0) return `+${reward.jobXp} XP de métier`;
+  return "Récompense à découvrir";
+}
+function openQuestMenu(player, quests2, classes2, jobs2) {
+  void openWindow(player, "Quêtes", (form) => {
+    const state = quests2.stateOf(player.name);
+    const active = quests2.active(player.name);
+    const completedCount = state.claimed.length;
+    form.header("§6§lJournal de route");
+    form.body(
+      [
+        "§7Chaque quête accompagne un système réel de NaLandia.",
+        `§7Progression : §f${completedCount}/${QUEST_CATALOG.length}§7 récompense(s) récupérée(s).`,
+        classes2?.classOf(player.name) !== void 0 ? `§7Voie actuelle : §f${classes2.classOf(player.name)?.classId}` : "§7Voie actuelle : §8à choisir",
+        jobs2 !== void 0 ? `§7Métiers actifs : §f${jobs2.jobsOf(player.name).length}` : "",
+        `§7Les pistes se déclenchent quand tu vis réellement l'action : classe, mine, clan ou métier.`
+      ].filter((line) => line !== "").join("\n")
+    );
+    form.divider();
+    if (active.length === 0) {
+      form.label("§8Aucune quête suivie. Les prochaines aventures apparaîtront ici.");
+    }
+    for (const quest of active) {
+      const progress = quests2.progressOf(player.name, quest.id);
+      const ready = quests2.isCompleted(player.name, quest.id);
+      form.button(
+        `${ready ? "§a" : "§e"}${quest.title}§r §7${progress}/${quest.target} — ${rewardLabel(quest.id, quests2)}`,
+        () => {
+          if (!ready) {
+            player.sendMessage(`§7[Quêtes] ${quest.description}`);
+            return;
+          }
+          const result = quests2.claim(player.name, quest.id);
+          if (!result.ok) {
+            player.sendMessage(`§c[Quêtes] ${result.error}`);
+            return;
+          }
+          if (result.reward?.classXp !== void 0 && classes2 !== void 0) {
+            classes2.addXp(player.name, result.reward.classXp);
+          }
+          if (result.reward?.jobXp !== void 0 && jobs2 !== void 0) {
+            const firstJob = jobs2.jobsOf(player.name)[0];
+            if (firstJob !== void 0) jobs2.addXp(player.name, firstJob.jobId, result.reward.jobXp);
+          }
+          player.sendMessage(`§6[Quêtes] Récompense récupérée : §f${rewardLabel(quest.id, quests2)}§6.`);
+          openQuestMenu(player, quests2, classes2, jobs2);
+        }
+      );
+    }
+    form.divider();
+    form.header("§7Pistes disponibles");
+    for (const quest of QUEST_CATALOG.filter((candidate) => !state.active.includes(candidate.id) && !state.claimed.includes(candidate.id))) {
+      form.button(`§8Suivre : ${quest.title} §7— ${quest.description}`, () => {
+        const result = quests2.start(player.name, quest.id);
+        if (!result.ok) player.sendMessage(`§c[Quêtes] ${result.error}`);
+        openQuestMenu(player, quests2, classes2, jobs2);
+      });
+    }
+  }).catch((error) => console.warn(`[Quêtes] ${error instanceof Error ? error.message : String(error)}`));
+}
+
 // src/ui/hub.ts
 function openHubMenu(player, deps) {
   const { permissions: permissions2, territories: territories2, sanctions: sanctions2, classes: classes2, db: db2 } = deps;
@@ -12533,6 +12831,9 @@ function openHubMenu(player, deps) {
     );
     form.button(`§6États`, () => openStatesMenu(player, territories2));
     form.button(`§eMes infos`, () => openMyInfoMenu(player, deps));
+    if (deps.quests !== void 0) {
+      form.button(`§6Quêtes`, () => openQuestMenu(player, deps.quests, classes2, deps.jobs));
+    }
     if (deps.mines !== void 0 && deps.mines.isUsable()) {
       form.button(`§bMonde`, () => openWorldMenu(player, deps.mines, () => openHubMenu(player, deps)));
     }
@@ -12665,6 +12966,25 @@ function registerAdminCommands(ctx) {
           }
           const isAdmin = canUseAdminPanel(player, ctx.permissions);
           openClassesMenu(player, ctx.classes, isAdmin);
+        });
+        return { status: CustomCommandStatus2.Success };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:quests",
+        description: "Ouvre le journal des quêtes",
+        permissionLevel: CommandPermissionLevel2.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus2.Failure, message: "Réservé aux joueurs." };
+        }
+        system13.run(() => {
+          if (ctx.quests === void 0) player.sendMessage("§c[Quêtes] Module indisponible.");
+          else openQuestMenu(player, ctx.quests, ctx.classes, ctx.jobs);
         });
         return { status: CustomCommandStatus2.Success };
       }
@@ -12964,9 +13284,10 @@ var territories = new TerritoryManager(db);
 var sanctions = new SanctionsManager(db);
 var classes = new ClassManager(db);
 var jobs = new JobManager(db);
+var quests = new QuestManager(db);
 var mines = new MinesManager();
 registerCommands(territories, db, modules, permissions, mines);
-registerAdminCommands({ permissions, modules, territories, sanctions, db, classes, jobs, mines });
+registerAdminCommands({ permissions, modules, territories, sanctions, db, classes, jobs, mines, quests });
 registerModerationCommands({ sanctions, permissions, db });
 var protectionRegistered = false;
 var chatRegistered = false;
@@ -12987,6 +13308,22 @@ function applyNameTag(playerName) {
   } catch {
   }
 }
+function syncQuestEvents(player) {
+  const events = [
+    classes.classOf(player.name) !== void 0 ? "choose_class" : void 0,
+    mines.isInMines(player) ? "enter_mines" : void 0,
+    territories.findByMemberId(player.id) !== void 0 ? "found_clan" : void 0,
+    jobs.jobsOf(player.name).length > 0 ? "start_job" : void 0
+  ];
+  for (const event of events) {
+    if (event === void 0) continue;
+    for (const quest of quests.record(player.name, event)) {
+      player.sendMessage(
+        `§6[Quêtes] Objectif terminé : §f${quest.title}§6. Ouvre §f/sn:quests§6 pour récupérer ta récompense.`
+      );
+    }
+  }
+}
 world19.afterEvents.worldLoad.subscribe(() => {
   Timings.begin("worldLoad");
   db.load();
@@ -12996,6 +13333,7 @@ world19.afterEvents.worldLoad.subscribe(() => {
   sanctions.markLoaded();
   classes.markLoaded();
   jobs.markLoaded();
+  quests.markLoaded();
   mines.markLoaded();
   mines.enabledCheck = () => modules.isEnabled("mines");
   mines.registerMaintenance();
@@ -13066,6 +13404,7 @@ world19.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
   const player = event.player;
   permissions.ensureDefaultRole(player.name, player.id);
+  quests.stateOf(player.name);
   trackPlayerJoin(
     db,
     player.id,
@@ -13091,13 +13430,17 @@ world19.afterEvents.playerSpawn.subscribe((event) => {
   player.sendMessage("§6[NaLandia]§r Bienvenue ! Menu : §f/sn:menu");
   if (classes.classOf(player.name) === void 0) {
     player.sendMessage("§d[Classes]§r Choisis ta route avec §f/sn:classes§r — c'est définitif !");
+  } else {
+    quests.record(player.name, "choose_class");
   }
+  syncQuestEvents(player);
   player.onScreenDisplay.setTitle("§6NaLandia");
 });
 system16.runInterval(() => {
   if (!permissions.loaded) return;
   for (const player of world19.getAllPlayers()) {
     applyNameTag(player.name);
+    syncQuestEvents(player);
   }
 }, 100);
 system16.afterEvents.scriptEventReceive.subscribe((event) => {

@@ -6,7 +6,7 @@
  */
 
 /** Numéro de version du schéma de la DB (pour les migrations futures). */
-export const DB_SCHEMA_VERSION = 3;
+export const DB_SCHEMA_VERSION = 4;
 
 /** Préfixe de clé utilisé pour le stockage Bedrock (Dynamic Properties). */
 export const DB_STORAGE_PARTITION = "openmontage_db";

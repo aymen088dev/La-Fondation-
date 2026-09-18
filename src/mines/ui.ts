@@ -64,9 +64,9 @@ export function openWorldMenu(player: Player, mines: MinesManager, back?: () => 
     form.label(
       [
         `§7Un monde §fentièrement massé dans la pierre§7, en profondeur :`,
-        `§8· §f70 couches§8 à miner entre deux lits de bedrock`,
-        `§8· à toi de creuser tes galeries, façon vrai minage`,
-        `§8· minerais §fplus riches qu'en surface§8, sans excès`,
+        `§8- §f70 couches§8 à miner entre deux lits de bedrock`,
+        `§8- à toi de creuser tes galeries, façon vrai minage`,
+        `§8- minerais §fplus riches qu'en surface§8, sans excès`,
       ].join("\n"),
     );
     form.button(`§b§lDescendre dans la Mine`, () => {
@@ -79,7 +79,7 @@ export function openWorldMenu(player: Player, mines: MinesManager, back?: () => 
 
     form.divider();
     form.label(
-      `§8Strates : ${ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join("§8 · ")}`,
+      `§8Strates : ${ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join("§8 - ")}`,
     );
   }).catch((error: unknown) =>
     console.warn(`[Mines] Erreur menu monde : ${error instanceof Error ? error.message : String(error)}`),
@@ -104,7 +104,7 @@ export function openMineMenu(player: Player, mines: MinesManager, back?: () => v
       [
         `§b§lLa dimension minière§r`,
         `§7Un monde §fentièrement massé dans la pierre§7 :`,
-        `§8· §f70 couches§8 à miner entre deux lits de bedrock`,
+        `§8- §f70 couches§8 à miner entre deux lits de bedrock`,
         `§8· creuse tes propres galeries, façon vrai minage`,
         `§8· minerais §fplus riches qu'en surface§8, équilibrés par profondeur`,
         `§8Strates : §fcharbon§7 partout, §fcuivre/fer§7 puis §for/redstone§7,`,
