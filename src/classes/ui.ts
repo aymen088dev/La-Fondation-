@@ -130,10 +130,20 @@ export function openClassesMenu(player: Player, classes: ClassManager, isAdmin =
       );
       form.divider();
       for (const info of CLASS_CATALOG) {
+        // Une classe forme une vraie fiche : nom, identité, puis action. Les
+        // cartes restent entièrement natives et donc accessibles au tactile.
+        form.header(`${info.color}§l${info.name}§r`);
+        form.label(
+          [
+            `§f${info.description}`,
+            `§7${CLASS_TRAITS[info.id].join("   ")}`,
+          ].join("\n"),
+        );
         form.button(
-          `${info.color}§l${info.name}§r §7| ${info.description}`,
+          `§6Voir la fiche de ${info.name}`,
           () => classCard(player, classes, info, isAdmin, () => openClassesMenu(player, classes, isAdmin)),
         );
+        form.divider();
       }
       return;
     }

@@ -156,10 +156,15 @@ export function openStatesMenu(player: Player, manager: TerritoryManager): void 
     if (states.length > 0) {
       for (const state of states) {
         const color = getColor(state.data.color);
-        form.button(
-          `${color.code}${state.data.name}§r §7— par ${state.data.owner}`,
-          () => showStateInfo(player, state, manager),
+        form.header(`${color.code}§l${state.data.name}§r`);
+        form.label(
+          [
+            `§7Dirigé par §f${state.data.owner}`,
+            `§7Territoire §f${extentLine(state.data.chunkKeys.length)}`,
+          ].join("\n"),
         );
+        form.button(`§6Ouvrir la fiche de ${state.data.name}`, () => showStateInfo(player, state, manager));
+        form.divider();
       }
       form.divider();
     }
@@ -268,8 +273,12 @@ export function openMyClanMenu(
         `${color.code}======================`,
       ].join("\n"),
     );
+    // Composition de la fiche clan : identité en tête, emplacement réservé
+    // à la banque et drapeau visibles avant les actions.
     form.label(
       [
+        `§eDrapeau       §r${color.code}${color.id}`,
+        `§eBanque        §8emplacement réservé`,
         `§eTon rang      §r${rankLabel}`,
         `§eTerritoire    §f${extentLine(data.chunkKeys.length)}`,
         `§eMembres       §f${data.members.length + 1} §7(chef inclus)`,
@@ -279,13 +288,14 @@ export function openMyClanMenu(
     );
     form.divider();
 
+    form.header("§6§lGestion du clan");
     form.button(`§eModifier la bio`, () => openClanBioMenu(player, manager, territory));
     form.button(`§a§lRevendiquer ce chunk`, () => {
       claimHere(player, manager, territory);
     });
     form.button(`§b§lMembres`, () => openMembersMenu(player, manager, territory));
     if (isOwner) {
-      form.button(`§6§lDrapeau`, () => openFlagMenu(player, manager, territory));
+      form.button(`§6§lModifier le drapeau`, () => openFlagMenu(player, manager, territory));
     }
     form.divider();
 
@@ -560,8 +570,6 @@ export function openFlagMenu(
       form.button(`§bBlason ${n}`, () => apply(flagValue, `Blason ${n}`));
     }
 
-    form.divider();
-    form.back(() => openMyClanMenu(player, manager, territory));
   }).catch((error: unknown) =>
     console.warn(`[Clans] Erreur menu drapeau : ${error instanceof Error ? error.message : String(error)}`),
   );

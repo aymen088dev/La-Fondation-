@@ -43,8 +43,16 @@ export function openQuestMenu(
     for (const quest of active) {
       const progress = quests.progressOf(player.name, quest.id);
       const ready = quests.isCompleted(player.name, quest.id);
+      form.header(`${ready ? "§a" : "§e"}§l${quest.title}§r`);
+      form.label(
+        [
+          `§7${quest.description}`,
+          `§7Progression §f${progress}/${quest.target}`,
+          `§7Récompense §6${rewardLabel(quest.id, quests)}`,
+        ].join("\n"),
+      );
       form.button(
-        `${ready ? "§a" : "§e"}${quest.title}§r §7${progress}/${quest.target} — ${rewardLabel(quest.id, quests)}`,
+        ready ? "§aRécupérer la récompense" : "§eVoir les détails",
         () => {
           if (!ready) {
             player.sendMessage(`§7[Quêtes] ${quest.description}`);
@@ -71,11 +79,14 @@ export function openQuestMenu(
     form.divider();
     form.header("§7Pistes disponibles");
     for (const quest of QUEST_CATALOG.filter((candidate) => !state.active.includes(candidate.id) && !state.claimed.includes(candidate.id))) {
-      form.button(`§8Suivre : ${quest.title} §7— ${quest.description}`, () => {
+      form.header(`§8${quest.title}`);
+      form.label(`§8${quest.description}`);
+      form.button("§6Suivre cette piste", () => {
         const result = quests.start(player.name, quest.id);
         if (!result.ok) player.sendMessage(`§c[Quêtes] ${result.error}`);
         openQuestMenu(player, quests, classes, jobs);
       });
+      form.divider();
     }
   }).catch((error: unknown) => console.warn(`[Quêtes] ${error instanceof Error ? error.message : String(error)}`));
 }

@@ -1,28 +1,21 @@
 /**
- * CONTRAT DE STYLE ENTRE LES MENUS ET LE MOTEUR JSX — NaLandia v20.
+ * CONTRAT DE NAVIGATION DES MENUS NATIFS — NaLandia v21.
  *
- * ⚠️ CHANGEMENT D'ARCHITECTURE MAJEUR (v20) : le reskin JSON UI maison (deux
- * mises en page devinées via une comparaison de TITRE dans le JSON UI) est
- * REMPLACÉ par le runtime `@bedrock-core/ui`, qui sérialise l'arbre JSX du
- * script dans la chaîne du formulaire ; un « render pack » JSON UI le décode
- * et peint l'écran. Conséquence directe : la mise en page n'est PLUS devinée,
- * elle est CHOISIE par notre propre code au moment d'ouvrir le menu.
+ * Les formulaires sont rendus par l'API officielle `@minecraft/server-ui`.
+ * Ce module conserve uniquement les familles de sections et leurs métriques
+ * de compatibilité : il ne tente jamais de modifier le JSON UI de Bedrock.
  *
  * Ce module est VOLONTAIREMENT SANS AUCUN IMPORT : c'est le seul endroit du
  * projet où l'on peut vérifier par des tests unitaires l'accord entre les menus
  * écrits en TypeScript et le design appliqué (importer `theme.tsx` tirerait
  * `@minecraft/server`, indisponible hors du jeu).
  *
- * Il reste TROIS familles visuelles (plus le mode « formulaire à champs »), et
- * chacune a sa propre silhouette — pas seulement une autre couleur :
- *   - `console`   → menus hub/admin et leurs sous-menus : barre de titre
- *                   (flèche retour à gauche) + colonne de tuiles fines ;
- *   - `cards`     → menus de contenu (Classes, Métiers, Le Monde, Mines,
- *                   États) : GRAND bandeau doré + grandes cartes empilées,
- *                   fond vert émeraude ;
- *   - `parchment` → fiches (Clan, Mon clan, Membres, Membre, Inviter,
- *                   Drapeau, Dissoudre/Créer un clan, Mes infos) : bandeau
- *                   doré + panneau de texte parchemin, fond bleu nuit.
+ * Il reste TROIS familles sémantiques (plus le mode « formulaire à champs »),
+ * utilisées pour conserver une navigation cohérente :
+ *   - `console`   → menus hub/admin et leurs sous-menus ;
+ *   - `cards`     → menus de contenu (Classes, Métiers, Le Monde, Mines, États) ;
+ *   - `parchment` → fiches (Clan, Mon clan, Membres, Membre, Inviter, Drapeau,
+ *                   Dissoudre/Créer un clan, Mes infos).
  */
 
 /**

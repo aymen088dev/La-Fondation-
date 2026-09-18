@@ -25,15 +25,21 @@ export function openJobsMenu(player: Player, jobs: JobManager): void {
       form.header("§e§lMétiers actifs");
       for (const job of mine) {
         const info = jobs.catalog().find((candidate) => candidate.id === job.jobId);
-        form.button(
-          `${info?.color ?? "§f"}§l${info?.name ?? job.jobId}§r §7| niveau ${jobLevel(job.xp)} ${xpBar(job.xp % JOB_XP_PER_LEVEL, JOB_XP_PER_LEVEL)}`,
-          () => {
-            if (jobs.quitJob(player.name, job.jobId)) {
-              player.sendMessage(`§e[Métiers] Tu quittes le métier ${info?.name ?? job.jobId}.`);
-            }
-            openJobsMenu(player, jobs);
-          },
+        const jobName = info?.name ?? job.jobId;
+        form.header(`${info?.color ?? "§f"}§l${jobName}§r`);
+        form.label(
+          [
+            `§7Niveau §f${jobLevel(job.xp)}`,
+            `§7Progression ${xpBar(job.xp % JOB_XP_PER_LEVEL, JOB_XP_PER_LEVEL)}`,
+          ].join("\n"),
         );
+        form.button(`§cQuitter ${jobName}`, () => {
+          if (jobs.quitJob(player.name, job.jobId)) {
+            player.sendMessage(`§e[Métiers] Tu quittes le métier ${jobName}.`);
+          }
+          openJobsMenu(player, jobs);
+        });
+        form.divider();
       }
       form.divider();
     }
@@ -41,12 +47,15 @@ export function openJobsMenu(player: Player, jobs: JobManager): void {
     form.header("§6§lChoisir une discipline");
     for (const info of jobs.catalog()) {
       if (jobs.hasJob(player.name, info.id)) continue;
-      form.button(`${info.color}§l${info.name}§r §7| ${info.description}`, () => {
+      form.header(`${info.color}§l${info.name}§r`);
+      form.label(`§7${info.description}`);
+      form.button(`§aCommencer ${info.name}`, () => {
         if (jobs.startJob(player.name, info.id)) {
           player.sendMessage(`§a[Métiers] Métier commencé : ${info.name}.`);
         }
         openJobsMenu(player, jobs);
       });
+      form.divider();
     }
 
     form.divider();

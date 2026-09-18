@@ -12,9 +12,7 @@
     "noUnusedParameters": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "noEmit": true,
-    "jsx": "react-jsx",
-    "jsxImportSource": "@bedrock-core/ui"
+    "noEmit": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

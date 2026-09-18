@@ -99,21 +99,26 @@ export function openMineMenu(player: Player, mines: MinesManager, back?: () => v
   const inMines = mines.isInMines(player);
 
   void openWindow(player, "Mines", (form) => {
-    // ---- Panneau de droite : présentation ----
-    form.body(
+    form.header("§b§lAtelier minier");
+    form.label(
       [
-        `§b§lLa dimension minière§r`,
-        `§7Un monde §fentièrement massé dans la pierre§7 :`,
-        `§8- §f70 couches§8 à miner entre deux lits de bedrock`,
-        `§8· creuse tes propres galeries, façon vrai minage`,
-        `§8· minerais §fplus riches qu'en surface§8, équilibrés par profondeur`,
-        `§8Strates : §fcharbon§7 partout, §fcuivre/fer§7 puis §for/redstone§7,`,
-        `§8et tout en bas §flapis, émeraude et diamant§8.`,
-        `§8Aller/retour : §f/sn:monde§8, ou le bouton ci-contre.`,
+        `§7Un monde entièrement massé dans la pierre.`,
+        `§7Soixante-dix couches à creuser entre deux lits de bedrock.`,
+        `§7Les minerais deviennent plus rares et précieux en profondeur.`,
       ].join("\n"),
     );
+    form.divider();
 
-    // ---- Sidebar ----
+    form.header("§6§lLe parcours");
+    form.label(
+      [
+        `§fSurface §7: charbon et fer`,
+        `§fProfondeur §7: cuivre, or et redstone`,
+        `§fDernières couches §7: lapis, émeraude et diamant`,
+      ].join("\n"),
+    );
+    form.divider();
+
     if (back !== undefined) form.back(back);
     if (inMines) {
       form.button(`§a§lRevenir au monde normal`, () => {

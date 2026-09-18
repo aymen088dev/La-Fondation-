@@ -19,7 +19,6 @@
     "typescript": "^5.7.0"
   },
   "dependencies": {
-    "@bedrock-core/ui": "0.11.0",
     "@bedrock-oss/bedrock-boost": "^2.2.0"
   }
 }
