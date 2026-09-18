@@ -7,8 +7,9 @@ Thème NaLandia : panneaux noirs/charbon, ornements OR (accents chauds) et
 ARGENT (cadres froids), SURBRILLANCE dorée marquée au survol des boutons,
 fioritures (arabesques) aux coins des grands cadres et des panneaux internes.
 
-v17.1 : les icônes de boutons et les bannières de héros ont été RETIRÉES
-(« ça fait brouillon ») — le script ne les génère plus.
+v18 : les coins sont NETS — plus aucun carré/perle flottant (« ça fait
+chelou ») : les cadres se rejoignent par un onglet propre à 45° (façon
+jointure de cadre), les boutons ont des angles droits sobres.
 
 Sortie :
   RP/textures/ui/om_actionbar_bg.png  fond d'actionbar (hud_screen.json)
@@ -120,11 +121,6 @@ def button_tiles() -> None:
             for j in range(tw):
                 for i in (4, th - 5):
                     px[i][j] = (*lerp(px[i][j][:3], glow, 0.30), 255)
-        # Point lumineux au coin de chaque cadre (touche bijou).
-        for cx, cy, sx, sy in ((4, 4, 1, 1), (tw - 5, 4, -1, 1), (4, th - 5, 1, -1), (tw - 5, th - 5, -1, -1)):
-            px[cy][cx] = (*GOLD_LIGHT, 255)
-            px[cy + sy][cx] = (*lerp(GOLD, GOLD_DIM, 0.4), 255)
-            px[cy][cx + sx] = (*lerp(GOLD, GOLD_DIM, 0.4), 255)
         return px
 
     write_png(RP_ROOT / "textures" / "ui" / "om_btn.png", tw, th, tile(CHARCOAL, GOLD_DIM, None, 4))
@@ -135,9 +131,27 @@ def button_tiles() -> None:
 # ---------------------------------------------------------------------------
 # Panneaux principaux — grand cadre orné (fioritures) + panneau interne
 # ---------------------------------------------------------------------------
+def draw_miter(
+    px: list[list[tuple[int, int, int, int]]],
+    w: int,
+    h: int,
+    accents: list[tuple[int, tuple[int, int, int]]],
+) -> None:
+    """Dessine un onglet propre à 45° dans chaque coin (façon jointure de
+    cadre) : remplace les anciennes perles/arabesques qui rendaient en
+    carrés étirés disgracieux. `accents` = liste (distance diagonale, couleur)."""
+    for cx, cy, sx, sy in ((0, 0, 1, 1), (w - 1, 0, -1, 1), (0, h - 1, 1, -1), (w - 1, h - 1, -1, -1)):
+        for d, color in accents:
+            for i in range(d + 1):
+                x = cx + sx * i
+                y = cy + sy * (d - i)
+                if 0 <= x < w and 0 <= y < h:
+                    px[y][x] = (*color, 255)
+
+
 def ornate_textures() -> None:
     # ---- Grand cadre 128x128 (nineslice 12px) : cuir sombre, cadre or/argent,
-    #      FIORITURES : arabesque en L aux 4 coins (or) + perle argent. ----
+    #      coins à onglet 45° (or clair sur la bande or, argent sur le filet). ----
     w = h = 128
     px: list[list[tuple[int, int, int, int]]] = []
     for y in range(h):
@@ -163,34 +177,8 @@ def ornate_textures() -> None:
             elif edge == 5:
                 px[y][x] = (30, 29, 32, 255)
 
-    # FIORITURES : arabesques en L (doubles arcs or) aux 4 coins + perle
-    # argent au sommet — s'étendent le long des bords (dans la zone nineslice).
-    for cx, cy, sx, sy in ((5, 5, 1, 1), (w - 6, 5, -1, 1), (5, h - 6, 1, -1), (w - 6, h - 6, -1, -1)):
-        # Double arc : L intérieur épais + L extérieur fin.
-        for i in range(11):
-            x, y = cx + sx * (10 - i), cy + sy * 10
-            if 4 <= x < w - 4 and 4 <= y < h - 4:
-                px[y][x] = (*GOLD, 255)
-                if i % 3 == 1:
-                    px[y + (sy if sy > 0 else -1) * 0][x] = (*GOLD_LIGHT, 255)
-            x2, y2 = cx + sx * 10, cy + sy * (10 - i)
-            if 4 <= x2 < w - 4 and 4 <= y2 < h - 4:
-                px[y2][x2] = (*GOLD, 255)
-        # Arc fin décalé (2e volute).
-        for i in range(7):
-            x, y = cx + sx * (6 - i), cy + sy * 6
-            if 4 <= x < w - 4 and 4 <= y < h - 4:
-                px[y][x] = (*GOLD_DIM, 255)
-            x2, y2 = cx + sx * 6, cy + sy * (6 - i)
-            if 4 <= x2 < w - 4 and 4 <= y2 < h - 4:
-                px[y2][x2] = (*GOLD_DIM, 255)
-        # Perle dorée au coin + perle argent juste en diagonale.
-        xg, yg = cx + sx * 10, cy + sy * 10
-        if 4 <= xg < w - 4 and 4 <= yg < h - 4:
-            px[yg][xg] = (*GOLD_LIGHT, 255)
-        xs, ys = cx + sx * 7, cy + sy * 7
-        if 4 <= xs < w - 4 and 4 <= ys < h - 4:
-            px[ys][xs] = (*SILVER_BRIGHT, 255)
+    # Coins à onglet : la bande or et le filet argent se rejoignent à 45°.
+    draw_miter(px, w, h, [(3, GOLD_LIGHT), (4, SILVER)])
 
     write_png(RP_ROOT / "textures" / "ui" / "om_ornate_bg.png", w, h, px)
 
@@ -212,19 +200,8 @@ def ornate_textures() -> None:
                 g = ((x * 3 + y * 9) % 4) - 1
                 row.append((max(0, 24 + g), max(0, 24 + g), max(0, 27 + g), 235))
         cpx.append(row)
-    # FIORITURES : petites volutes argent aux 4 coins (dans la zone nineslice).
-    for cx, cy, sx, sy in ((3, 3, 1, 1), (cw - 4, 3, -1, 1), (3, ch - 4, 1, -1), (cw - 4, ch - 4, -1, -1)):
-        for i in range(6):
-            x, y = cx + sx * (5 - i), cy + sy * 5
-            if 0 <= x < cw and 0 <= y < ch:
-                cpx[y][x] = (*SILVER_BRIGHT, 255)
-            x2, y2 = cx + sx * 5, cy + sy * (5 - i)
-            if 0 <= x2 < cw and 0 <= y2 < ch:
-                cpx[y2][x2] = (*SILVER_BRIGHT, 255)
-        # Perle or discrète en diagonale (rappel du thème).
-        xd, yd = cx + sx * 3, cy + sy * 3
-        if 0 <= xd < cw and 0 <= yd < ch:
-            cpx[yd][xd] = (*GOLD, 255)
+    # Coins à onglet discret : le liseré argent se replie à 45°.
+    draw_miter(cpx, cw, ch, [(2, SILVER_BRIGHT), (3, SILVER_DIM)])
     write_png(RP_ROOT / "textures" / "ui" / "om_content_bg.png", cw, ch, cpx)
 
     # ---- Bandeau d'en-tête 64x20 : noir à filet or (titres de section). ----
@@ -295,7 +272,7 @@ def pack_icon() -> None:
 
 
 def main() -> None:
-    print("Génération des textures UI (Resource Pack NaLandia v17.1)...")
+    print("Génération des textures UI (Resource Pack NaLandia v18)...")
     button_tiles()
     ornate_textures()
     actionbar_bg()

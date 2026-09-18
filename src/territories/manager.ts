@@ -2,11 +2,16 @@ import type { JsonDatabase, StoredDocument } from "../db";
 import { TERRITORY_COLLECTION } from "../db/collections";
 import type { TerritoryData } from "./types";
 
-/** Collection DB des territoires. */
+/** Collection DB des territoires (les « États » de NaLandia). */
 export { TERRITORY_COLLECTION };
 
-/** Limite de chunks par territoire (extensible via /sn:claim à l'avenir). */
-export const MAX_CHUNKS_PER_TERRITORY = 64;
+/**
+ * Limite d'extension : le territoire de départ (1 chunk) peut s'étendre en
+ * un carré de CLAN_RADIUS chunks de côté — soit 3×3 chunks autour du chunk
+ * fondateur. Les claims doivent être ADJACENTS (côté ou coin) au territoire.
+ */
+export const CLAN_RADIUS = 1;
+export const MAX_CHUNKS_PER_TERRITORY = (CLAN_RADIUS * 2 + 1) ** 2;
 
 const NAME_MIN = 3;
 const NAME_MAX = 24;
@@ -31,6 +36,13 @@ export function parseChunkKey(key: string): { dimensionId: string; cx: number; c
   return { dimensionId, cx, cz };
 }
 
+/** Le chunk (dimension,cx,cz) est-il à portée d'extension (carré 3×3) du chunk fondateur ? */
+export function isWithinRadius(foundation: string, dimensionId: string, cx: number, cz: number): boolean {
+  const f = parseChunkKey(foundation);
+  if (f.dimensionId !== dimensionId) return false;
+  return Math.abs(cx - f.cx) <= CLAN_RADIUS && Math.abs(cz - f.cz) <= CLAN_RADIUS;
+}
+
 /** Centre d'un chunk (pour afficher une position lisible). */
 export function chunkCenter(key: string): { dimensionId: string; x: number; z: number } {
   const { dimensionId, cx, cz } = parseChunkKey(key);
@@ -49,9 +61,9 @@ export type CreateResult =
   | { ok: false; error: string };
 
 /**
- * Logique métier des territoires. Toutes les données vivent dans la DB
- * (collection "territories") : le manager ne garde aucun état en cache,
- * il relit donc toujours les données les plus fraîches.
+ * Logique métier des clans/États de NaLandia. Toutes les données vivent
+ * dans la DB (collection "territories") : le manager ne garde aucun état
+ * en cache, il relit donc toujours les données les plus fraîches.
  */
 export class TerritoryManager {
   /** Passe à true après le chargement de la DB (worldLoad). */
@@ -78,6 +90,11 @@ export class TerritoryManager {
   /** Le territoire d'un joueur (par son pseudo, v1/v2). */
   findByOwner(owner: string): StoredDocument<TerritoryData> | undefined {
     return this.db.find<TerritoryData>(TERRITORY_COLLECTION, (doc) => doc.data.owner === owner)[0];
+  }
+
+  /** Un clan par son identifiant (relecture fraîche pour les menus). */
+  findOne(territoryId: string): StoredDocument<TerritoryData> | undefined {
+    return this.db.findOne<TerritoryData>(TERRITORY_COLLECTION, territoryId);
   }
 
   /** Le territoire dont ce joueur (par id Bedrock) est propriétaire. */
@@ -116,6 +133,32 @@ export class TerritoryManager {
   /** Ce chunk est-il revendiqué par quelqu'un ? */
   isProtected(key: string): boolean {
     return this.findByChunk(key) !== undefined;
+  }
+
+  /** La clé est-elle dans le carré d'extension 3×3 de ce clan ? */
+  withinBounds(territory: StoredDocument<TerritoryData>, key: string): boolean {
+    const foundation = territory.data.chunkKeys[0];
+    if (foundation === undefined) return false;
+    const { dimensionId, cx, cz } = parseChunkKey(key);
+    return isWithinRadius(foundation, dimensionId, cx, cz);
+  }
+
+  /** Ce joueur (id Bedrock) peut-il REVENDIQUER (étendre) ce chunk ? (usage : gestionnaire) */
+  canClaim(playerId: string, playerName: string, key: string): { ok: boolean; reason?: string } {
+    if (this.isProtected(key)) return { ok: false, reason: "Ce chunk appartient déjà à un autre clan." };
+    const territory = this.findByMemberId(playerId) ?? this.findByOwner(playerName);
+    if (territory === undefined) return { ok: false, reason: "Tu n'as pas de clan : fonde-le avec /sn:create." };
+    if (!this.withinBounds(territory, key)) {
+      const side = CLAN_RADIUS * 2 + 1;
+      return { ok: false, reason: `Extension limitée au carré ${side}×${side} autour du chunk fondateur.` };
+    }
+    if (territory.data.chunkKeys.includes(key)) {
+      return { ok: false, reason: "Ce chunk fait déjà partie de ton clan." };
+    }
+    if (territory.data.chunkKeys.length >= MAX_CHUNKS_PER_TERRITORY) {
+      return { ok: false, reason: `Limite d'extension atteinte (${MAX_CHUNKS_PER_TERRITORY} chunks, carré ${CLAN_RADIUS * 2 + 1}×${CLAN_RADIUS * 2 + 1}).` };
+    }
+    return { ok: true };
   }
 
   /** Sauvegarde immédiate de la DB sous-jacente. */
@@ -180,9 +223,9 @@ export class TerritoryManager {
   }
 
   /**
-   * Crée un territoire sur le chunk à la position donnée.
-   * `ownerId` = Player.id Bedrock (identité stable) ; `owner` = pseudo.
-   * Valide : nom, 1 territoire par joueur, chunk libre.
+   * Crée un clan sur le chunk à la position donnée : `ownerId` = Player.id
+   * Bedrock (identité stable) ; `owner` = pseudo. Valide : nom, 1 clan par
+   * joueur, chunk libre.
    */
   create(
     owner: string,
@@ -203,15 +246,14 @@ export class TerritoryManager {
       return { ok: false, error: "Le nom ne peut contenir que lettres, chiffres, espaces, _ et -." };
     }
     if (this.db.findOne<TerritoryData>(TERRITORY_COLLECTION, cleanName) !== undefined) {
-      return { ok: false, error: "Ce nom de territoire est déjà pris." };
+      return { ok: false, error: "Ce nom de clan est déjà pris." };
     }
     if (this.findByOwner(owner) !== undefined) {
-      return { ok: false, error: "Tu possèdes déjà un territoire." };
+      return { ok: false, error: "Tu possèdes déjà un clan." };
     }
-
     const key = chunkKeyFromPosition(dimensionId, x, z);
     if (this.isProtected(key)) {
-      return { ok: false, error: "Ce chunk est déjà revendiqué par un autre joueur." };
+      return { ok: false, error: "Ce chunk est déjà revendiqué par un autre clan." };
     }
 
     const territory = this.db.insert<TerritoryData>(
@@ -232,24 +274,48 @@ export class TerritoryManager {
     return { ok: true, territory };
   }
 
-  /** Ajoute un chunk à un territoire (pour /sn:claim futur). */
-  addChunk(territoryId: string, key: string): boolean {
+  /** Ajoute un chunk à un clan : libre + dans le carré 3×3 du fondateur. */
+  addChunk(territoryId: string, key: string): { ok: boolean; reason?: string } {
     const territory = this.db.findOne<TerritoryData>(TERRITORY_COLLECTION, territoryId);
-    if (territory === undefined || territory.data.chunkKeys.includes(key)) return false;
-    if (territory.data.chunkKeys.length >= MAX_CHUNKS_PER_TERRITORY) return false;
+    if (territory === undefined) return { ok: false, reason: "Clan introuvable." };
+    if (this.isProtected(key)) return { ok: false, reason: "Ce chunk appartient déjà à un autre clan." };
+    if (territory.data.chunkKeys.includes(key)) return { ok: false, reason: "Ce chunk fait déjà partie de ton clan." };
+    if (!this.withinBounds(territory, key)) {
+      const side = CLAN_RADIUS * 2 + 1;
+      return { ok: false, reason: `Extension limitée au carré ${side}×${side} autour du chunk fondateur.` };
+    }
+    if (territory.data.chunkKeys.length >= MAX_CHUNKS_PER_TERRITORY) {
+      return { ok: false, reason: `Limite d'extension atteinte (${MAX_CHUNKS_PER_TERRITORY} chunks).` };
+    }
 
     territory.data.chunkKeys.push(key);
     territory.updatedAt = Date.now();
     this.db.save();
-    return true;
+    return { ok: true };
   }
 
-  /** Supprime un territoire (par son propriétaire). */
-  remove(territoryId: string, requester: string): boolean {
+  /** Dissout un clan (propriétaire uniquement, par id Bedrock ou pseudo compat v1). */
+  remove(territoryId: string, requester: string, requesterId?: string): boolean {
     const territory = this.db.findOne<TerritoryData>(TERRITORY_COLLECTION, territoryId);
-    if (territory === undefined || territory.data.owner !== requester) return false;
+    if (territory === undefined) return false;
+    const isOwner = territory.data.ownerId === requesterId || territory.data.owner === requester;
+    if (!isOwner) return false;
 
     return this.db.delete(TERRITORY_COLLECTION, territoryId);
+  }
+
+  /** Un membre (non propriétaire) quitte son clan. */
+  leave(territoryId: string, playerId: string): boolean {
+    const territory = this.db.findOne<TerritoryData>(TERRITORY_COLLECTION, territoryId);
+    if (territory === undefined) return false;
+
+    const before = territory.data.members.length;
+    territory.data.members = territory.data.members.filter((m) => m.playerId !== playerId);
+    if (territory.data.members.length === before) return false;
+
+    territory.updatedAt = Date.now();
+    this.db.save();
+    return true;
   }
 
   /** Supprime un territoire sans vérification de propriétaire (usage admin). */

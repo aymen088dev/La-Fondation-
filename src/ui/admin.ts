@@ -28,7 +28,7 @@ export function openAdminMenu(player: Player, deps: HubDeps): void {
   const stats = db?.stats();
   const online = world.getAllPlayers().length;
   const roleCount = permissions.allRoles().length;
-  const territoryCount = territories.all().length;
+  const stateCount = territories.all().length;
   const moduleCount = modules.enabledCount();
 
   void openWindow(player, "Administration", (form) => {
@@ -38,7 +38,7 @@ export function openAdminMenu(player: Player, deps: HubDeps): void {
         `§6§l■ Panneau d'administration§r`,
         ``,
         `§eEn ligne : §f${online}`,
-        `§eRôles : §f${roleCount}   §eTerritoires : §f${territoryCount}`,
+        `§eRôles : §f${roleCount}   §eÉtats : §f${stateCount}`,
         `§eModules actifs : §f${moduleCount}`,
         stats !== undefined
           ? `§eBase de données : §f${stats.documents} documents§7 (${stats.bytes} octets, ${stats.dirty ? "§eà sauvegarder§7" : "§aà jour§7"})`

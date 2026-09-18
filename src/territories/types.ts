@@ -1,7 +1,11 @@
 /**
- * Types du système de territoires (feature de revendication de chunks).
+ * Types du système de clans/États de NaLandia (revendication de chunks).
+ * Historique : cette collection s'appelait "territoires" en v1-v17 — le
+ * renommage est purement cosmétique, les données restent compatibles.
  */
 
+/** Rôle d'un membre dans un clan. */
+export type ClanRank = "member" | "officer";
 export interface TerritoryColor {
   id: string;
   /** Code de couleur Minecraft (§) utilisé pour le drapeau dans les menus/chat. */
@@ -27,17 +31,17 @@ export function getColor(id: string): TerritoryColor {
   return TERRITORY_COLORS.find((color) => color.id === id) ?? TERRITORY_COLORS[0];
 }
 
-/** Données persistées d'un territoire (collection "territories" de la DB). */
+/** Rang d'un membre de clan ("officer" peut gérer, "member" construit). */
 export interface TerritoryMember {
   /** Player.id Bedrock du membre. */
   playerId: string;
   /** Dernier pseudo connu du membre. */
   name: string;
-  /** "officer" peut construire mais pas gérer ; "member" peut construire. */
-  rank: "member" | "officer";
+  /** "officer" peut construire et étendre ; "member" peut construire. */
+  rank: ClanRank;
 }
 
-/** Données persistées d'un territoire (collection "territories" de la DB). */
+/** Données persistées d'un clan (collection "territories" de la DB). */
 export interface TerritoryData {
   name: string;
   /** Pseudo du propriétaire (compatibilité v1 / affichage). */

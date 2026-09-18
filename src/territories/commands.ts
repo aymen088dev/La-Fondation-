@@ -7,7 +7,7 @@ import type { TerritoryManager } from "./manager";
 import type { ModuleManager } from "../modules/manager";
 import type { PermissionManager } from "../permissions/manager";
 import { TERRITORY_COLORS } from "./types";
-import { openCreateMenu, openTerritoriesMenu } from "./ui";
+import { openCreateMenu, openStatesMenu, openMyClanMenu } from "./ui";
 
 /**
  * Enregistre les commandes custom /sn:create, /sn:info, /sn:db etc.
@@ -32,7 +32,7 @@ export function registerCommands(
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:create",
-        description: "Revendique le chunk où tu te trouves (nom + couleur de drapeau)",
+        description: "Fonde ton clan sur le chunk où tu te trouves",
         permissionLevel: CommandPermissionLevel.Any,
         cheatsRequired: false,
       },
@@ -43,10 +43,10 @@ export function registerCommands(
         }
 
         if (!enabled()) {
-          return { status: CustomCommandStatus.Failure, message: "Le module Territoires est désactivé." };
+          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
         }
         if (!allowed(player, "territories.create")) {
-          return { status: CustomCommandStatus.Failure, message: "§c[Territoires] Tu n'as pas la permission de créer un territoire." };
+          return { status: CustomCommandStatus.Failure, message: "§c[Clans] Tu n'as pas la permission de fonder un clan." };
         }
 
         // Pas de menu depuis l'event de commande : on planifie en tick suivant.
@@ -58,7 +58,7 @@ export function registerCommands(
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:info",
-        description: "Affiche la liste de tous les territoires",
+        description: "Liste les États (clans) de NaLandia",
         permissionLevel: CommandPermissionLevel.Any,
         cheatsRequired: false,
       },
@@ -68,16 +68,89 @@ export function registerCommands(
           return { status: CustomCommandStatus.Failure, message: "Seuls les joueurs peuvent utiliser cette commande." };
         }
 
-        system.run(() => openTerritoriesMenu(player, manager));
+        system.run(() => openStatesMenu(player, manager));
         return { status: CustomCommandStatus.Success };
       },
     );
 
-    // /sn:setflag : change la couleur du drapeau de SON territoire
+    // /sn:claim : étend le clan sur le chunk où l'on se trouve (adjacent,
+    // dans le carré 3×3 autour du chunk fondateur).
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:claim",
+        description: "Revendique le chunk où tu te trouves pour ton clan",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false,
+      },
+      (origin: CustomCommandOrigin) => {
+        const player = origin.sourceEntity as Player | undefined;
+        if (player === undefined || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        if (!enabled()) {
+          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+        }
+
+        system.run(() => {
+          const territory =
+            manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
+          if (territory === undefined) {
+            player.sendMessage("§e[Clans] Tu n'as pas de clan. Fonde-le avec §f/sn:create§e.");
+            return;
+          }
+          // Note : la vérification chef/officier est faite par le manager.
+          const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
+          const rank = territory.data.members.find((m) => m.playerId === player.id)?.rank;
+          if (!isOwner && rank !== "officer") {
+            player.sendMessage("§c[Clans] Seul le chef ou un officier peut étendre le territoire.");
+            return;
+          }
+          const key = `${player.dimension.id}:${Math.floor(player.location.x / 16)}:${Math.floor(player.location.z / 16)}`;
+          const result = manager.addChunk(territory.id, key);
+          player.sendMessage(
+            result.ok
+              ? `§a[Clans] Chunk revendiqué pour §f${territory.data.name}§a !`
+              : `§c[Clans] ${result.reason ?? "Revendication impossible."}`,
+          );
+        });
+        return { status: CustomCommandStatus.Success };
+      },
+    );
+
+    // /sn:clan : ouvre les options de SON clan (chef, officier ou membre).
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:clan",
+        description: "Gère ton clan (extension, membres, drapeau)",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false,
+      },
+      (origin: CustomCommandOrigin) => {
+        const player = origin.sourceEntity as Player | undefined;
+        if (player === undefined || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        if (!enabled()) {
+          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+        }
+
+        system.run(() => {
+          const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
+          if (territory === undefined) {
+            player.sendMessage("§e[Clans] Tu n'as pas de clan. Fonde-le avec §f/sn:create§e.");
+            return;
+          }
+          openMyClanMenu(player, manager, territory);
+        });
+        return { status: CustomCommandStatus.Success };
+      },
+    );
+
+    // /sn:setflag : raccourci chat — change la couleur du drapeau de SON clan
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:setflag",
-        description: "Change la couleur du drapeau de ton territoire",
+        description: "Change la couleur du drapeau de ton clan",
         permissionLevel: CommandPermissionLevel.Any,
         cheatsRequired: false,
         mandatoryParameters: [{ name: "couleur", type: CustomCommandParamType.String }],
@@ -88,9 +161,14 @@ export function registerCommands(
           return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
         }
 
-        const territory = manager.findByOwner(player.name);
+        const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
         if (territory === undefined) {
-          return { status: CustomCommandStatus.Failure, message: "Tu ne possèdes pas de territoire (/sn:create)." };
+          return { status: CustomCommandStatus.Failure, message: "Tu ne fais partie d'aucun clan (/sn:create)." };
+        }
+
+        const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
+        if (!isOwner) {
+          return { status: CustomCommandStatus.Failure, message: "Seul le chef du clan peut changer le drapeau (/sn:clan)." };
         }
 
         const color = TERRITORY_COLORS.find((candidate) => candidate.id === couleur.toLowerCase());
@@ -105,7 +183,7 @@ export function registerCommands(
         territory.updatedAt = Date.now();
         db?.markDirty();
         manager.save();
-        return { status: CustomCommandStatus.Success, message: `Drapeau changé : ${color.code}■ ${color.id}` };
+        return { status: CustomCommandStatus.Success, message: `Drapeau changé : ${color.code}${color.id}` };
       },
     );
 

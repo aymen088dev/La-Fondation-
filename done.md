@@ -1,6 +1,25 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v17.1 — FIX « CRÉATION IMPOSSIBLE » + POLISH OR & ARGENT**. **Fix /sn:create (« nom entre 3 et 24 »)** : cause racine = décalage de lecture des `formValues` (un élément non-interactif décalait les index, le nom lisait un nombre → jamais enregistré) ; la lecture est maintenant validée **par type** à chaque position puis par pioche. **Titre des menus en OR** : le reskin propage `$title_text_color` (la variable que lit `standard_title_label` — l'ancien `$title_panel` n'était pas consommé par `main_panel_no_buttons`). **Icônes retirées des boutons** (« ça fait brouillon ») : tuile unique pleine largeur, textures mortes supprimées. **Puces ■/≡ retirées** de tous les libellés (sanitiseur central `plain()` au niveau moteur). **Plus aucun retour DB dans le chat** (menu /sn:db → console uniquement). **Surbrillance dorée marquée** (liseré lumineux + cœur ample sur la tuile hover) et **fioritures** : arabesques or aux 4 coins du grand cadre, perles argent sur les panneaux internes. **Nineslice des boutons branché** (`om_btn_image` → `$button_image`) : bords or uniformes quelle que soit la largeur. Packs en **1.7.1**.
+> Dernière mise à jour : **v18 — SYSTÈME DE CLANS / ÉTATS + COINS NETS**.
+> ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v18 — Clans / États + coins nets (sept. 2026)
+- [x] **FIX « carrés chelous »** : les perles/arabesques des textures (boutons, grand cadre, panneaux internes) rendaient en crochets/carrés étirés aux coins — remplacées par des **onglets propres à 45°** (jointure de cadre or/argent). Plus aucun élément flottant
+- [x] **`/sn:create` = « Créer un clan »** : le formulaire fonde un clan (nom + couleur) et revendique le chunk où l'on se trouve comme **chunk fondateur** ; ouvre directement le menu « Mon clan » après la fondation
+- [x] **Règle d'extension 3×3** : le clan peut s'étendre jusqu'à un **carré de 3×3 chunks autour du chunk fondateur** (`CLAN_RADIUS = 1`, 9 chunks max) — toute revendication hors du carré est refusée avec le bon message
+- [x] **Section « États »** dans `/sn:menu` (remplace « Territoires ») : liste des États fondés (cliquables → fiche) + bouton contextuel **« Tu es ici : <clan> »** qui affiche les infos du clan dans lequel on se trouve (ou « zone libre »), + raccourci « Fonder mon clan » si on n'en a pas
+- [x] **Menu « Mon clan »** (`/sn:clan`) : rang affiché (Chef/Officier/Membre), **Revendiquer ce chunk** (chef/officier), **Membres**, **Drapeau** (chef), **Quitter** (membre) ou **Dissoudre** (chef, avec confirmation)
+- [x] **Sous-menu Membres** : liste chef + membres avec rangs, **inviter un joueur en ligne** (dropdown), **promouvoir/rétrograder officier**, **exclure** — fiche d'action par membre
+- [x] **Nouvelle commande `/sn:claim`** : revendique le chunk courant pour son clan (règle 3×3 appliquée) ; `/sn:setflag` réservé au chef ; fiche d'État renommée (« Chef », « Fondé le », « Capitale », « Territoire : x/9 chunks »)
+- [x] **Renommage global** : hub « États », admin « États : n », modules « États (clans) », messages `[Clans]`, annonce HUD « clan de … », catalogue DB « États (clans) », permission « Fonder un clan (État) »
+- [x] API manager : `addChunk`/`remove` (par id Bedrock v3)/`leave`/`withinBounds`/`canClaim`/`findOne` — **45/45 tests** (nouveaux tests 3×3, leave, remove par id)
+- [x] Packs bumpés **1.7.1 → 1.7.2** (cache Bedrock). Build + typecheck + JSON UI validé
+
+---
+
+> v17.1 (sept. 2026) : **FIX « CRÉATION IMPOSSIBLE » + POLISH OR & ARGENT**. **Fix /sn:create (« nom entre 3 et 24 »)** : cause racine = décalage de lecture des `formValues` (un élément non-interactif décalait les index, le nom lisait un nombre → jamais enregistré) ; la lecture est maintenant validée **par type** à chaque position puis par pioche. **Titre des menus en OR** : le reskin propage `$title_text_color` (la variable que lit `standard_title_label` — l'ancien `$title_panel` n'était pas consommé par `main_panel_no_buttons`). **Icônes retirées des boutons** (« ça fait brouillon ») : tuile unique pleine largeur, textures mortes supprimées. **Puces ■/≡ retirées** de tous les libellés (sanitiseur central `plain()` au niveau moteur). **Plus aucun retour DB dans le chat** (menu /sn:db → console uniquement). **Surbrillance dorée marquée** (liseré lumineux + cœur ample sur la tuile hover) et **fioritures** : arabesques or aux 4 coins du grand cadre, perles argent sur les panneaux internes. **Nineslice des boutons branché** (`om_btn_image` → `$button_image`) : bords or uniformes quelle que soit la largeur. Packs en **1.7.1**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---

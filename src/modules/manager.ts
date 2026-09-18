@@ -30,8 +30,8 @@ export interface ModuleInfo {
 export const MODULE_CATALOG: ModuleInfo[] = [
   {
     id: "territories",
-    name: "Territoires",
-    description: "Revendication de chunks protégés (/sn:create, /sn:info)",
+    name: "États (clans)",
+    description: "Clans, claims et protection de chunks (/sn:create, /sn:info)",
   },
   {
     id: "moderation",

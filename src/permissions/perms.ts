@@ -14,7 +14,7 @@
 /** Toutes les permissions disponibles, avec leur libellé. */
 export const PERMS = {
   // --- Territoires ---
-  "territories.create": "Créer / revendiquer un territoire",
+  "territories.create": "Fonder un clan (État)",
   // --- Modération ---
   "mod.panel": "Ouvrir le panneau de modération",
   "mod.kick": "Éjecter des joueurs",

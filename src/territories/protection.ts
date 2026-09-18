@@ -15,11 +15,11 @@ import type { TerritoryManager } from "./manager";
 import { chunkKeyFromPosition } from "./manager";
 import type { ModuleManager } from "../modules/manager";
 
-const DENY_BREAK = "§c[Territoires] Chunk protégé : destruction impossible.";
-const DENY_PLACE = "§c[Territoires] Chunk protégé : construction impossible.";
-const DENY_INTERACT = "§c[Territoires] Chunk protégé : interaction impossible.";
-const DENY_COMBAT = "§c[Territoires] Zone protégée : ce joueur ne peut pas être attaqué ici.";
-const DENY_ITEM = "§c[Territoires] Chunk protégé : objet inutilisable ici.";
+const DENY_BREAK = "§c[Clans] Chunk protégé : destruction impossible.";
+const DENY_PLACE = "§c[Clans] Chunk protégé : construction impossible.";
+const DENY_INTERACT = "§c[Clans] Chunk protégé : interaction impossible.";
+const DENY_COMBAT = "§c[Clans] Territoire de clan : ce joueur ne peut pas être attaqué ici.";
+const DENY_ITEM = "§c[Clans] Chunk protégé : objet inutilisable ici.";
 
 /** Un joueur est-il créatif ? (les créatifs contournent la protection) */
 function isCreative(playerName: string): boolean {
@@ -172,7 +172,7 @@ export function registerProtection(manager: TerritoryManager, modules?: ModuleMa
     const key = chunkKeyFromPosition(victim.dimension.id, victim.location.x, victim.location.z);
     if (manager.isProtected(key)) {
       event.cancel = true;
-      safeSend(attacker, "§c[Territoires] Chunk protégé : les créatures ici sont sous la protection du propriétaire.");
+      safeSend(attacker, "§c[Clans] Chunk revendiqué : les créatures ici sont sous la protection du clan.");
     }
   });
 

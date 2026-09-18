@@ -1,5 +1,5 @@
 import type { Player } from "@minecraft/server";
-import { openTerritoriesMenu } from "../territories/ui";
+import { openStatesMenu } from "../territories/ui";
 import { windowTitle, openWindow, openWindowRaw } from "../ui/theme";
 import { MODULE_CATALOG } from "./manager";
 import type { ModuleId, ModuleManager } from "./manager";
@@ -33,13 +33,13 @@ export function openModulesMenu(player: Player, modules: ModuleManager, territor
       );
     }
 
-    // Gestion spécifique des territoires (zones dangereuses).
+    // Gestion spécifique des États (clans).
     if (MODULE_CATALOG.some((info) => info.id === "territories")) {
       form.divider();
-      form.button(`§e■ §lVoir les territoires`, () => {
-        if (territories !== undefined) openTerritoriesMenu(player, territories);
+      form.button(`§e■ §lVoir les États`, () => {
+        if (territories !== undefined) openStatesMenu(player, territories);
       });
-      form.button(`§c■ §lSupprimer TOUS les territoires`, () => {
+      form.button(`§c■ §lSupprimer TOUS les États`, () => {
         if (territories !== undefined) openWipeTerritoriesMenu(player, modules, territories);
       });
     }
@@ -77,14 +77,14 @@ export function openModuleConfigMenu(
 }
 
 /**
- * Confirmation de suppression massive des territoires — DDUI (cohérence du
+ * Confirmation de suppression massive des États (clans) — DDUI (cohérence du
  * thème : plus de MessageFormData vanilla mélangé au moteur custom).
  */
 function openWipeTerritoriesMenu(player: Player, modules: ModuleManager, territories: TerritoryManager): void {
-  void openWindowRaw(player, windowTitle("Supprimer les territoires"), (form) => {
+  void openWindowRaw(player, windowTitle("Supprimer les États"), (form) => {
     form.header(`§4⚠ §lDANGER`);
     form.label(
-      `Supprimer §lTOUS§r§4 les territoires (${territories.all().length}) ?\n\n§7Action irréversible !`,
+      `Supprimer §lTOUS§r§4 les États (${territories.all().length}) ?\n\n§7Action irréversible !`,
     );
     form.divider();
     form.button(`§4■ §lSUPPRIMER TOUT`, () => {
@@ -92,7 +92,7 @@ function openWipeTerritoriesMenu(player: Player, modules: ModuleManager, territo
       for (const territory of territories.all()) {
         if (territories.removeForced(territory.id)) removed++;
       }
-      player.sendMessage(`§a[Modules] ${removed} territoire(s) supprimé(s).`);
+      player.sendMessage(`§a[Modules] ${removed} État(s) supprimé(s).`);
       openModulesMenu(player, modules, territories);
     });
     form.button(`§a■ §lAnnuler`, () => openModulesMenu(player, modules, territories));

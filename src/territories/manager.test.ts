@@ -83,17 +83,42 @@ describe("TerritoryManager", () => {
     expect(manager.isProtected("minecraft:overworld:0:0")).toBe(false);
   });
 
-  it("addChunk respecte la limite et refuse les doublons", () => {
+  it("addChunk respecte le carré 3×3 autour du chunk fondateur", () => {
     const manager = makeManager();
     manager.create("Aymen", "Empire", "vert", "minecraft:overworld", 0, 0);
 
-    expect(manager.addChunk("Empire", chunkKey("minecraft:overworld", 1, 0))).toBe(true);
-    expect(manager.addChunk("Empire", chunkKey("minecraft:overworld", 1, 0))).toBe(false);
-    expect(manager.findByOwner("Aymen")?.data.chunkKeys.length).toBe(2);
+    // Dans le carré : ok
+    expect(manager.addChunk("Empire", chunkKey("minecraft:overworld", 1, 0)).ok).toBe(true);
+    // Doublon : refusé
+    expect(manager.addChunk("Empire", chunkKey("minecraft:overworld", 1, 0)).ok).toBe(false);
+    // Hors du carré : refusé
+    expect(manager.addChunk("Empire", chunkKey("minecraft:overworld", 2, 0)).ok).toBe(false);
+    expect(manager.addChunk("Empire", chunkKey("minecraft:overworld", 0, -2)).ok).toBe(false);
+    // Autre dimension : refusé
+    expect(manager.addChunk("Empire", chunkKey("minecraft:the_nether", 1, 0)).ok).toBe(false);
+    // Coin du carré : ok
+    expect(manager.addChunk("Empire", chunkKey("minecraft:overworld", -1, -1)).ok).toBe(true);
+    expect(manager.findByOwner("Aymen")?.data.chunkKeys.length).toBe(3);
+  });
 
-    for (let i = 2; i < 64; i++) {
-      manager.addChunk("Empire", chunkKey("minecraft:overworld", i, 0));
-    }
-    expect(manager.addChunk("Empire", chunkKey("minecraft:overworld", 64, 0))).toBe(false); // limite 64
+  it("leave retire un membre mais pas le chef", () => {
+    const manager = makeManager();
+    manager.create("Aymen", "Empire", "vert", "minecraft:overworld", 0, 0);
+    manager.addMember("Empire", "id-lina", "Lina");
+
+    expect(manager.leave("Empire", "id-inconnu")).toBe(false);
+    expect(manager.leave("Empire", "id-lina")).toBe(true);
+    expect(manager.findByOwner("Aymen")?.data.members.length).toBe(0);
+    // Le clan existe toujours après le départ du membre.
+    expect(manager.findByOwner("Aymen")).not.toBeUndefined();
+  });
+
+  it("remove accepte le chef par id Bedrock (v3)", () => {
+    const manager = makeManager();
+    manager.create("Aymen", "Empire", "vert", "minecraft:overworld", 0, 0, "id-aymen");
+
+    // Le pseudo a changé mais l'id Bedrock correspond : dissolution OK.
+    expect(manager.remove("Empire", "AutrePseudo", "id-aymen")).toBe(true);
+    expect(manager.findByOwner("Aymen")).toBeUndefined();
   });
 });

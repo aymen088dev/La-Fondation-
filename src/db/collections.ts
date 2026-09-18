@@ -8,7 +8,7 @@
 
 /** Index des joueurs (identité stable Player.id). */
 export const PLAYERS_COLLECTION = "players_index";
-/** Territoires revendiqués (1 chunk min). */
+/** États (clans) revendiqués — collection historique "territories". */
 export const TERRITORY_COLLECTION = "territories";
 /** Rôles (id = nom du rôle). */
 export const ROLES_COLLECTION = "roles";
@@ -32,7 +32,7 @@ export const JOBS_COLLECTION = "jobs";
 /** Métadonnées d'affichage des collections (menu /sn:db). */
 export const COLLECTION_META: Record<string, { label: string; hint: string }> = {
   players_index: { label: "Joueurs", hint: "sessions, grade, première/dernière connexion" },
-  territories: { label: "Territoires", hint: "chunks, drapeau, membres" },
+  territories: { label: "États (clans)", hint: "chunks, drapeau, membres" },
   roles: { label: "Rôles", hint: "couleur, prefix, niveau, permissions" },
   members: { label: "Grades attribués", hint: "rôle, prefix et couleur personnalisés" },
   bans: { label: "Bans", hint: "sanctions d'exclusion actives" },

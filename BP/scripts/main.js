@@ -1,5 +1,5 @@
 // src/main.ts
-import { world as world16, system as system15 } from "@minecraft/server";
+import { world as world17, system as system15 } from "@minecraft/server";
 
 // src/db/types.ts
 var DB_SCHEMA_VERSION = 3;
@@ -18,7 +18,7 @@ function splitIntoChunks(payload) {
 // src/permissions/perms.ts
 var PERMS = {
   // --- Territoires ---
-  "territories.create": "Créer / revendiquer un territoire",
+  "territories.create": "Fonder un clan (État)",
   // --- Modération ---
   "mod.panel": "Ouvrir le panneau de modération",
   "mod.kick": "Éjecter des joueurs",
@@ -374,7 +374,7 @@ var CLASSES_COLLECTION = "classes";
 var JOBS_COLLECTION = "jobs";
 var COLLECTION_META = {
   players_index: { label: "Joueurs", hint: "sessions, grade, première/dernière connexion" },
-  territories: { label: "Territoires", hint: "chunks, drapeau, membres" },
+  territories: { label: "États (clans)", hint: "chunks, drapeau, membres" },
   roles: { label: "Rôles", hint: "couleur, prefix, niveau, permissions" },
   members: { label: "Grades attribués", hint: "rôle, prefix et couleur personnalisés" },
   bans: { label: "Bans", hint: "sanctions d'exclusion actives" },
@@ -409,7 +409,8 @@ function getColor(id) {
 }
 
 // src/territories/manager.ts
-var MAX_CHUNKS_PER_TERRITORY = 64;
+var CLAN_RADIUS = 1;
+var MAX_CHUNKS_PER_TERRITORY = (CLAN_RADIUS * 2 + 1) ** 2;
 var NAME_MIN = 3;
 var NAME_MAX = 24;
 var NAME_PATTERN = /^[A-Za-z0-9 _-]+$/;
@@ -425,6 +426,11 @@ function parseChunkKey(key) {
   const cz = Number(parts[parts.length - 1]);
   const dimensionId = parts.slice(0, -2).join(":");
   return { dimensionId, cx, cz };
+}
+function isWithinRadius(foundation, dimensionId, cx, cz) {
+  const f = parseChunkKey(foundation);
+  if (f.dimensionId !== dimensionId) return false;
+  return Math.abs(cx - f.cx) <= CLAN_RADIUS && Math.abs(cz - f.cz) <= CLAN_RADIUS;
 }
 function chunkCenter(key) {
   const { dimensionId, cx, cz } = parseChunkKey(key);
@@ -459,6 +465,10 @@ var TerritoryManager = class {
   findByOwner(owner) {
     return this.db.find(TERRITORY_COLLECTION, (doc) => doc.data.owner === owner)[0];
   }
+  /** Un clan par son identifiant (relecture fraîche pour les menus). */
+  findOne(territoryId) {
+    return this.db.findOne(TERRITORY_COLLECTION, territoryId);
+  }
   /** Le territoire dont ce joueur (par id Bedrock) est propriétaire. */
   findByOwnerId(ownerId) {
     return this.db.find(TERRITORY_COLLECTION, (doc) => doc.data.ownerId === ownerId)[0];
@@ -489,6 +499,30 @@ var TerritoryManager = class {
   /** Ce chunk est-il revendiqué par quelqu'un ? */
   isProtected(key) {
     return this.findByChunk(key) !== void 0;
+  }
+  /** La clé est-elle dans le carré d'extension 3×3 de ce clan ? */
+  withinBounds(territory, key) {
+    const foundation = territory.data.chunkKeys[0];
+    if (foundation === void 0) return false;
+    const { dimensionId, cx, cz } = parseChunkKey(key);
+    return isWithinRadius(foundation, dimensionId, cx, cz);
+  }
+  /** Ce joueur (id Bedrock) peut-il REVENDIQUER (étendre) ce chunk ? (usage : gestionnaire) */
+  canClaim(playerId, playerName, key) {
+    if (this.isProtected(key)) return { ok: false, reason: "Ce chunk appartient déjà à un autre clan." };
+    const territory = this.findByMemberId(playerId) ?? this.findByOwner(playerName);
+    if (territory === void 0) return { ok: false, reason: "Tu n'as pas de clan : fonde-le avec /sn:create." };
+    if (!this.withinBounds(territory, key)) {
+      const side = CLAN_RADIUS * 2 + 1;
+      return { ok: false, reason: `Extension limitée au carré ${side}×${side} autour du chunk fondateur.` };
+    }
+    if (territory.data.chunkKeys.includes(key)) {
+      return { ok: false, reason: "Ce chunk fait déjà partie de ton clan." };
+    }
+    if (territory.data.chunkKeys.length >= MAX_CHUNKS_PER_TERRITORY) {
+      return { ok: false, reason: `Limite d'extension atteinte (${MAX_CHUNKS_PER_TERRITORY} chunks, carré ${CLAN_RADIUS * 2 + 1}×${CLAN_RADIUS * 2 + 1}).` };
+    }
+    return { ok: true };
   }
   /** Sauvegarde immédiate de la DB sous-jacente. */
   save() {
@@ -541,9 +575,9 @@ var TerritoryManager = class {
     return { ok: true };
   }
   /**
-   * Crée un territoire sur le chunk à la position donnée.
-   * `ownerId` = Player.id Bedrock (identité stable) ; `owner` = pseudo.
-   * Valide : nom, 1 territoire par joueur, chunk libre.
+   * Crée un clan sur le chunk à la position donnée : `ownerId` = Player.id
+   * Bedrock (identité stable) ; `owner` = pseudo. Valide : nom, 1 clan par
+   * joueur, chunk libre.
    */
   create(owner, name, colorId, dimensionId, x, z, ownerId) {
     const cleanName = name.trim().replace(/\s+/g, " ");
@@ -555,14 +589,14 @@ var TerritoryManager = class {
       return { ok: false, error: "Le nom ne peut contenir que lettres, chiffres, espaces, _ et -." };
     }
     if (this.db.findOne(TERRITORY_COLLECTION, cleanName) !== void 0) {
-      return { ok: false, error: "Ce nom de territoire est déjà pris." };
+      return { ok: false, error: "Ce nom de clan est déjà pris." };
     }
     if (this.findByOwner(owner) !== void 0) {
-      return { ok: false, error: "Tu possèdes déjà un territoire." };
+      return { ok: false, error: "Tu possèdes déjà un clan." };
     }
     const key = chunkKeyFromPosition(dimensionId, x, z);
     if (this.isProtected(key)) {
-      return { ok: false, error: "Ce chunk est déjà revendiqué par un autre joueur." };
+      return { ok: false, error: "Ce chunk est déjà revendiqué par un autre clan." };
     }
     const territory = this.db.insert(
       TERRITORY_COLLECTION,
@@ -581,21 +615,42 @@ var TerritoryManager = class {
     this.db.save();
     return { ok: true, territory };
   }
-  /** Ajoute un chunk à un territoire (pour /sn:claim futur). */
+  /** Ajoute un chunk à un clan : libre + dans le carré 3×3 du fondateur. */
   addChunk(territoryId, key) {
     const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
-    if (territory === void 0 || territory.data.chunkKeys.includes(key)) return false;
-    if (territory.data.chunkKeys.length >= MAX_CHUNKS_PER_TERRITORY) return false;
+    if (territory === void 0) return { ok: false, reason: "Clan introuvable." };
+    if (this.isProtected(key)) return { ok: false, reason: "Ce chunk appartient déjà à un autre clan." };
+    if (territory.data.chunkKeys.includes(key)) return { ok: false, reason: "Ce chunk fait déjà partie de ton clan." };
+    if (!this.withinBounds(territory, key)) {
+      const side = CLAN_RADIUS * 2 + 1;
+      return { ok: false, reason: `Extension limitée au carré ${side}×${side} autour du chunk fondateur.` };
+    }
+    if (territory.data.chunkKeys.length >= MAX_CHUNKS_PER_TERRITORY) {
+      return { ok: false, reason: `Limite d'extension atteinte (${MAX_CHUNKS_PER_TERRITORY} chunks).` };
+    }
     territory.data.chunkKeys.push(key);
     territory.updatedAt = Date.now();
     this.db.save();
-    return true;
+    return { ok: true };
   }
-  /** Supprime un territoire (par son propriétaire). */
-  remove(territoryId, requester) {
+  /** Dissout un clan (propriétaire uniquement, par id Bedrock ou pseudo compat v1). */
+  remove(territoryId, requester, requesterId) {
     const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
-    if (territory === void 0 || territory.data.owner !== requester) return false;
+    if (territory === void 0) return false;
+    const isOwner = territory.data.ownerId === requesterId || territory.data.owner === requester;
+    if (!isOwner) return false;
     return this.db.delete(TERRITORY_COLLECTION, territoryId);
+  }
+  /** Un membre (non propriétaire) quitte son clan. */
+  leave(territoryId, playerId) {
+    const territory = this.db.findOne(TERRITORY_COLLECTION, territoryId);
+    if (territory === void 0) return false;
+    const before = territory.data.members.length;
+    territory.data.members = territory.data.members.filter((m) => m.playerId !== playerId);
+    if (territory.data.members.length === before) return false;
+    territory.updatedAt = Date.now();
+    this.db.save();
+    return true;
   }
   /** Supprime un territoire sans vérification de propriétaire (usage admin). */
   removeForced(territoryId) {
@@ -4698,40 +4753,60 @@ function listSections(db2) {
 }
 
 // src/territories/ui.ts
+import { world as world7 } from "@minecraft/server";
+function extentLine(chunkCount) {
+  const side = CLAN_RADIUS * 2 + 1;
+  return `${chunkCount} / ${MAX_CHUNKS_PER_TERRITORY} chunks (extension max ${side}×${side})`;
+}
+function clanAtPlayer(manager, player) {
+  const cx = Math.floor(player.location.x / 16);
+  const cz = Math.floor(player.location.z / 16);
+  const key = `${player.dimension.id}:${cx}:${cz}`;
+  return manager.findByChunk(key);
+}
+function onlineInvitables(territory, exclude) {
+  return world7.getAllPlayers().filter(
+    (candidate) => candidate.id !== exclude.id && candidate.id !== territory.data.ownerId && !territory.data.members.some((m) => m.playerId === candidate.id)
+  );
+}
+function say(player, message) {
+  player.sendMessage(message);
+}
 function openCreateMenu(player, manager) {
+  if (manager.findByMemberId(player.id) !== void 0 || manager.findByOwner(player.name) !== void 0) {
+    say(player, "§e[Clans] Tu fais déjà partie d'un clan. Utilise §f/sn:menu §e→ États pour le retrouver.");
+    return;
+  }
   const name = obString("");
   const colorIndex = obNumber(0);
-  const cx = Math.floor(player.location.x);
-  const cz = Math.floor(player.location.z);
-  void openWindowRaw(player, windowTitle("Créer un territoire"), (form) => {
+  const cx = Math.floor(player.location.x / 16);
+  const cz = Math.floor(player.location.z / 16);
+  void openWindowRaw(player, windowTitle("Créer un clan"), (form) => {
     form.body(
       [
-        `§a§lRevendiquer ce chunk§r`,
+        `§a§lTon clan naîtra ici§r`,
         ``,
-        `§ePosition : §fx=${cx}§7, §fz=${cz}`,
+        `§eChunk fondateur : §fx=${cx}§7, §fz=${cz}`,
         `§eDimension : §f${player.dimension.id}`,
         ``,
-        `§8────────────────────`,
-        `§7Le territoire protège ce chunk :`,
-        `§8· casse/pose de blocs`,
-        `§8· coffres et conteneurs`,
-        `§8· PvP contre les non-membres`,
+        `§7Le clan protège ce chunk (casse, pose, coffres, PvP)`,
+        `§7et s'étend en carré ${CLAN_RADIUS * 2 + 1}×${CLAN_RADIUS * 2 + 1} autour.`,
         ``,
         `§7Règles du nom :`,
         `§8· 3 à 24 caractères`,
         `§8· lettres, chiffres, espaces, _ et -`,
         ``,
-        `§8Un seul territoire par joueur.`
+        `§8Un seul clan par joueur.`
       ].join("\n")
     );
-    form.header(`§a§lNouveau territoire`);
-    form.textField("§eNom du territoire", name, { placeholder: "3-24 caractères" });
+    form.header(`§a§lFonder un clan`);
+    form.textField("§eNom du clan", name, { placeholder: "3-24 caractères" });
     form.dropdown(
       "§eCouleur du drapeau",
       colorIndex,
-      TERRITORY_COLORS.map((c, value) => ({ label: `${c.code}■ ${c.id}`, value }))
+      TERRITORY_COLORS.map((c, value) => ({ label: `${c.code}${c.id}`, value }))
     );
-    form.button(`§a§lRevendiquer ce chunk !`, () => {
+    form.button(`§a§lFonder mon clan !`, () => {
       const cleanName = name.getData().trim().replace(/\s+/g, " ");
       const chosen = TERRITORY_COLORS[colorIndex.getData()] ?? TERRITORY_COLORS[0];
       const result = manager.create(
@@ -4744,80 +4819,312 @@ function openCreateMenu(player, manager) {
         player.id
       );
       if (!result.ok) {
-        player.sendMessage(`§c[Territoires] ${result.error}`);
+        say(player, `§c[Clans] ${result.error}`);
         return;
       }
-      player.sendMessage(
-        `§a[Territoires] Territoire §r${chosen?.code}■ ${result.territory.data.name} §r§acrée ! Ce chunk est sous ta bannière.`
+      say(
+        player,
+        `§a[Clans] Clan §r${chosen?.code}${result.territory.data.name} §r§afondé ! Ce chunk est ton territoire.`
       );
+      const fresh = manager.findByOwner(player.name);
+      if (fresh !== void 0) openMyClanMenu(player, manager, fresh);
     });
   }).catch(
-    (error) => console.warn(`[Territoires] Erreur menu création : ${error instanceof Error ? error.message : String(error)}`)
+    (error) => console.warn(`[Clans] Erreur menu création : ${error instanceof Error ? error.message : String(error)}`)
   );
 }
-function openTerritoriesMenu(player, manager) {
-  const territories2 = manager.all();
-  if (territories2.length === 0) {
-    player.sendMessage("§7[Territoires] Aucun territoire pour l'instant. Sois le premier avec §f/sn:create§7 !");
-    return;
-  }
-  void openWindow(player, "Territoires", (form) => {
-    form.header(`§a§lTerritoires du serveur`);
-    form.label(`§7${territories2.length} territoire(s) revendiqué(s) :`);
+function openStatesMenu(player, manager) {
+  const states = manager.all();
+  void openWindow(player, "États", (form) => {
+    const here = clanAtPlayer(manager, player);
+    form.header(`§e§lÉtats de NaLandia`);
+    form.label(
+      states.length === 0 ? `§7Aucun État fondé pour l'instant.` : `§7${states.length} État(s) sur la carte :`
+    );
     form.divider();
-    for (const territory of territories2) {
-      const color = getColor(territory.data.color);
+    if (states.length > 0) {
+      for (const state of states) {
+        const color = getColor(state.data.color);
+        form.button(
+          `${color.code}${state.data.name}§r §7— par ${state.data.owner}`,
+          () => showStateInfo(player, state, manager)
+        );
+      }
+      form.divider();
+    }
+    if (here !== void 0) {
+      const color = getColor(here.data.color);
       form.button(
-        `${color.code}■ ${territory.data.name}§r §7— par ${territory.data.owner}`,
-        () => showTerritoryInfo(player, territory, manager)
+        `§aTu es ici : §l${color.code}${here.data.name}`,
+        () => showStateInfo(player, here, manager)
       );
+    } else {
+      form.button(`§7Tu es ici : §ozone libre`, () => {
+        say(player, "§7[Clans] Ce chunk n'appartient à personne. §f/sn:create §7pour le revendiquer.");
+      });
+    }
+    if (manager.findByMemberId(player.id) === void 0 && manager.findByOwner(player.name) === void 0) {
+      form.divider();
+      form.button(`§a§lFonder mon clan (/sn:create)`, () => openCreateMenu(player, manager));
     }
   }).catch(
-    (error) => console.warn(`[Territoires] Erreur menu liste : ${error instanceof Error ? error.message : String(error)}`)
+    (error) => console.warn(`[Clans] Erreur menu États : ${error instanceof Error ? error.message : String(error)}`)
   );
 }
-function showTerritoryInfo(player, territory, manager) {
-  void manager;
+function showStateInfo(player, territory, manager) {
   const data = territory.data;
   const color = getColor(data.color);
   const center = chunkCenter(data.chunkKeys[0] ?? "");
   const isOwner = data.ownerId === player.id || data.owner === player.name;
+  const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
   void openWindowRaw(player, windowTitle(data.name), (form) => {
     form.header(`${color.code}§l${data.name}`);
     form.label(
       [
-        `§ePropriétaire : §f${data.owner}${isOwner ? " §a(toi)" : ""}`,
-        `§eDrapeau : §r${color.code}■ ${color.id}`,
-        `§eCréé le : §f${formatDate(data.createdAt)}`,
-        `§eChunks contrôlés : §f${data.chunkKeys.length}`,
-        `§eZone : §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
+        `§eChef : §f${data.owner}${isOwner ? " §a(toi)" : ""}`,
+        `§eDrapeau : §r${color.code}${color.id}`,
+        `§eFondé le : §f${formatDate(data.createdAt)}`,
+        `§eTerritoire : §f${extentLine(data.chunkKeys.length)}`,
+        `§eCapitale : §fx=${center.x}, z=${center.z} §7(${center.dimensionId})`,
         `§eMembres : §f${data.members.length}`
       ].join("\n")
     );
     form.divider();
-    form.label("§7Seuls le propriétaire et ses membres peuvent y construire, y ouvrir des conteneurs ou y combattre.");
-    if (data.members.length > 0) {
-      form.divider();
-      form.label(
-        `§7Membres :
-${data.members.map((m) => `§8· §f${m.name} §7(${m.rank === "officer" ? "officier" : "membre"})`).join("\n")}`
-      );
+    if (isOwner || myRank !== void 0) {
+      form.button(`§6§lMon clan`, () => openMyClanMenu(player, manager, territory));
     }
-    if (isOwner) {
-      form.button(`§6§lChanger le drapeau (/sn:setflag)`, () => {
-        player.sendMessage(
-          `§7[Territoires] Couleurs : ${TERRITORY_COLORS.map((c) => `${c.code}${c.id}`).join("§7, ")}`
-        );
-      });
-      form.button(`§c§lSupprimer ce territoire`, () => {
-        const ok = manager.remove(data.name, player.name);
-        player.sendMessage(
-          ok ? `§a[Territoires] ${data.name} supprimé.` : "§c[Territoires] Suppression impossible."
-        );
-      });
-    }
+    form.button(`§7§lRetour aux États`, () => openStatesMenu(player, manager));
   }).catch(
-    (error) => console.warn(`[Territoires] Erreur fiche territoire : ${error instanceof Error ? error.message : String(error)}`)
+    (error) => console.warn(`[Clans] Erreur fiche État : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+function openMyClanMenu(player, manager, territory) {
+  const fresh = manager.findOne(territory.id);
+  if (fresh === void 0) {
+    say(player, "§c[Clans] Ce clan n'existe plus.");
+    return;
+  }
+  territory = fresh;
+  const data = territory.data;
+  const color = getColor(data.color);
+  const isOwner = data.ownerId === player.id || data.owner === player.name;
+  const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
+  const rankLabel = isOwner ? "§6Chef" : myRank === "officer" ? "§bOfficier" : "§7Membre";
+  void openWindowRaw(player, windowTitle("Mon clan"), (form) => {
+    form.header(`${color.code}§l${data.name}`);
+    form.label(
+      [
+        `§eTon rang : §r${rankLabel}`,
+        `§eTerritoire : §f${extentLine(data.chunkKeys.length)}`,
+        `§eMembres : §f${data.members.length + 1} §7(chef inclus)`
+      ].join("\n")
+    );
+    form.divider();
+    form.button(`§a§lRevendiquer ce chunk`, () => {
+      claimHere(player, manager, territory);
+    });
+    form.button(`§b§lMembres`, () => openMembersMenu(player, manager, territory));
+    if (isOwner) {
+      form.button(`§6§lDrapeau`, () => openFlagMenu(player, manager, territory));
+    }
+    form.divider();
+    if (isOwner) {
+      form.button(`§c§lDissoudre le clan`, () => openDissolveMenu(player, manager, territory));
+    } else {
+      form.button(`§c§lQuitter le clan`, () => {
+        const ok = manager.leave(territory.id, player.id);
+        say(
+          player,
+          ok ? `§e[Clans] Tu as quitté §f${data.name}§e.` : "§c[Clans] Impossible de quitter le clan."
+        );
+      });
+    }
+    form.button(`§7§lRetour`, () => openStatesMenu(player, manager));
+  }).catch(
+    (error) => console.warn(`[Clans] Erreur menu Mon clan : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+function claimHere(player, manager, territory) {
+  const key = `${player.dimension.id}:${Math.floor(player.location.x / 16)}:${Math.floor(player.location.z / 16)}`;
+  const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
+  const myRank = territory.data.members.find((m) => m.playerId === player.id)?.rank;
+  if (!isOwner && myRank !== "officer") {
+    say(player, "§c[Clans] Seul le chef ou un officier peut étendre le territoire.");
+    return;
+  }
+  const result = manager.addChunk(territory.id, key);
+  if (result.ok) {
+    say(
+      player,
+      `§a[Clans] Chunk revendiqué ! §f${territory.data.name} §r§a— ${extentLine(territory.data.chunkKeys.length)}`
+    );
+    openMyClanMenu(player, manager, territory);
+  } else {
+    say(player, `§c[Clans] ${result.reason ?? "Revendication impossible."}`);
+  }
+}
+function openMembersMenu(player, manager, territory) {
+  const fresh = manager.findOne(territory.id);
+  if (fresh === void 0) {
+    say(player, "§c[Clans] Ce clan n'existe plus.");
+    return;
+  }
+  territory = fresh;
+  const data = territory.data;
+  const isOwner = data.ownerId === player.id || data.owner === player.name;
+  const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
+  const canManage = isOwner || myRank === "officer";
+  void openWindowRaw(player, windowTitle("Membres du clan"), (form) => {
+    form.header(`§b§l${data.name} §7— membres`);
+    form.label(
+      [
+        `§eChef : §f${data.owner}`,
+        ...data.members.map(
+          (m) => `§8· §f${m.name} §7(${m.rank === "officer" ? "§bofficier" : "membre"}§7)`
+        ),
+        ...data.members.length === 0 ? [`§8· §o(aucun membre pour l'instant)`] : []
+      ].join("\n")
+    );
+    form.divider();
+    if (canManage) {
+      form.button(`§a§lInviter un joueur`, () => openInviteMenu(player, manager, territory));
+      for (const member of data.members) {
+        const isOfficer = member.rank === "officer";
+        form.button(
+          `§f${member.name} §7— §o${isOfficer ? "officier" : "membre"}`,
+          () => {
+            openMemberActionsMenu(player, manager, territory, member.playerId, member.name);
+          }
+        );
+      }
+    }
+    form.button(`§7§lRetour`, () => openMyClanMenu(player, manager, territory));
+  }).catch(
+    (error) => console.warn(`[Clans] Erreur menu Membres : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+function openMemberActionsMenu(player, manager, territory, memberId, memberName) {
+  const fresh = manager.findOne(territory.id);
+  if (fresh === void 0) return;
+  const member = fresh.data.members.find((m) => m.playerId === memberId);
+  if (member === void 0) {
+    openMembersMenu(player, manager, fresh);
+    return;
+  }
+  void openWindowRaw(player, windowTitle(memberName), (form) => {
+    form.header(`§f§l${memberName}`);
+    form.label(`§7Rang actuel : ${member.rank === "officer" ? "§bofficier" : "membre"}`);
+    form.divider();
+    form.button(
+      member.rank === "officer" ? `§e§lRétrograder en membre` : `§b§lPromouvoir officier`,
+      () => {
+        const nextRank = member.rank === "officer" ? "member" : "officer";
+        const result = manager.setMemberRank(territory.id, memberId, nextRank);
+        say(
+          player,
+          result.ok ? `§a[Clans] ${memberName} est ${nextRank === "officer" ? "désormais officier" : "redevenu membre"}.` : `§c[Clans] ${result.error ?? "Action impossible."}`
+        );
+        openMembersMenu(player, manager, territory);
+      }
+    );
+    form.button(`§c§lExclure du clan`, () => {
+      const result = manager.removeMember(territory.id, memberId);
+      say(
+        player,
+        result.ok ? `§a[Clans] ${memberName} a été exclu du clan.` : `§c[Clans] ${result.error ?? "Action impossible."}`
+      );
+      openMembersMenu(player, manager, territory);
+    });
+    form.button(`§7§lRetour`, () => openMembersMenu(player, manager, territory));
+  }).catch(
+    (error) => console.warn(`[Clans] Erreur menu membre : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+function openInviteMenu(player, manager, territory) {
+  const invitables = onlineInvitables(territory, player);
+  if (invitables.length === 0) {
+    say(player, "§7[Clans] Aucun joueur en ligne à inviter (hors du clan).");
+    return;
+  }
+  const pick = obNumber(0);
+  void openWindowRaw(player, windowTitle("Inviter"), (form) => {
+    form.header(`§a§lInviter dans ${territory.data.name}`);
+    form.label(`§7Choisis un joueur en ligne :`);
+    form.dropdown(
+      "§eJoueur",
+      pick,
+      invitables.map((candidate, value) => ({ label: candidate.name, value }))
+    );
+    form.button(`§a§lInviter`, () => {
+      const target = invitables[pick.getData()];
+      if (target === void 0) {
+        say(player, "§c[Clans] Ce joueur n'est plus en ligne.");
+        return;
+      }
+      const result = manager.addMember(territory.id, target.id, target.name);
+      say(
+        player,
+        result.ok ? `§a[Clans] ${target.name} a rejoint §f${territory.data.name}§a !` : `§c[Clans] ${result.error ?? "Invitation impossible."}`
+      );
+      if (result.ok) {
+        try {
+          target.sendMessage(`§a[Clans] Tu as rejoint le clan §f${territory.data.name}§a !`);
+        } catch {
+        }
+      }
+      openMembersMenu(player, manager, territory);
+    });
+  }).catch(
+    (error) => console.warn(`[Clans] Erreur menu invitation : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+function openFlagMenu(player, manager, territory) {
+  void openWindowRaw(player, windowTitle("Drapeau"), (form) => {
+    form.header(`§6§lDrapeau de ${territory.data.name}`);
+    form.label(`§7Choisis la couleur de ta bannière :`);
+    form.divider();
+    for (const candidate of TERRITORY_COLORS) {
+      form.button(`${candidate.code}${candidate.id}`, () => {
+        const fresh = manager.findOne(territory.id);
+        if (fresh === void 0) {
+          say(player, "§c[Clans] Ce clan n'existe plus.");
+          return;
+        }
+        fresh.data.color = candidate.id;
+        fresh.updatedAt = Date.now();
+        manager.save();
+        say(player, `§a[Clans] Drapeau changé : ${candidate.code}${candidate.id}`);
+        openMyClanMenu(player, manager, territory);
+      });
+    }
+    form.divider();
+    form.button(`§7§lRetour`, () => openMyClanMenu(player, manager, territory));
+  }).catch(
+    (error) => console.warn(`[Clans] Erreur menu drapeau : ${error instanceof Error ? error.message : String(error)}`)
+  );
+}
+function openDissolveMenu(player, manager, territory) {
+  void openWindowRaw(player, windowTitle("Dissoudre le clan"), (form) => {
+    form.header(`§4§lDissoudre ${territory.data.name} ?`);
+    form.label(
+      [
+        `§7Les §f${territory.data.chunkKeys.length}§7 chunk(s) redeviendront libres.`,
+        `§7Les membres seront retirés du clan.`,
+        ``,
+        `§cAction irréversible.`
+      ].join("\n")
+    );
+    form.divider();
+    form.button(`§4§lOui, dissoudre définitivement`, () => {
+      const ok = manager.remove(territory.id, player.name, player.id);
+      say(
+        player,
+        ok ? `§e[Clans] §f${territory.data.name} §r§ea été dissous.` : "§c[Clans] Dissolution impossible."
+      );
+    });
+    form.button(`§a§lAnnuler`, () => openMyClanMenu(player, manager, territory));
+  }).catch(
+    (error) => console.warn(`[Clans] Erreur menu dissolution : ${error instanceof Error ? error.message : String(error)}`)
   );
 }
 
@@ -4832,7 +5139,7 @@ function registerCommands(manager, db2, modules2, permissions2) {
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:create",
-        description: "Revendique le chunk où tu te trouves (nom + couleur de drapeau)",
+        description: "Fonde ton clan sur le chunk où tu te trouves",
         permissionLevel: CommandPermissionLevel.Any,
         cheatsRequired: false
       },
@@ -4842,10 +5149,10 @@ function registerCommands(manager, db2, modules2, permissions2) {
           return { status: CustomCommandStatus.Failure, message: "Seuls les joueurs peuvent utiliser cette commande." };
         }
         if (!enabled()) {
-          return { status: CustomCommandStatus.Failure, message: "Le module Territoires est désactivé." };
+          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
         }
         if (!allowed(player, "territories.create")) {
-          return { status: CustomCommandStatus.Failure, message: "§c[Territoires] Tu n'as pas la permission de créer un territoire." };
+          return { status: CustomCommandStatus.Failure, message: "§c[Clans] Tu n'as pas la permission de fonder un clan." };
         }
         system8.run(() => openCreateMenu(player, manager));
         return { status: CustomCommandStatus.Success };
@@ -4854,7 +5161,7 @@ function registerCommands(manager, db2, modules2, permissions2) {
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:info",
-        description: "Affiche la liste de tous les territoires",
+        description: "Liste les États (clans) de NaLandia",
         permissionLevel: CommandPermissionLevel.Any,
         cheatsRequired: false
       },
@@ -4863,14 +5170,76 @@ function registerCommands(manager, db2, modules2, permissions2) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus.Failure, message: "Seuls les joueurs peuvent utiliser cette commande." };
         }
-        system8.run(() => openTerritoriesMenu(player, manager));
+        system8.run(() => openStatesMenu(player, manager));
+        return { status: CustomCommandStatus.Success };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:claim",
+        description: "Revendique le chunk où tu te trouves pour ton clan",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        if (!enabled()) {
+          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+        }
+        system8.run(() => {
+          const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
+          if (territory === void 0) {
+            player.sendMessage("§e[Clans] Tu n'as pas de clan. Fonde-le avec §f/sn:create§e.");
+            return;
+          }
+          const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
+          const rank = territory.data.members.find((m) => m.playerId === player.id)?.rank;
+          if (!isOwner && rank !== "officer") {
+            player.sendMessage("§c[Clans] Seul le chef ou un officier peut étendre le territoire.");
+            return;
+          }
+          const key = `${player.dimension.id}:${Math.floor(player.location.x / 16)}:${Math.floor(player.location.z / 16)}`;
+          const result = manager.addChunk(territory.id, key);
+          player.sendMessage(
+            result.ok ? `§a[Clans] Chunk revendiqué pour §f${territory.data.name}§a !` : `§c[Clans] ${result.reason ?? "Revendication impossible."}`
+          );
+        });
+        return { status: CustomCommandStatus.Success };
+      }
+    );
+    event.customCommandRegistry.registerCommand(
+      {
+        name: "sn:clan",
+        description: "Gère ton clan (extension, membres, drapeau)",
+        permissionLevel: CommandPermissionLevel.Any,
+        cheatsRequired: false
+      },
+      (origin) => {
+        const player = origin.sourceEntity;
+        if (player === void 0 || player.typeId !== "minecraft:player") {
+          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+        }
+        if (!enabled()) {
+          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+        }
+        system8.run(() => {
+          const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
+          if (territory === void 0) {
+            player.sendMessage("§e[Clans] Tu n'as pas de clan. Fonde-le avec §f/sn:create§e.");
+            return;
+          }
+          openMyClanMenu(player, manager, territory);
+        });
         return { status: CustomCommandStatus.Success };
       }
     );
     event.customCommandRegistry.registerCommand(
       {
         name: "sn:setflag",
-        description: "Change la couleur du drapeau de ton territoire",
+        description: "Change la couleur du drapeau de ton clan",
         permissionLevel: CommandPermissionLevel.Any,
         cheatsRequired: false,
         mandatoryParameters: [{ name: "couleur", type: CustomCommandParamType.String }]
@@ -4880,9 +5249,13 @@ function registerCommands(manager, db2, modules2, permissions2) {
         if (player === void 0 || player.typeId !== "minecraft:player") {
           return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
         }
-        const territory = manager.findByOwner(player.name);
+        const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
         if (territory === void 0) {
-          return { status: CustomCommandStatus.Failure, message: "Tu ne possèdes pas de territoire (/sn:create)." };
+          return { status: CustomCommandStatus.Failure, message: "Tu ne fais partie d'aucun clan (/sn:create)." };
+        }
+        const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
+        if (!isOwner) {
+          return { status: CustomCommandStatus.Failure, message: "Seul le chef du clan peut changer le drapeau (/sn:clan)." };
         }
         const color = TERRITORY_COLORS.find((candidate) => candidate.id === couleur.toLowerCase());
         if (color === void 0) {
@@ -4895,7 +5268,7 @@ function registerCommands(manager, db2, modules2, permissions2) {
         territory.updatedAt = Date.now();
         db2?.markDirty();
         manager.save();
-        return { status: CustomCommandStatus.Success, message: `Drapeau changé : ${color.code}■ ${color.id}` };
+        return { status: CustomCommandStatus.Success, message: `Drapeau changé : ${color.code}${color.id}` };
       }
     );
     event.customCommandRegistry.registerCommand(
@@ -4977,7 +5350,7 @@ function registerCommands(manager, db2, modules2, permissions2) {
 }
 
 // src/territories/protection.ts
-import { world as world7, system as system9, GameMode as GameMode2, Player as Player3 } from "@minecraft/server";
+import { world as world8, system as system9, GameMode as GameMode2, Player as Player3 } from "@minecraft/server";
 function safeSend(player, message) {
   system9.run(() => {
     try {
@@ -4986,13 +5359,13 @@ function safeSend(player, message) {
     }
   });
 }
-var DENY_BREAK = "§c[Territoires] Chunk protégé : destruction impossible.";
-var DENY_PLACE = "§c[Territoires] Chunk protégé : construction impossible.";
-var DENY_INTERACT = "§c[Territoires] Chunk protégé : interaction impossible.";
-var DENY_COMBAT = "§c[Territoires] Zone protégée : ce joueur ne peut pas être attaqué ici.";
-var DENY_ITEM = "§c[Territoires] Chunk protégé : objet inutilisable ici.";
+var DENY_BREAK = "§c[Clans] Chunk protégé : destruction impossible.";
+var DENY_PLACE = "§c[Clans] Chunk protégé : construction impossible.";
+var DENY_INTERACT = "§c[Clans] Chunk protégé : interaction impossible.";
+var DENY_COMBAT = "§c[Clans] Territoire de clan : ce joueur ne peut pas être attaqué ici.";
+var DENY_ITEM = "§c[Clans] Chunk protégé : objet inutilisable ici.";
 function isCreative(playerName) {
-  const player = world7.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world8.getAllPlayers().find((candidate) => candidate.name === playerName);
   return player !== void 0 && player.getGameMode() === GameMode2.Creative;
 }
 function isProtectedForId(block, player, manager) {
@@ -5001,7 +5374,7 @@ function isProtectedForId(block, player, manager) {
 }
 function registerProtection(manager, modules2) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
-  world7.beforeEvents.playerBreakBlock.subscribe((event) => {
+  world8.beforeEvents.playerBreakBlock.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -5010,7 +5383,7 @@ function registerProtection(manager, modules2) {
       safeSend(player, DENY_BREAK);
     }
   });
-  world7.afterEvents.playerPlaceBlock.subscribe((event) => {
+  world8.afterEvents.playerPlaceBlock.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -5029,7 +5402,7 @@ function registerProtection(manager, modules2) {
     });
     safeSend(player, DENY_PLACE);
   });
-  world7.beforeEvents.playerInteractWithBlock.subscribe((event) => {
+  world8.beforeEvents.playerInteractWithBlock.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -5038,7 +5411,7 @@ function registerProtection(manager, modules2) {
       safeSend(player, DENY_INTERACT);
     }
   });
-  world7.beforeEvents.itemUse.subscribe((event) => {
+  world8.beforeEvents.itemUse.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.source;
     if (isCreative(player.name)) return;
@@ -5048,7 +5421,7 @@ function registerProtection(manager, modules2) {
       safeSend(player, DENY_ITEM);
     }
   });
-  world7.beforeEvents.playerInteractWithEntity.subscribe((event) => {
+  world8.beforeEvents.playerInteractWithEntity.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const player = event.player;
     if (isCreative(player.name)) return;
@@ -5058,7 +5431,7 @@ function registerProtection(manager, modules2) {
       safeSend(player, DENY_INTERACT);
     }
   });
-  world7.beforeEvents.entityHurt.subscribe((event) => {
+  world8.beforeEvents.entityHurt.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const attacker = event.damageSource.damagingEntity;
     if (!(attacker instanceof Player3)) return;
@@ -5079,10 +5452,10 @@ function registerProtection(manager, modules2) {
     const key = chunkKeyFromPosition(victim.dimension.id, victim.location.x, victim.location.z);
     if (manager.isProtected(key)) {
       event.cancel = true;
-      safeSend(attacker, "§c[Territoires] Chunk protégé : les créatures ici sont sous la protection du propriétaire.");
+      safeSend(attacker, "§c[Clans] Chunk revendiqué : les créatures ici sont sous la protection du clan.");
     }
   });
-  world7.beforeEvents.explosion.subscribe((event) => {
+  world8.beforeEvents.explosion.subscribe((event) => {
     if (!manager.loaded || !enabled()) return;
     const impacted = event.getImpactedBlocks();
     const allowed = impacted.filter((block) => {
@@ -5100,17 +5473,17 @@ function registerProtection(manager, modules2) {
 }
 
 // src/territories/announce.ts
-import { system as system10, world as world8 } from "@minecraft/server";
+import { system as system10, world as world9 } from "@minecraft/server";
 var NO_TERRITORY_MESSAGE = "§7Zone libre";
 function registerAnnouncer(manager, modules2, intervalTicks = 10) {
   const enabled = () => modules2 === void 0 || modules2.isEnabled("territories");
   const lastKeyByPlayer = /* @__PURE__ */ new Map();
-  world8.afterEvents.playerLeave.subscribe((event) => {
+  world9.afterEvents.playerLeave.subscribe((event) => {
     lastKeyByPlayer.delete(event.playerName);
   });
   system10.runInterval(() => {
     if (!manager.loaded || !enabled()) return;
-    for (const player of world8.getAllPlayers()) {
+    for (const player of world9.getAllPlayers()) {
       const key = chunkKeyFromPosition(player.dimension.id, player.location.x, player.location.z);
       const previous = lastKeyByPlayer.get(player.name);
       if (previous === key) continue;
@@ -5124,7 +5497,7 @@ function registerAnnouncer(manager, modules2, intervalTicks = 10) {
       }
       const color = getColor(territory.data.color).code;
       player.onScreenDisplay.setActionBar(
-        `${color}⚑ ${territory.data.name}§r §7— territoire de §f${territory.data.owner}`
+        `${color}⚑ ${territory.data.name}§r §7— clan de §f${territory.data.owner}`
       );
     }
   }, intervalTicks);
@@ -5576,7 +5949,7 @@ function openPrefixMenu(player, title, onDone) {
 }
 
 // src/permissions/players-ui.ts
-import { world as world9 } from "@minecraft/server";
+import { world as world10 } from "@minecraft/server";
 
 // src/players.ts
 function findPlayerById(db2, playerId) {
@@ -5639,7 +6012,7 @@ function allKnownPlayers(db2) {
 // src/permissions/players-ui.ts
 function openPlayersMenu(player, permissions2, db2) {
   void openWindow(player, "Joueurs", (form) => {
-    const online = world9.getAllPlayers();
+    const online = world10.getAllPlayers();
     form.header(`§b■ §lJoueurs`);
     form.label(
       `§a● En ligne : §f${online.length}
@@ -5697,7 +6070,7 @@ function openPlayerConfigMenu(player, targetName, permissions2, db2) {
   const member = permissions2.getMember(targetName);
   const roleLabel = member === void 0 ? "§7aucun" : `${permissions2.getRole(member.data.role)?.data.color ?? "§7"}${member.data.role}`;
   const prefixLabel = member?.data.customPrefix ?? "(défaut du rôle)";
-  const isOnline = world9.getAllPlayers().some((candidate) => candidate.name === targetName);
+  const isOnline = world10.getAllPlayers().some((candidate) => candidate.name === targetName);
   const record = db2 !== void 0 ? allKnownPlayers(db2).find((r) => r.data.name === targetName) : void 0;
   const classLabel = record?.data.class ? record.data.class : "§8pas encore choisie";
   void openWindow(player, targetName, (form) => {
@@ -5751,10 +6124,10 @@ function openAssignRoleMenu(player, targetName, permissions2, db2) {
 import { CustomCommandStatus as CustomCommandStatus2, CommandPermissionLevel as CommandPermissionLevel2, system as system12, PlayerPermissionLevel } from "@minecraft/server";
 
 // src/ui/hub.ts
-import { world as world13 } from "@minecraft/server";
+import { world as world14 } from "@minecraft/server";
 
 // src/moderation/ui.ts
-import { world as world11 } from "@minecraft/server";
+import { world as world12 } from "@minecraft/server";
 
 // src/moderation/manager.ts
 function formatDuration(minutes) {
@@ -5906,9 +6279,9 @@ var SanctionsManager = class {
 };
 
 // src/moderation/enforcement.ts
-import { world as world10, system as system11 } from "@minecraft/server";
+import { world as world11, system as system11 } from "@minecraft/server";
 function kickPlayer(playerName, reason) {
-  const player = world10.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world11.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return false;
   try {
     player.dimension.runCommand(`kick "${playerName}" ${reason.replace(/"/g, "")}`);
@@ -5918,7 +6291,7 @@ function kickPlayer(playerName, reason) {
   }
 }
 function registerEnforcement(sanctions2) {
-  world10.afterEvents.playerSpawn.subscribe((event) => {
+  world11.afterEvents.playerSpawn.subscribe((event) => {
     if (!event.initialSpawn || !sanctions2.loaded) return;
     const player = event.player;
     const ban = sanctions2.getBan(player.name);
@@ -5934,7 +6307,7 @@ function registerEnforcement(sanctions2) {
 
 // src/moderation/ui.ts
 function resolveTargetId(targetName) {
-  const online = world11.getAllPlayers().find((candidate) => candidate.name === targetName);
+  const online = world12.getAllPlayers().find((candidate) => candidate.name === targetName);
   return online?.id ?? null;
 }
 function openSanctionsMenu(player, sanctions2, permissions2) {
@@ -6309,15 +6682,15 @@ ${xpBar2(progress, 50)} §8(${progress}/50 XP)`
 }
 
 // src/ui/admin.ts
-import { world as world12 } from "@minecraft/server";
+import { world as world13 } from "@minecraft/server";
 
 // src/modules/manager.ts
 var MODULE_IDS = ["territories", "moderation"];
 var MODULE_CATALOG = [
   {
     id: "territories",
-    name: "Territoires",
-    description: "Revendication de chunks protégés (/sn:create, /sn:info)"
+    name: "États (clans)",
+    description: "Clans, claims et protection de chunks (/sn:create, /sn:info)"
   },
   {
     id: "moderation",
@@ -6372,20 +6745,20 @@ function openModulesMenu(player, modules2, territories2) {
     }
     if (MODULE_CATALOG.some((info) => info.id === "territories")) {
       form.divider();
-      form.button(`§e■ §lVoir les territoires`, () => {
-        if (territories2 !== void 0) openTerritoriesMenu(player, territories2);
+      form.button(`§e■ §lVoir les États`, () => {
+        if (territories2 !== void 0) openStatesMenu(player, territories2);
       });
-      form.button(`§c■ §lSupprimer TOUS les territoires`, () => {
+      form.button(`§c■ §lSupprimer TOUS les États`, () => {
         if (territories2 !== void 0) openWipeTerritoriesMenu(player, modules2, territories2);
       });
     }
   }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
 }
 function openWipeTerritoriesMenu(player, modules2, territories2) {
-  void openWindowRaw(player, windowTitle("Supprimer les territoires"), (form) => {
+  void openWindowRaw(player, windowTitle("Supprimer les États"), (form) => {
     form.header(`§4⚠ §lDANGER`);
     form.label(
-      `Supprimer §lTOUS§r§4 les territoires (${territories2.all().length}) ?
+      `Supprimer §lTOUS§r§4 les États (${territories2.all().length}) ?
 
 §7Action irréversible !`
     );
@@ -6395,7 +6768,7 @@ function openWipeTerritoriesMenu(player, modules2, territories2) {
       for (const territory of territories2.all()) {
         if (territories2.removeForced(territory.id)) removed++;
       }
-      player.sendMessage(`§a[Modules] ${removed} territoire(s) supprimé(s).`);
+      player.sendMessage(`§a[Modules] ${removed} État(s) supprimé(s).`);
       openModulesMenu(player, modules2, territories2);
     });
     form.button(`§a■ §lAnnuler`, () => openModulesMenu(player, modules2, territories2));
@@ -6410,9 +6783,9 @@ function openAdminMenu(player, deps) {
     return;
   }
   const stats = db2?.stats();
-  const online = world12.getAllPlayers().length;
+  const online = world13.getAllPlayers().length;
   const roleCount = permissions2.allRoles().length;
-  const territoryCount = territories2.all().length;
+  const stateCount = territories2.all().length;
   const moduleCount = modules2.enabledCount();
   void openWindow(player, "Administration", (form) => {
     form.body(
@@ -6420,7 +6793,7 @@ function openAdminMenu(player, deps) {
         `§6§l■ Panneau d'administration§r`,
         ``,
         `§eEn ligne : §f${online}`,
-        `§eRôles : §f${roleCount}   §eTerritoires : §f${territoryCount}`,
+        `§eRôles : §f${roleCount}   §eÉtats : §f${stateCount}`,
         `§eModules actifs : §f${moduleCount}`,
         stats !== void 0 ? `§eBase de données : §f${stats.documents} documents§7 (${stats.bytes} octets, ${stats.dirty ? "§eà sauvegarder§7" : "§aà jour§7"})` : `§eBase de données : §8index indisponible`,
         ``,
@@ -6449,10 +6822,10 @@ function openHubMenu(player, deps) {
   const isAdmin = canUseAdminPanel(player, permissions2);
   const isMod = permissions2.can(player.name, "mod.panel", isOp);
   const hasRole = permissions2.getMember(player.name) !== void 0;
-  const online = world13.getAllPlayers().length;
-  const territoryCount = territories2.all().length;
+  const online = world14.getAllPlayers().length;
+  const stateCount = territories2.all().length;
   const knownCount = db2 !== void 0 ? allKnownPlayers(db2).length : 0;
-  const myTerritory = territories2.findByOwner(player.name);
+  const myClan = territories2.findByMemberId(player.id) ?? territories2.findByOwner(player.name);
   const myClass = classes2?.classOf(player.name);
   const roleTag = hasRole ? permissions2.nameTagFor(player.name) : "§8aucun rôle";
   void openWindow(player, "Menu", (form) => {
@@ -6465,13 +6838,13 @@ function openHubMenu(player, deps) {
         myClass !== void 0 ? `§7Ta classe : §d${myClass.classId}` : `§7Ta classe : §8pas encore choisie`,
         ``,
         `§8────────────────────`,
-        `§7En ligne : §f${online}   §7Territoires : §f${territoryCount}   §7Joueurs connus : §f${knownCount}`,
+        `§7En ligne : §f${online}   §7États : §f${stateCount}   §7Joueurs connus : §f${knownCount}`,
         ``,
         `§8Choisis une section à gauche.`,
-        myTerritory !== void 0 ? `§8Ton territoire : ${myTerritory.data.name}§r` : `§8Astuce : §f/sn:create§8 pour revendiquer ce chunk.`
+        myClan !== void 0 ? `§8Ton clan : §f${myClan.data.name}§r` : `§8Astuce : §f/sn:create§8 pour fonder ton clan ici.`
       ].join("\n")
     );
-    form.button(`§6Territoires`, () => openTerritoriesMenu(player, territories2));
+    form.button(`§6États`, () => openStatesMenu(player, territories2));
     form.button(`§eMes infos`, () => openMyInfoMenu(player, deps));
     if (isMod) {
       form.divider();
@@ -6486,7 +6859,7 @@ function openMyInfoMenu(player, deps) {
   const { permissions: permissions2, territories: territories2, classes: classes2, jobs: jobs2, db: db2 } = deps;
   const member = permissions2.getMember(player.name);
   const roleLabel = member === void 0 ? "§8aucun" : `${permissions2.getRole(member.data.role)?.data.color ?? "§7"}${member.data.role}§r`;
-  const myTerritory = territories2.findByOwner(player.name);
+  const myClan = territories2.findByMemberId(player.id) ?? territories2.findByOwner(player.name);
   const selection = classes2?.classOf(player.name);
   const myJobs = jobs2?.jobsOf(player.name) ?? [];
   const record = db2 !== void 0 ? allKnownPlayers(db2).find((r) => r.data.name === player.name) : void 0;
@@ -6497,7 +6870,7 @@ function openMyInfoMenu(player, deps) {
         ``,
         `§eRôle : ${roleLabel}`,
         `§eClasse : ${selection !== void 0 ? `§d${selection.classId}§r §7(niv. ${Math.floor(selection.xp / 100) + 1})` : "§8non choisie"}`,
-        `§eTerritoire : ${myTerritory !== void 0 ? `§a${myTerritory.data.name}` : "§8aucun"}`,
+        `§eClan : ${myClan !== void 0 ? `§a${myClan.data.name}` : "§8aucun"}`,
         myJobs.length > 0 ? `§eMétiers : §f${myJobs.map((j) => j.jobId).join(", ")}` : `§eMétiers : §8aucun`,
         ``,
         `§8────────────────────`,
@@ -6511,10 +6884,10 @@ function openMyInfoMenu(player, deps) {
     if (jobs2 !== void 0) {
       form.button(`§6Métiers`, () => openJobsMenu(player, jobs2));
     }
-    if (myTerritory !== void 0) {
-      form.button(`§aMon territoire`, () => showTerritoryInfo(player, myTerritory, territories2));
+    if (myClan !== void 0) {
+      form.button(`§aMon clan`, () => openMyClanMenu(player, territories2, myClan));
     } else {
-      form.button(`§aCréer un territoire`, () => openCreateMenu(player, territories2));
+      form.button(`§aFonder un clan`, () => openCreateMenu(player, territories2));
     }
   }).catch((error) => console.warn(`[Mes infos] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -6632,7 +7005,7 @@ function registerAdminCommands(ctx) {
 }
 
 // src/permissions/chat.ts
-import { world as world14, system as system13 } from "@minecraft/server";
+import { world as world15, system as system13 } from "@minecraft/server";
 function stripFormatting(raw) {
   return raw.replace(/§/g, "");
 }
@@ -6671,7 +7044,7 @@ function formatChatMessage(permissions2, playerName, message, isVanillaOp = fals
 }
 function registerChat(deps) {
   const { permissions: permissions2, getMute } = deps;
-  world14.beforeEvents.chatSend.subscribe((event) => {
+  world15.beforeEvents.chatSend.subscribe((event) => {
     if (!permissions2.loaded) return;
     const sender = event.sender;
     const isVanillaOp = sender.playerPermissionLevel >= 2;
@@ -6691,7 +7064,7 @@ function registerChat(deps) {
     const formatted = formatChatMessage(permissions2, sender.name, message, isVanillaOp);
     system13.run(() => {
       for (const line of formatted.split("\n")) {
-        world14.sendMessage(line);
+        world15.sendMessage(line);
       }
     });
   });
@@ -6704,17 +7077,17 @@ import {
   CommandPermissionLevel as CommandPermissionLevel3,
   system as system14
 } from "@minecraft/server";
-import { world as world15 } from "@minecraft/server";
+import { world as world16 } from "@minecraft/server";
 var NOT_PLAYER = "§c[Modération] Réservé aux joueurs.";
 function requires(player, permissions2, perm) {
   return permissions2.can(player.name, perm, player.playerPermissionLevel >= 2);
 }
 function notifyTarget(targetName, message) {
-  const target = world15.getAllPlayers().find((candidate) => candidate.name === targetName);
+  const target = world16.getAllPlayers().find((candidate) => candidate.name === targetName);
   if (target !== void 0) system14.run(() => target.sendMessage(message));
 }
 function resolveTargetId2(targetName, db2) {
-  const online = world15.getAllPlayers().find((candidate) => candidate.name === targetName);
+  const online = world16.getAllPlayers().find((candidate) => candidate.name === targetName);
   if (online !== void 0) return online.id;
   if (db2 !== void 0) return resolvePlayer(db2, targetName)?.data.playerId ?? null;
   return null;
@@ -6916,14 +7289,14 @@ function registerChatOnce() {
   registerEnforcement(sanctions);
 }
 function applyNameTag(playerName) {
-  const player = world16.getAllPlayers().find((candidate) => candidate.name === playerName);
+  const player = world17.getAllPlayers().find((candidate) => candidate.name === playerName);
   if (player === void 0) return;
   try {
     player.nameTag = permissions.nameTagFor(playerName);
   } catch {
   }
 }
-world16.afterEvents.worldLoad.subscribe(() => {
+world17.afterEvents.worldLoad.subscribe(() => {
   Timings.begin("worldLoad");
   db.load();
   permissions.markLoaded();
@@ -6934,16 +7307,16 @@ world16.afterEvents.worldLoad.subscribe(() => {
   jobs.markLoaded();
   permissions.bootstrapDefaultRoles();
   if (!permissions.hasAdmin()) {
-    const operator = world16.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+    const operator = world17.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
     if (operator !== void 0) {
       permissions.bootstrapAdmin(operator.name);
       log3.info(`Bootstrap : ${operator.name} est promu Admin.`);
     }
   }
-  for (const player of world16.getAllPlayers()) {
+  for (const player of world17.getAllPlayers()) {
     permissions.ensureDefaultRole(player.name, player.id);
   }
-  for (const player of world16.getAllPlayers()) {
+  for (const player of world17.getAllPlayers()) {
     applyNameTag(player.name);
   }
   registerChatOnce();
@@ -6962,7 +7335,7 @@ world16.afterEvents.worldLoad.subscribe(() => {
 var worldReady = false;
 system15.runInterval(() => {
   if (worldReady) return;
-  if (world16.getAllPlayers().length === 0) return;
+  if (world17.getAllPlayers().length === 0) return;
   if (!territories.loaded) {
     db.load();
     permissions.markLoaded();
@@ -6973,10 +7346,10 @@ system15.runInterval(() => {
     jobs.markLoaded();
     permissions.bootstrapDefaultRoles();
     if (!permissions.hasAdmin()) {
-      const operator = world16.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
+      const operator = world17.getAllPlayers().find((candidate) => canUseAdminPanel(candidate, permissions));
       if (operator !== void 0) permissions.bootstrapAdmin(operator.name);
     }
-    for (const player of world16.getAllPlayers()) {
+    for (const player of world17.getAllPlayers()) {
       permissions.ensureDefaultRole(player.name, player.id);
       applyNameTag(player.name);
     }
@@ -6990,7 +7363,7 @@ system15.runInterval(() => {
   }
   worldReady = true;
 }, 40);
-world16.afterEvents.playerSpawn.subscribe((event) => {
+world17.afterEvents.playerSpawn.subscribe((event) => {
   if (!event.initialSpawn) return;
   const player = event.player;
   permissions.ensureDefaultRole(player.name, player.id);
@@ -7024,7 +7397,7 @@ world16.afterEvents.playerSpawn.subscribe((event) => {
 });
 system15.runInterval(() => {
   if (!permissions.loaded) return;
-  for (const player of world16.getAllPlayers()) {
+  for (const player of world17.getAllPlayers()) {
     applyNameTag(player.name);
   }
 }, 100);

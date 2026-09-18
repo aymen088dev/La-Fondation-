@@ -1,7 +1,7 @@
 import type { Player } from "@minecraft/server";
 import { world } from "@minecraft/server";
 import { openWindow } from "./theme";
-import { openTerritoriesMenu, showTerritoryInfo, openCreateMenu } from "../territories/ui";
+import { openStatesMenu, openCreateMenu, openMyClanMenu } from "../territories/ui";
 import type { TerritoryManager } from "../territories/manager";
 import type { PermissionManager } from "../permissions/manager";
 import { canUseAdminPanel } from "../permissions/commands";
@@ -31,12 +31,13 @@ export interface HubDeps {
 }
 
 /**
- * Menu hub central (/sn:menu) — layout SIDEBAR.
+ * Menu hub central (/sn:menu) — layout SIDEBAR. La section « États »
+ * porte le système de clans (fondation, extension, membres).
  *
  * Grâce au JSON UI du RP (server_form.json), les BOUTONS d'un menu
  * ActionForm s'affichent dans la COLONNE DE GAUCHE et le TEXTE (body)
  * dans le grand panneau de droite :
- *  - sidebar : Territoires · Mes infos · Modération (modo) · Admin (admin)
+ *  - sidebar : États · Mes infos · Modération (modo) · Admin (admin)
  *  - panneau : accueil (bienvenue, ton rôle, stats du monde).
  */
 export function openHubMenu(player: Player, deps: HubDeps): void {
@@ -49,9 +50,9 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
 
   // Stats pour le panneau d'accueil.
   const online = world.getAllPlayers().length;
-  const territoryCount = territories.all().length;
+  const stateCount = territories.all().length;
   const knownCount = db !== undefined ? allKnownPlayers(db).length : 0;
-  const myTerritory = territories.findByOwner(player.name);
+  const myClan = territories.findByMemberId(player.id) ?? territories.findByOwner(player.name);
   const myClass = classes?.classOf(player.name);
   const roleTag = hasRole ? permissions.nameTagFor(player.name) : "§8aucun rôle";
 
@@ -66,18 +67,17 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
         myClass !== undefined ? `§7Ta classe : §d${myClass.classId}` : `§7Ta classe : §8pas encore choisie`,
         ``,
         `§8────────────────────`,
-        `§7En ligne : §f${online}   §7Territoires : §f${territoryCount}   §7Joueurs connus : §f${knownCount}`,
+        `§7En ligne : §f${online}   §7États : §f${stateCount}   §7Joueurs connus : §f${knownCount}`,
         ``,
         `§8Choisis une section à gauche.`,
-        myTerritory !== undefined
-          ? `§8Ton territoire : ${myTerritory.data.name}§r`
-          : `§8Astuce : §f/sn:create§8 pour revendiquer ce chunk.`,
+        myClan !== undefined
+          ? `§8Ton clan : §f${myClan.data.name}§r`
+          : `§8Astuce : §f/sn:create§8 pour fonder ton clan ici.`,
       ].join("\n"),
     );
 
-    // ---- Sidebar (colonne de gauche) — v17.1 : plus de bandeau « Navigation »
-    // (redondant) ni de puces décoratives ; les icônes sont retirées. ----
-    form.button(`§6Territoires`, () => openTerritoriesMenu(player, territories));
+    // ---- Sidebar (colonne de gauche) : section États = système de clans. ----
+    form.button(`§6États`, () => openStatesMenu(player, territories));
     form.button(`§eMes infos`, () => openMyInfoMenu(player, deps));
 
     if (isMod) {
@@ -103,7 +103,7 @@ export function openMyInfoMenu(player: Player, deps: HubDeps): void {
     member === undefined
       ? "§8aucun"
       : `${permissions.getRole(member.data.role)?.data.color ?? "§7"}${member.data.role}§r`;
-  const myTerritory = territories.findByOwner(player.name);
+  const myClan = territories.findByMemberId(player.id) ?? territories.findByOwner(player.name);
   const selection = classes?.classOf(player.name);
   const myJobs = jobs?.jobsOf(player.name) ?? [];
   const record = db !== undefined ? allKnownPlayers(db).find((r) => r.data.name === player.name) : undefined;
@@ -115,7 +115,7 @@ export function openMyInfoMenu(player: Player, deps: HubDeps): void {
         ``,
         `§eRôle : ${roleLabel}`,
         `§eClasse : ${selection !== undefined ? `§d${selection.classId}§r §7(niv. ${Math.floor(selection.xp / 100) + 1})` : "§8non choisie"}`,
-        `§eTerritoire : ${myTerritory !== undefined ? `§a${myTerritory.data.name}` : "§8aucun"}`,
+        `§eClan : ${myClan !== undefined ? `§a${myClan.data.name}` : "§8aucun"}`,
         myJobs.length > 0
           ? `§eMétiers : §f${myJobs.map((j) => j.jobId).join(", ")}`
           : `§eMétiers : §8aucun`,
@@ -135,10 +135,10 @@ export function openMyInfoMenu(player: Player, deps: HubDeps): void {
     if (jobs !== undefined) {
       form.button(`§6Métiers`, () => openJobsMenu(player, jobs));
     }
-    if (myTerritory !== undefined) {
-      form.button(`§aMon territoire`, () => showTerritoryInfo(player, myTerritory, territories));
+    if (myClan !== undefined) {
+      form.button(`§aMon clan`, () => openMyClanMenu(player, territories, myClan));
     } else {
-      form.button(`§aCréer un territoire`, () => openCreateMenu(player, territories));
+      form.button(`§aFonder un clan`, () => openCreateMenu(player, territories));
     }
   }).catch((error: unknown) => console.warn(`[Mes infos] ${error instanceof Error ? error.message : String(error)}`));
 }

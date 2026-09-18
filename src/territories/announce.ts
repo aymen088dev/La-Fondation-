@@ -1,6 +1,6 @@
 /**
- * Annonceur de territoire : bandeau HUD quand un joueur entre dans un
- * territoire (nom coloré du drapeau + propriétaire) et quand il en sort.
+ * Annonceur de clan/État : bandeau HUD quand un joueur entre dans un
+ * territoire revendiqué (nom coloré du drapeau + chef) et quand il en sort.
  *
  * Le texte passe par l'actionbar du HUD vanilla : le Resource Pack
  * NaLandia (RP/) restyle cette zone via JSON UI pour afficher un
@@ -57,7 +57,7 @@ export function registerAnnouncer(
 
       const color = getColor(territory.data.color).code;
       player.onScreenDisplay.setActionBar(
-        `${color}⚑ ${territory.data.name}§r §7— territoire de §f${territory.data.owner}`,
+        `${color}⚑ ${territory.data.name}§r §7— clan de §f${territory.data.owner}`,
       );
     }
   }, intervalTicks);
