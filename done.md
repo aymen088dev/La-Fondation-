@@ -1,7 +1,21 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v19.2 — JSON UI SPLITTÉ PAR TYPE D'ÉCRAN (fond cuir/or pour les menus, bleu-nuit/argent pour les formulaires) + génération de la mine réparée**.
+> Dernière mise à jour : **v19.3 — MENUS ENFIN DIFFÉRENCIÉS (variante « FICHES » émeraude) + FLÈCHE RETOUR EN VRAIE ICÔNE + CADRE ÉLARGI**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v19.3 — Familles de menus, flèche-icône, cadre élargi (sept. 2026)
+- [x] **CAUSE RACINE du « les menus n'ont pas changé » (enfin) traitée** : Bedrock n'expose **qu'un seul écran** pour TOUS les menus à boutons (`long_form`) — le JSON UI ne peut donc pas savoir quel menu est ouvert… sauf par son **TITRE**, seul canal que le script contrôle et que le JSON UI peut comparer. Nouveau fichier `ui/om_sheets.json` (namespace `om_sheets`) : deux sélecteurs (fond du grand cadre + panneau déroulant) qui basculent sur la variante **VERT ÉMERAUDE À DOUBLE FILET OR/ARGENT** quand le titre est reconnu. Les menus **hub/admin/modération/rôles/joueurs/DB/modules** gardent leur cuir sombre à cadre or.
+- [x] **Menus « fiches » désormais visuellement distincts** (Classes, fiche de voie, Ma voie, Confirmer, États, fiche de clan, Mon clan, Membres du clan, fiche de membre, Inviter, Drapeau, Dissoudre/Créer un clan, Le Monde, Mines, Métiers, Mes infos) : nouveau fond `om_sheet_bg.png` (corps émeraude, bande OR large + joint sombre + filet ARGENT) et nouveau panneau `om_sheet_pane.png` (liseré **doré** au lieu d'argenté).
+- [x] **Titres FIXES pour les fiches à nom variable** (`Classe`, `Ma voie`, `Clan`, `Membre`) : le nom (voie, État, pseudo) était dans le titre, ce qui rendait le menu impossible à reconnaître — il est déjà en grand dans la bannière de la fiche.
+- [x] **Garde-fou anti-régression** : `SHEET_SECTIONS` (module pur `src/ui/sheets.ts`, ré-exporté par `theme.ts`) est la **source de vérité** du contrat, et le nouveau test `src/ui/theme.test.ts` vérifie **12 points** : JSON UI tous valides, déclarés dans `_ui_defs.json`, héritages `@ns.controle` et variables de contrôle sans référence cassée, textures `om_*` présentes, **synchro exacte de la liste des titres** (les deux sélecteurs), marqueur du bouton retour. → impossible de re-livrer le bug « tous les menus identiques » sans casser les tests.
+- [x] **FLÈCHE RETOUR = VRAIE ICÔNE en haut à gauche** (plus jamais un bouton de liste) : le moteur envoie un label **marqueur invisible** (`§r`) + l'icône `om_btn_back` ; `server_form.dynamic_button` reconnaît le marqueur, **désactive la tuile large** et n'affiche qu'une **pastille 26×26 à liseré doré avec flèche blanche**, allumée au survol (2 textures `om_btn_back` / `om_btn_back_hover` générées). Filet de sécurité : l'icône native du formulaire est aussi transmise, donc la flèche reste visible même si le marqueur n'était pas reconnu.
+- [x] **CADRE ÉLARGI + textes décollés du filet argent** (demande « agrandis le cadre, le texte touche le cadre argent ») : `long_form` 340×200 → **420×240**, sidebar 114 → 128 px, fenêtres de contenu rentrées de **8 px sur les côtés / 7 px en haut-bas** (et 6 px de marge autour des panneaux), formulaires 260×210 → **300×240** avec les mêmes marges. Plus aucun texte ne touche le cadre.
+- [x] **Nettoyage** : double flèche supprimée dans la confirmation de classe (une seule icône de retour + le bouton de choix), icônes `om_n_*` jamais branchées **supprimées** du script de textures et du RP, manifeste RP mis à jour.
+- [x] **Filet de sécurité de la flèche** : `om_button_icon` (socle) réaffiche la flèche dans la tuile si le marqueur n'était pas reconnu — et **uniquement** pour le chemin de texture exact du moteur, donc jamais de texture manquante affichée sur les autres boutons.
+- [x] **Documentation** : `README.md` réécrit (modules réels, packs BP+RP, deux familles d'UI, commandes, tests, installation avec le bump de version obligatoire) et `done.md` mis à jour.
+- [x] Packs **1.9.3** (BP, RP, serveur) — bump obligatoire pour invalider le cache Bedrock. Build + typecheck + **69/69 tests**.
 
 ---
 

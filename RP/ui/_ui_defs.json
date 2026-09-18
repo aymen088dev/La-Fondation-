@@ -3,6 +3,7 @@
     "ui/hud_screen.json",
     "ui/server_form.json",
     "ui/om_base.json",
+    "ui/om_sheets.json",
     "ui/om_forms.json"
   ]
 }

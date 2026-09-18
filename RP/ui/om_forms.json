@@ -1,13 +1,13 @@
 {
   "namespace": "om_forms",
 
-  "_comment": "FORMULAIRES À CHAMPS (ModalForm — /sn:create, sanctions, configuration rôles…) — reskin NaLandia v19.2. Fichier séparé (déclaré dans _ui_defs.json) : chaque TYPE d'écran a son propre fichier ET son propre fond. Variante « CARTES » : grand cadre BLEU NUIT à double filet ARGENT extérieur + OR intérieur (om_base.om_cards_background) — différence immédiatement visible avec les menus à boutons (cadre cuir à cadre or de ui/server_form.json). Contrôles hérités du socle om_base ; structure sinon identique au vanilla (factory, bindings, collections).",
+  "_comment": "FORMULAIRES À CHAMPS (ModalForm — /sn:create, sanctions, configuration rôles…) — reskin NaLandia v19.3. Fichier séparé (déclaré dans _ui_defs.json) : chaque TYPE d'écran a son propre fichier ET son propre fond. Variante « CARTES » : grand cadre BLEU NUIT à double filet ARGENT extérieur + OR intérieur (om_base.om_cards_background) — différence immédiatement visible avec les menus à boutons (cadre cuir à cadre or de ui/server_form.json). Contrôles hérités du socle om_base ; structure sinon identique au vanilla (factory, bindings, collections).",
 
   "custom_form@common_dialogs.main_panel_no_buttons": {
     "$title_text_color": [0.98, 0.86, 0.52],
     "$title_size": ["100% - 15px", 10],
     "$title_max_size": ["100% - 15px", 10],
-    "size": [260, 210],
+    "size": [300, 240],
     "$text_name": "#title_text",
     "$title_text_binding_type": "none",
     "$child_control": "om_forms.custom_form_panel",
@@ -18,15 +18,15 @@
   "custom_form_panel@om_base.om_scroll_pane": {
     "anchor_to": "top_left",
     "anchor_from": "top_left",
-    "size": ["100% - 4px", "100% - 2px"],
-    "offset": [2, 0],
+    "size": ["100% - 14px", "100% - 14px"],
+    "offset": [7, 6],
     "$scrolling_content": "om_forms.custom_form_scrolling_content"
   },
 
   "custom_form_scrolling_content": {
     "type": "stack_panel",
-    "size": ["100% - 4px", "100%c"],
-    "offset": [2, 0],
+    "size": ["100% - 8px", "100%c"],
+    "offset": [4, 2],
     "orientation": "vertical",
     "anchor_from": "top_left",
     "anchor_to": "top_left",

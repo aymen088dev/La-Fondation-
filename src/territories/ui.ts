@@ -201,7 +201,10 @@ export function showStateInfo(
   const isOwner = data.ownerId === player.id || data.owner === player.name;
   const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
 
-  void openWindowRaw(player, windowTitle(data.name), (form) => {
+  // Titre FIXE « Clan » : le JSON UI identifie la famille de style par le titre
+  // (voir SHEET_SECTIONS dans ui/theme.ts) et le nom de l'État est déjà en grand
+  // dans la bannière du parchemin juste en dessous.
+  void openWindowRaw(player, windowTitle("Clan"), (form) => {
     form.back(() => openStatesMenu(player, manager));
     form.label(
       [
@@ -399,7 +402,8 @@ function openMemberActionsMenu(
     return;
   }
 
-  void openWindowRaw(player, windowTitle(memberName), (form) => {
+  // Titre FIXE « Membre » (idem : le pseudo est dans la bannière de la fiche).
+  void openWindowRaw(player, windowTitle("Membre"), (form) => {
     form.back(() => openMembersMenu(player, manager, territory));
     form.header(`§f§l${memberName}`);
     form.label(`§7Rang actuel : ${member.rank === "officer" ? "§bofficier" : "membre"}`);

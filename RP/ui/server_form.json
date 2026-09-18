@@ -1,7 +1,7 @@
 {
   "namespace": "server_form",
 
-  "_comment": "MENUS À BOUTONS (ActionForm — /sn:menu, hub, admin, États, Mines…) — reskin NaLandia v19.2. Fichier à l'emplacement vanilla (ui/server_form.json = écrasement), SPLIT en plusieurs fichiers : le socle (boutons, panneaux, fonds) vit dans ui/om_base.json (namespace om_base, déclaré dans _ui_defs.json) et les FORMULAIRES à champs vivent dans ui/om_forms.json. Ce fichier porte la variante « MENUS » : grand cadre CUIR sombre à cadre OR (om_base.om_ornate_background), titre or, tuiles charbon à surbrillance dorée, panneaux déroulants argentés, sidebar à gauche / body à droite. Structure sinon identique au vanilla (factories, bindings, collections).",
+  "_comment": "MENUS À BOUTONS (ActionForm — /sn:menu, hub, admin, États, Mines…) — reskin NaLandia v19.3. Fichier à l'emplacement vanilla (ui/server_form.json = écrasement), SPLIT en plusieurs fichiers : le socle (boutons, panneaux, fonds, flèche retour) vit dans ui/om_base.json (namespace om_base) et les FORMULAIRES à champs dans ui/om_forms.json ; les variantes « FICHES » (Classes, États, Clans, Monde, Mines, Métiers, Mes infos) vivent dans ui/om_sheets.json. Ce fichier porte la variante « MENUS » : cuir sombre à cadre or, titre or, tuiles charbon à surbrillance dorée, sidebar à gauche / body à droite — sauf si le titre du formulaire appartient à la famille « fiches », auquel cas om_sheets remplace le fond et les panneaux (le JSON UI n'a que le titre pour identifier un menu : Bedrock partage un seul écran long_form entre tous les menus à boutons). v19.3 : cadre élargi 420x240 et fenêtres de contenu rentrées de 8 px (plus aucun texte collé au filet argent), et bouton retour transformé en ICÔNE flèche en haut à gauche (marqueur moteur : label « §r » + icône om_btn_back) — plus jamais une flèche ressemblant aux autres boutons de la liste.",
 
   "third_party_server_screen@common.base_screen": {
     "$screen_content": "server_form.main_screen_content",
@@ -34,12 +34,12 @@
     "$title_text_color": [0.98, 0.86, 0.52],
     "$title_size": ["100% - 15px", 10],
     "$title_max_size": ["100% - 15px", 10],
-    "size": [340, 200],
+    "size": [420, 240],
     "$text_name": "#title_text",
     "$title_text_binding_type": "none",
     "$child_control": "server_form.long_form_panel",
     "layer": 2,
-    "$custom_background": "om_base.om_ornate_background"
+    "$custom_background": "om_sheets.form_background"
   },
 
   "long_form_panel": {
@@ -66,7 +66,7 @@
 
   "sidebar_column": {
     "type": "panel",
-    "size": [114, "100%"],
+    "size": [128, "100%"],
     "anchor_from": "top_left",
     "anchor_to": "top_left",
     "controls": [
@@ -74,8 +74,9 @@
         "sidebar_scroll@om_base.om_scroll_pane": {
           "anchor_to": "top_left",
           "anchor_from": "top_left",
-          "size": ["100% - 4px", "100% - 4px"],
-          "offset": [2, 2],
+          "size": ["100% - 12px", "100% - 12px"],
+          "offset": [6, 6],
+          "$scroll_background_image_control": "om_sheets.pane_selector",
           "$scrolling_content": "server_form.sidebar_buttons_panel"
         }
       }
@@ -84,8 +85,8 @@
 
   "sidebar_buttons_panel": {
     "type": "stack_panel",
-    "size": ["100% - 4px", "100%c"],
-    "offset": [2, 0],
+    "size": ["100%", "100%c"],
+    "offset": [0, 2],
     "orientation": "vertical",
     "anchor_from": "top_middle",
     "anchor_to": "top_middle",
@@ -117,8 +118,9 @@
         "body_scroll@om_base.om_scroll_pane": {
           "anchor_to": "top_left",
           "anchor_from": "top_left",
-          "size": ["100% - 6px", "100% - 4px"],
-          "offset": [3, 2],
+          "size": ["100% - 12px", "100% - 12px"],
+          "offset": [6, 6],
+          "$scroll_background_image_control": "om_sheets.pane_selector",
           "$scrolling_content": "server_form.body_content"
         }
       }
@@ -128,7 +130,7 @@
   "body_content": {
     "type": "stack_panel",
     "size": ["100% - 8px", "100%c"],
-    "offset": [4, 0],
+    "offset": [4, 2],
     "orientation": "vertical",
     "anchor_from": "top_left",
     "anchor_to": "top_left",
@@ -152,19 +154,86 @@
     ]
   },
 
-  "dynamic_button@om_base.om_text_button": {
-    "$pressed_button_name": "button.form_button_click",
+  "dynamic_button": {
+    "type": "panel",
+    "size": ["100%", 32],
     "anchor_from": "top_left",
     "anchor_to": "top_left",
-    "size": ["100%", 32],
-    "$button_text": "#form_button_text",
-    "$button_text_binding_type": "collection",
-    "$button_text_grid_collection_name": "form_buttons",
-    "$button_text_max_size": ["100%", 20],
-    "bindings": [
+    "controls": [
       {
-        "binding_type": "collection_details",
-        "binding_collection_name": "form_buttons"
+        "back_button@om_base.om_text_button": {
+          "$pressed_button_name": "button.form_button_click",
+          "$button_image": "common.empty_panel",
+          "$button_text": "§r",
+          "$button_text_binding_type": "collection",
+          "$button_text_grid_collection_name": "form_buttons",
+          "$button_text_max_size": ["100%", 20],
+          "anchor_from": "top_left",
+          "anchor_to": "top_left",
+          "size": ["100%", 32],
+          "controls": [
+            {
+              "arrow@om_base.om_back_arrow": {
+                "anchor_from": "left_middle",
+                "anchor_to": "left_middle",
+                "offset": [6, 0]
+              }
+            }
+          ],
+          "bindings": [
+            {
+              "binding_type": "collection_details",
+              "binding_collection_name": "form_buttons"
+            },
+            {
+              "binding_name": "#form_button_text",
+              "binding_type": "collection",
+              "binding_collection_name": "form_buttons",
+              "binding_name_override": "#om_label"
+            },
+            {
+              "source_property_name": "(#om_label = '§r')",
+              "target_property_name": "#visible"
+            }
+          ]
+        }
+      },
+      {
+        "form_button@om_base.om_text_button": {
+          "$pressed_button_name": "button.form_button_click",
+          "anchor_from": "top_left",
+          "anchor_to": "top_left",
+          "size": ["100%", 32],
+          "$button_text": "#form_button_text",
+          "$button_text_binding_type": "collection",
+          "$button_text_grid_collection_name": "form_buttons",
+          "$button_text_max_size": ["100%", 20],
+          "controls": [
+            {
+              "button_icon@om_base.om_button_icon": {
+                "anchor_from": "left_middle",
+                "anchor_to": "left_middle",
+                "offset": [6, 0]
+              }
+            }
+          ],
+          "bindings": [
+            {
+              "binding_type": "collection_details",
+              "binding_collection_name": "form_buttons"
+            },
+            {
+              "binding_name": "#form_button_text",
+              "binding_type": "collection",
+              "binding_collection_name": "form_buttons",
+              "binding_name_override": "#om_label"
+            },
+            {
+              "source_property_name": "(not (#om_label = '§r'))",
+              "target_property_name": "#visible"
+            }
+          ]
+        }
       }
     ]
   },

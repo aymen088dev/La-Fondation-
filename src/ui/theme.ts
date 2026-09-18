@@ -16,8 +16,17 @@
  * (son callback part à la validation) — c'est le schéma de /sn:create.
  *
  * Le DDUI (CustomForm bêta) est ABANDONNÉ. Les forms vanilla sont rendues
- * par notre reskin JSON UI (RP/ui/server_form.json) : habillage noir +
- * ornements or/argent, surbrillance dorée au survol des boutons.
+ * par notre reskin JSON UI (RP/ui/*.json) : habillage noir + ornements
+ * or/argent, surbrillance dorée au survol des boutons.
+ *
+ * STYLE PAR FAMILLE DE MENU (v19.3) : Bedrock n'expose qu'UN écran pour tous
+ * les menus à boutons, donc le JSON UI identifie le menu par son TITRE (le
+ * seul canal que le script contrôle). Les sections listées dans
+ * SHEET_SECTIONS reçoivent la variante « fiches » (cadre émeraude, panneaux
+ * dorés, RP/ui/om_sheets.json) ; les autres gardent la variante cuir/or des
+ * menus hub/admin (RP/ui/server_form.json). Le titre ne doit donc PAS être
+ * décoré de codes § : OMForm les retire déjà pour que la comparaison du JSON
+ * UI porte sur « NaLandia » <section>» exactement.
  */
 
 import { logMod } from "../lib/log";
@@ -29,6 +38,7 @@ import type {
   ModalFormResponse,
   MessageFormResponse,
 } from "@minecraft/server-ui";
+import { BACK_ARROW_ICON, BUTTON_BACK_MARKER } from "./sheets";
 
 /**
  * Identifiant du Resource Pack NaLandia (icônes des boutons ActionForm).
@@ -44,11 +54,20 @@ export const THEME = {
 } as const;
 
 /**
- * Identifiants d'icônes historiques (compat des appelants) — v17.1 : les
- * icônes image ont été RETIRÉES des boutons (« ça fait brouillon ») ; le
- * 4e paramètre de button() reste accepté mais ignoré.
+ * Chemin d'icône d'un bouton (4e paramètre de button()).
+ * v17.1 : les icônes avaient été retirées des boutons (« ça fait brouillon »).
+ * v19.3 : réintroduites UNIQUEMENT pour le bouton retour, qui est rendu en
+ * vraie ICÔNE dans le JSON UI (RP/ui/server_form.json, branche « back_button »
+ * de dynamic_button) — les autres boutons n'en portent pas.
  */
 export type UIIcon = string;
+
+/*
+ * Contrat de style avec le JSON UI (marqueur du bouton retour, familles de
+ * menus) : défini dans ./sheets (module sans import, donc testable hors du
+ * jeu) et ré-exporté ici pour les appelants et les tests.
+ */
+export * from "./sheets";
 
 /**
  * Bannières de héros — DÉSACTIVÉES (v14 puis v17.1) : plus aucune image
@@ -75,8 +94,9 @@ export function isUiDesignEnabled(): boolean {
 /**
  * Tag UI invisible préfixé aux titres.
  * HISTORIQUE : servait au JSON UI pour détecter nos formulaires (technique
- * Leaf/NutUI). Depuis le layout sidebar, plus aucun binding n'en dépend —
- * conservé uniquement pour la compat des menus existants (invisible).
+ * Leaf/NutUI). Depuis v19.3 c'est le TITRE lui-même qui porte le style (voir
+ * SHEET_SECTIONS + RP/ui/om_sheets.json), donc ce tag reste vide : un préfixe
+ * casserait la comparaison de titres du JSON UI.
  */
 export const UI_TITLE_TAG = "";
 
@@ -321,15 +341,18 @@ export class OMForm {
     label: string,
     onClick: () => void,
     _options?: ButtonOptions,
-    _icon?: UIIcon,
+    icon?: UIIcon,
   ): OMForm {
     /*
      * FIX « texte des boutons invisible » (v17) : le template vanilla
      * l'impose — « Per design buttons are single line text only ». Un \n
      * dans le label écrase le rendu du label (bouton vide). On aplatit
      * donc tout label en UNE ligne (retours → espace-insécable « — »).
-     * v17.1 : les icônes sont retirées (« ça fait brouillon ») — le 4e
-     * paramètre reste accepté (compat des appelants) mais ignoré.
+     * v17.1 : icônes retirées des boutons (« ça fait brouillon »).
+     * v19.3 : le 4e paramètre est de nouveau transmis au formulaire, mais
+     * SEUL le bouton retour en porte une (BACK_ARROW_ICON) — c'est un
+     * filet de sécurité : si le JSON UI ne reconnaissait pas le marqueur,
+     * la flèche s'afficherait quand même via l'icône native.
      */
     const flat = plain(label).replace(/\s*\n\s*/g, "  —  ").trim();
     const wrapped = (): void => {
@@ -345,11 +368,11 @@ export class OMForm {
     };
     if (this.mode === "fields") {
       // Bouton après un champ : devient le bouton submit natif (le dernier gagne).
-      this.elements.push({ kind: "button", text: flat, onClick: wrapped });
+      this.elements.push({ kind: "button", text: flat, icon, onClick: wrapped });
       return this;
     }
     this.assertActions("button");
-    this.elements.push({ kind: "button", text: flat, onClick: wrapped });
+    this.elements.push({ kind: "button", text: flat, icon, onClick: wrapped });
     return this;
   }
 
@@ -451,13 +474,19 @@ export class OMForm {
   }
 
   /**
-   * Bouton RETOUR standardisé (v19.1) : une flèche « ← » BLANCHE — à poser
-   * en PREMIER élément de la sidebar (le premier bouton s'affiche en haut
-   * à gauche), à la place de l'ancien « Retour ». Ne rien afficher d'autre
-   * dans le label : la flèche parle d'elle-même.
+   * Bouton RETOUR standardisé (v19.3) : une vraie ICÔNE flèche blanche vers
+   * la gauche, posée en HAUT À GAUCHE du menu. À placer en PREMIER élément
+   * (c'est la première entrée de la liste, donc la première tuile) :
+   *
+   * - le label est le marqueur invisible BUTTON_BACK_MARKER, que le JSON UI
+   *   reconnaît pour désactiver la tuile large et n'afficher que l'icône ;
+   * - l'icône BACK_ARROW_ICON est passée au formulaire en filet de sécurité.
+   *
+   * Ce n'est donc PAS un bouton comme les autres : pas de cadre plein
+   * largeur, mais une pastille 26×26 à liseré doré (surbrillance au survol).
    */
   back(onBack: () => void): OMForm {
-    return this.button("§f←", onBack);
+    return this.button(BUTTON_BACK_MARKER, onBack, undefined, BACK_ARROW_ICON);
   }
 
   /**

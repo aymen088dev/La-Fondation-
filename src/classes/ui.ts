@@ -49,7 +49,10 @@ function classCard(
   _isAdmin: boolean,
   backTo: () => void,
 ): void {
-  void openWindowRaw(player, windowTitle(info.name), (form) => {
+  // Titre FIXE « Classe » (et non le nom de la voie) : le JSON UI identifie la
+  // famille de style par le titre, et le nom de la voie est déjà en grand dans
+  // la bannière au-dessus du descriptif (voir SHEET_SECTIONS dans theme.ts).
+  void openWindowRaw(player, windowTitle("Classe"), (form) => {
     form.back(backTo);
     form.label(banner(info));
     form.label(
@@ -79,7 +82,9 @@ function myClassCard(
   const level = classLevel(xp);
   const progress = classProgress(xp);
 
-  void openWindowRaw(player, windowTitle(info.name), (form) => {
+  // Titre FIXE « Ma voie » (même raison que la fiche de voie : le style est
+  // porté par le titre, le nom de la voie est dans la bannière).
+  void openWindowRaw(player, windowTitle("Ma voie"), (form) => {
     form.back(() => openClassesMenu(player, classes, isAdmin));
     form.label(banner(info));
     form.label(
@@ -180,7 +185,9 @@ function confirmClassChoice(
           : `§c[Classes] ${result.error}`,
       );
     });
-    form.back(backTo);
+    // Pas de seconde flèche ici : la confirmation n'a QUE l'icône de retour en
+    // haut à gauche (annuler = revenir à la fiche) et le bouton de choix.
+    // Deux fois le même retour était une incohérence de l'ancienne version.
   }).catch((error: unknown) =>
     console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`),
   );

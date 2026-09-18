@@ -14,9 +14,12 @@ jointure de cadre), les boutons ont des angles droits sobres.
 Sortie :
   RP/textures/ui/om_actionbar_bg.png  fond d'actionbar (hud_screen.json)
   RP/textures/ui/om_ornate_bg.png     grand cadre orné (coins à arabesques)
+  RP/textures/ui/om_sheet_bg.png      grand cadre variante « FICHES » (émeraude)
   RP/textures/ui/om_content_bg.png    panneau interne argenté (coins perlés)
+  RP/textures/ui/om_sheet_pane.png    panneau interne des fiches (filet or)
   RP/textures/ui/om_header_band.png   bandeau de section (filet or/argent)
   RP/textures/ui/om_btn*.png          tuiles-boutons 3 états (surbrillance or)
+  RP/textures/ui/om_btn_back*.png     flèche retour (icône 26px, 2 états)
   RP/pack_icon.png
 
 Usage: python3 scripts/make_ui_textures.py
@@ -37,6 +40,8 @@ INK = (10, 10, 12)            # contours les plus sombres
 GOLD = (212, 175, 88)         # or principal (bordures, ornements)
 GOLD_LIGHT = (244, 214, 132)  # or clair (surbrillance, points lumineux)
 GOLD_DIM = (150, 120, 58)     # or assombri (ombres des ornements)
+EMERALD = (34, 62, 50)        # vert profond des fiches (variante « fiches »)
+EMERALD_DIM = (18, 34, 28)    # vert profond assombri (bords)
 SILVER = (176, 182, 192)      # argent principal (cadres internes, texte)
 SILVER_DIM = (110, 116, 128)  # argent assombri
 SILVER_BRIGHT = (220, 226, 236)  # argent lumineux (perles des coins)
@@ -210,6 +215,40 @@ def ornate_textures() -> None:
     draw_miter(px2, w, h, [(3, SILVER_BRIGHT), (4, GOLD)])
     write_png(RP_ROOT / "textures" / "ui" / "om_cards_bg.png", w, h, px2)
 
+    # ---- Grand cadre « FICHES » 128x128 (nineslice 12px) : variante des
+    #      menus de contenu (Classes, États, Clans, Monde, Mines, Métiers,
+    #      Mes infos) — corps VERT PROFOND, double filet large OR extérieur +
+    #      ARGENT intérieur séparés par un joint sombre : la silhouette du
+    #      cadre elle-même change, pas seulement la teinte. Cette texture
+    #      n'est affichée que si le titre du formulaire est reconnu par
+    #      om_sheets.json (voir ce fichier), donc les menus hub/admin gardent
+    #      le cuir orné « classique ».
+    fx: list[list[tuple[int, int, int, int]]] = []
+    for y in range(h):
+        rowf: list[tuple[int, int, int, int]] = []
+        for x in range(w):
+            d = ((x - w / 2) ** 2 + (y - h / 2) ** 2) ** 0.5 / (w / 2)
+            base = lerp(EMERALD, EMERALD_DIM, min(1.0, d))
+            grain = ((x * 11 + y * 5) % 5) - 2
+            base = (max(0, base[0] + grain), max(0, base[1] + grain), max(0, base[2] + grain))
+            rowf.append((*base, 255))
+        fx.append(rowf)
+    for y in range(h):
+        for x in range(w):
+            edge = min(x, y, w - 1 - x, h - 1 - y)
+            if edge == 0:
+                fx[y][x] = (10, 14, 12, 255)                     # contour noir-vert
+            elif edge in (1, 2):
+                fx[y][x] = (*lerp(GOLD_LIGHT, GOLD, (x + y) / (w + h)), 255)  # bande OR large
+            elif edge == 3:
+                fx[y][x] = (12, 20, 17, 255)                     # joint sombre
+            elif edge in (4, 5):
+                fx[y][x] = (*lerp(SILVER, SILVER_DIM, (x + y) / (w + h)), 255)  # filet ARGENT
+            elif edge == 6:
+                fx[y][x] = (16, 30, 25, 255)                     # ombre intérieure
+    draw_miter(fx, w, h, [(2, WHITE), (5, SILVER_BRIGHT), (6, EMERALD)])
+    write_png(RP_ROOT / "textures" / "ui" / "om_sheet_bg.png", w, h, fx)
+
     # ---- Panneau interne 96x96 (nineslice 8px) : noir doux, liseré ARGENT,
     #      perles lumineuses aux 4 coins + retour fin (liseré double). ----
     cw = ch = 96
@@ -232,6 +271,28 @@ def ornate_textures() -> None:
     draw_miter(cpx, cw, ch, [(2, SILVER_BRIGHT), (3, SILVER_DIM)])
     write_png(RP_ROOT / "textures" / "ui" / "om_content_bg.png", cw, ch, cpx)
 
+    # ---- Panneau interne des FICHES 96x96 (nineslice 8px) : vert très sombre
+    #      à liseré OR (le panneau argenté reste réservé aux menus hub/admin
+    #      et aux formulaires) — les cadres internes des fiches sont donc
+    #      dorés, ceux des menus classiques argentés.
+    spx: list[list[tuple[int, int, int, int]]] = []
+    for y in range(ch):
+        row: list[tuple[int, int, int, int]] = []
+        for x in range(cw):
+            edge = min(x, y, cw - 1 - x, ch - 1 - y)
+            if edge == 0:
+                row.append((9, 13, 11, 255))                    # contour noir-vert
+            elif edge in (1, 2):
+                row.append((*lerp(GOLD, GOLD_DIM, (x + y) / (cw + ch)), 255))  # or
+            elif edge == 3:
+                row.append((22, 38, 32, 255))                   # raccord
+            else:
+                g = ((x * 5 + y * 3) % 4) - 1
+                row.append((max(0, 17 + g), max(0, 28 + g), max(0, 24 + g), 235))
+        spx.append(row)
+    draw_miter(spx, cw, ch, [(2, GOLD_LIGHT), (3, GOLD_DIM)])
+    write_png(RP_ROOT / "textures" / "ui" / "om_sheet_pane.png", cw, ch, spx)
+
     # ---- Bandeau d'en-tête 64x20 : noir à filet or (titres de section). ----
     bw, bh = 64, 20
     bpx: list[list[tuple[int, int, int, int]]] = []
@@ -250,6 +311,52 @@ def ornate_textures() -> None:
                 row.append((max(0, 14 + g), max(0, 14 + g), max(0, 16 + g), 235))
         bpx.append(row)
     write_png(RP_ROOT / "textures" / "ui" / "om_header_band.png", bw, bh, bpx)
+
+
+# ---------------------------------------------------------------------------
+# Flèche « ← » du bouton retour (vraie icône, 2 états)
+# ---------------------------------------------------------------------------
+def back_arrow() -> None:
+    """om_btn_back / om_btn_back_hover : FLÈCHE BLANCHE pleine, nette, sur
+    une petite plaque sombre à liseré doré — c'est une ICÔNE de 26 px posée
+    en haut à gauche du menu (rendue par server_form.dynamic_button), pas une
+    tuile large comme les autres boutons. L'état survol allume le liseré et
+    la flèche (surbrillance), donc la cible reste évidente à la souris.
+
+    Grille 32x32 : la flèche va de x=5 (pointe) à x=26 (queue), centrée sur
+    y=16 ; la plaque laisse 3 px de marge pour le liseré.
+    """
+    s = 32
+
+    def arrow(hover: bool) -> list[list[tuple[int, int, int, int]]]:
+        px: list[list[tuple[int, int, int, int]]] = [[(0, 0, 0, 0)] * s for _ in range(s)]
+        # plaque (coins coupés à 2 px, façon pastille d'icône)
+        for y in range(3, s - 3):
+            for x in range(3, s - 3):
+                cut = (x in (3, s - 4) and y in (3, s - 4))
+                if cut:
+                    continue
+                px[y][x] = (*lerp(CHARCOAL, CHARCOAL_LIGHT, 0.6), 190)
+        rim = GOLD_LIGHT if hover else GOLD_DIM
+        for i in range(3, s - 3):
+            px[3][i] = (*rim, 235)
+            px[s - 4][i] = (*rim, 235)
+            px[i][3] = (*rim, 235)
+            px[i][s - 4] = (*rim, 235)
+        # flèche → vers la GAUCHE : pointe en x=6, base en x=15, queue jusqu'à x=25
+        ink = WHITE if hover else (238, 238, 238, 255)
+        for x in range(6, 15):
+            spread = x - 6
+            for y in range(16 - spread, 17 + spread):
+                if 0 <= y < s:
+                    px[y][x] = (*ink[:3], 255)
+        for x in range(14, 26):
+            for y in range(14, 19):
+                px[y][x] = (*ink[:3], 255)
+        return px
+
+    write_png(RP_ROOT / "textures" / "ui" / "om_btn_back.png", s, s, arrow(False))
+    write_png(RP_ROOT / "textures" / "ui" / "om_btn_back_hover.png", s, s, arrow(True))
 
 
 def actionbar_bg() -> None:
@@ -300,9 +407,10 @@ def pack_icon() -> None:
 
 
 def main() -> None:
-    print("Génération des textures UI (Resource Pack NaLandia v18)...")
+    print("Génération des textures UI (Resource Pack NaLandia)...")
     button_tiles()
     ornate_textures()
+    back_arrow()
     actionbar_bg()
     pack_icon()
     print("Terminé.")

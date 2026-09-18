@@ -4219,6 +4219,12 @@ var logPerm = Logger.getLogger("NaLandia", "permissions");
 // src/ui/theme.ts
 import { system as system7 } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
+
+// src/ui/sheets.ts
+var BUTTON_BACK_MARKER = "§r";
+var BACK_ARROW_ICON = "textures/ui/om_btn_back";
+
+// src/ui/theme.ts
 var RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
 var uiDesignEnabled = true;
 function setUiDesign(enabled) {
@@ -4370,7 +4376,7 @@ var OMForm = class {
     this.elements.push({ kind: "label", text: plain(text) });
     return this;
   }
-  button(label, onClick, _options, _icon) {
+  button(label, onClick, _options, icon) {
     const flat = plain(label).replace(/\s*\n\s*/g, "  —  ").trim();
     const wrapped = () => {
       try {
@@ -4384,11 +4390,11 @@ var OMForm = class {
       }
     };
     if (this.mode === "fields") {
-      this.elements.push({ kind: "button", text: flat, onClick: wrapped });
+      this.elements.push({ kind: "button", text: flat, icon, onClick: wrapped });
       return this;
     }
     this.assertActions("button");
-    this.elements.push({ kind: "button", text: flat, onClick: wrapped });
+    this.elements.push({ kind: "button", text: flat, icon, onClick: wrapped });
     return this;
   }
   divider() {
@@ -4472,13 +4478,19 @@ var OMForm = class {
     return this;
   }
   /**
-   * Bouton RETOUR standardisé (v19.1) : une flèche « ← » BLANCHE — à poser
-   * en PREMIER élément de la sidebar (le premier bouton s'affiche en haut
-   * à gauche), à la place de l'ancien « Retour ». Ne rien afficher d'autre
-   * dans le label : la flèche parle d'elle-même.
+   * Bouton RETOUR standardisé (v19.3) : une vraie ICÔNE flèche blanche vers
+   * la gauche, posée en HAUT À GAUCHE du menu. À placer en PREMIER élément
+   * (c'est la première entrée de la liste, donc la première tuile) :
+   *
+   * - le label est le marqueur invisible BUTTON_BACK_MARKER, que le JSON UI
+   *   reconnaît pour désactiver la tuile large et n'afficher que l'icône ;
+   * - l'icône BACK_ARROW_ICON est passée au formulaire en filet de sécurité.
+   *
+   * Ce n'est donc PAS un bouton comme les autres : pas de cadre plein
+   * largeur, mais une pastille 26×26 à liseré doré (surbrillance au survol).
    */
   back(onBack) {
-    return this.button("§f←", onBack);
+    return this.button(BUTTON_BACK_MARKER, onBack, void 0, BACK_ARROW_ICON);
   }
   /**
    * Affiche le formulaire (différé de 2 ticks : un show() dans le même tick
@@ -4941,7 +4953,7 @@ function showStateInfo(player, territory, manager) {
   const center = chunkCenter(data.chunkKeys[0] ?? "");
   const isOwner = data.ownerId === player.id || data.owner === player.name;
   const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
-  void openWindowRaw(player, windowTitle(data.name), (form) => {
+  void openWindowRaw(player, windowTitle("Clan"), (form) => {
     form.back(() => openStatesMenu(player, manager));
     form.label(
       [
@@ -5087,7 +5099,7 @@ function openMemberActionsMenu(player, manager, territory, memberId, memberName)
     openMembersMenu(player, manager, fresh);
     return;
   }
-  void openWindowRaw(player, windowTitle(memberName), (form) => {
+  void openWindowRaw(player, windowTitle("Membre"), (form) => {
     form.back(() => openMembersMenu(player, manager, territory));
     form.header(`§f§l${memberName}`);
     form.label(`§7Rang actuel : ${member.rank === "officer" ? "§bofficier" : "membre"}`);
@@ -7500,7 +7512,7 @@ function banner(info) {
   ].join("\n");
 }
 function classCard(player, classes2, info, _isAdmin, backTo) {
-  void openWindowRaw(player, windowTitle(info.name), (form) => {
+  void openWindowRaw(player, windowTitle("Classe"), (form) => {
     form.back(backTo);
     form.label(banner(info));
     form.label(
@@ -7521,7 +7533,7 @@ function classCard(player, classes2, info, _isAdmin, backTo) {
 function myClassCard(player, classes2, info, xp, isAdmin) {
   const level = classLevel(xp);
   const progress = classProgress(xp);
-  void openWindowRaw(player, windowTitle(info.name), (form) => {
+  void openWindowRaw(player, windowTitle("Ma voie"), (form) => {
     form.back(() => openClassesMenu(player, classes2, isAdmin));
     form.label(banner(info));
     form.label(
@@ -7603,7 +7615,6 @@ function confirmClassChoice(player, classes2, info, backTo) {
         result.ok ? `§a[Classes] Bienvenue dans la voie ${info.color}§l${info.name}§r§a ! Ta progression commence maintenant.` : `§c[Classes] ${result.error}`
       );
     });
-    form.back(backTo);
   }).catch(
     (error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`)
   );
