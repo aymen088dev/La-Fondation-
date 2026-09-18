@@ -1074,6 +1074,13 @@ function useContext(ctx) {
   return d.useContext(ctx);
 }
 
+// node_modules/@bedrock-core/ui-runtime/src/hooks/useExit.ts
+function useExit() {
+  const [, d] = getCurrentFiber();
+  invariant(d, "useExit");
+  return d.useExit();
+}
+
 // node_modules/@bedrock-core/ui-runtime/src/data/Translation.ts
 var TranslationContext = createContext(null);
 function defaultResolverFor(getPlayer) {
@@ -8695,7 +8702,7 @@ function setUiDesign(enabled) {
   uiDesignEnabled = enabled;
 }
 function plain(text) {
-  return text.replace(/§h/g, "").replace(/[■≡]\s?/g, "").trim();
+  return text.replace(/§h/g, "").replace(/[■≡⬥✦]\s?/g, "").trim();
 }
 function windowTitle(section) {
   return `${TITLE_PREFIX}${section}`;
@@ -8764,6 +8771,9 @@ function obNumber(initial) {
 function obBool(initial) {
   return new ObservableBoolean(initial);
 }
+var CLOSE_TEXTURE = "textures/ui/ore-styled/button/close/background";
+var CLOSE_HOVER = "textures/ui/ore-styled/button/close/background_hover";
+var CLOSE_PRESS = "textures/ui/ore-styled/button/close/background_pressed";
 function BackArrow({ onBack }) {
   return /* @__PURE__ */ jsx(
     Button,
@@ -8777,10 +8787,24 @@ function BackArrow({ onBack }) {
     }
   );
 }
+function CloseCross({ onClose }) {
+  return /* @__PURE__ */ jsx(
+    Button,
+    {
+      width: 22,
+      height: 22,
+      background: CLOSE_TEXTURE,
+      backgroundHover: CLOSE_HOVER,
+      backgroundPressed: CLOSE_PRESS,
+      onPress: onClose
+    }
+  );
+}
 function Banner({
   design,
   title,
-  onBack
+  onBack,
+  onClose
 }) {
   const spec = DESIGNS[design];
   const section = title.startsWith(TITLE_PREFIX) ? title.slice(TITLE_PREFIX.length) : title;
@@ -8795,17 +8819,23 @@ function Banner({
       background: spec.banner,
       children: [
         onBack ? /* @__PURE__ */ jsx(BackArrow, { onBack }) : /* @__PURE__ */ jsx(Panel, { width: 22, height: 22 }),
-        /* @__PURE__ */ jsx(Text, { scale: spec.titleScale, maxLines: 1, overflow: "ellipsis", shadow: true, children: `§l§6${section}` })
+        /* @__PURE__ */ jsx(Panel, { width: "100%", flexDirection: "row", justifyContent: "center", alignItems: "center", children: /* @__PURE__ */ jsx(Text, { scale: spec.titleScale, maxLines: 1, overflow: "ellipsis", shadow: true, children: `§l§6${section}` }) }),
+        onClose ? /* @__PURE__ */ jsx(CloseCross, { onClose }) : /* @__PURE__ */ jsx(Panel, { width: 22, height: 22 })
       ]
     }
   );
 }
-function Row({
-  design,
-  label,
-  onPress
-}) {
-  const spec = DESIGNS[design];
+function AccentLine() {
+  return /* @__PURE__ */ jsx(Panel, { width: 24, height: 2, background: "textures/ui/om_header_band", marginTop: 1 });
+}
+function GroupHeader({ text, scale }) {
+  return /* @__PURE__ */ jsxs(Panel, { width: "100%", flexDirection: "column", gap: 1, marginTop: 3, children: [
+    /* @__PURE__ */ jsx(Text, { scale, shadow: true, children: `§l§6${text}` }),
+    /* @__PURE__ */ jsx(AccentLine, {})
+  ] });
+}
+function ConsoleRow({ label, onPress }) {
+  const spec = DESIGNS.console;
   return /* @__PURE__ */ jsx(
     Button,
     {
@@ -8815,7 +8845,67 @@ function Row({
       backgroundHover: spec.rowHover,
       backgroundPressed: spec.rowPress,
       onPress,
-      children: /* @__PURE__ */ jsx(
+      children: /* @__PURE__ */ jsxs(
+        Panel,
+        {
+          width: "100%",
+          height: "100%",
+          flexDirection: "row",
+          alignItems: "center",
+          paddingLeft: 6,
+          paddingRight: 8,
+          children: [
+            /* @__PURE__ */ jsx(Panel, { width: 2, height: "60%", background: "textures/ui/om_header_band", marginRight: 6 }),
+            /* @__PURE__ */ jsx(Text, { scale: spec.scale, maxLines: 1, overflow: "ellipsis", shadow: true, children: label })
+          ]
+        }
+      )
+    }
+  );
+}
+function CardRow({ label, onPress }) {
+  const spec = DESIGNS.cards;
+  return /* @__PURE__ */ jsx(
+    Button,
+    {
+      width: "100%",
+      height: spec.rowHeight,
+      background: spec.row,
+      backgroundHover: spec.rowHover,
+      backgroundPressed: spec.rowPress,
+      onPress,
+      children: /* @__PURE__ */ jsxs(
+        Panel,
+        {
+          width: "100%",
+          height: "100%",
+          flexDirection: "row",
+          alignItems: "center",
+          paddingLeft: 4,
+          paddingRight: 10,
+          children: [
+            /* @__PURE__ */ jsx(Panel, { width: 4, height: "100%", background: "textures/ui/om_header_band", marginRight: 8 }),
+            /* @__PURE__ */ jsx(Text, { scale: spec.scale, maxLines: 1, overflow: "ellipsis", shadow: true, children: label }),
+            /* @__PURE__ */ jsx(Panel, { flexGrow: 1 }),
+            /* @__PURE__ */ jsx(Panel, { width: 3, height: "55%", background: "textures/ui/om_header_band", marginLeft: 2 })
+          ]
+        }
+      )
+    }
+  );
+}
+function ParchmentRow({ label, onPress }) {
+  const spec = DESIGNS.parchment;
+  return /* @__PURE__ */ jsx(
+    Button,
+    {
+      width: "100%",
+      height: spec.rowHeight,
+      background: spec.row,
+      backgroundHover: spec.rowHover,
+      backgroundPressed: spec.rowPress,
+      onPress,
+      children: /* @__PURE__ */ jsxs(
         Panel,
         {
           width: "100%",
@@ -8824,11 +8914,24 @@ function Row({
           alignItems: "center",
           paddingLeft: 8,
           paddingRight: 8,
-          children: /* @__PURE__ */ jsx(Text, { scale: spec.scale, maxLines: 1, overflow: "ellipsis", shadow: true, children: label })
+          children: [
+            /* @__PURE__ */ jsx(Text, { scale: spec.scale, maxLines: 1, overflow: "ellipsis", shadow: true, children: label }),
+            /* @__PURE__ */ jsx(Panel, { flexGrow: 1 }),
+            /* @__PURE__ */ jsx(Panel, { width: 3, height: "55%", background: "textures/ui/om_header_band", marginLeft: 2 })
+          ]
         }
       )
     }
   );
+}
+function Row({
+  design,
+  label,
+  onPress
+}) {
+  if (design === "cards") return /* @__PURE__ */ jsx(CardRow, { label, onPress });
+  if (design === "parchment") return /* @__PURE__ */ jsx(ParchmentRow, { label, onPress });
+  return /* @__PURE__ */ jsx(ConsoleRow, { label, onPress });
 }
 function Sep() {
   return /* @__PURE__ */ jsx(Panel, { width: "100%", height: 6, background: DIVIDER_TEXTURE, marginTop: 2, marginBottom: 2 });
@@ -8841,11 +8944,12 @@ function useCloseOnUnmount(onClose) {
 function ActionsScreen(props) {
   const spec = DESIGNS[props.design];
   useCloseOnUnmount(props.onClose);
+  const exit = useExit();
   const content = [];
   for (const el of props.elements) {
     switch (el.kind) {
       case "header":
-        content.push(/* @__PURE__ */ jsx(Text, { scale: 1.1, shadow: true, children: `§l§6${el.text}` }));
+        content.push(/* @__PURE__ */ jsx(GroupHeader, { text: el.text, scale: spec.scale * 1.1 }));
         break;
       case "label":
         content.push(/* @__PURE__ */ jsx(Text, { children: `§7${el.text}` }));
@@ -8860,7 +8964,17 @@ function ActionsScreen(props) {
         if (el.text === BUTTON_BACK_MARKER) break;
         const onClick = el.onClick;
         content.push(
-          /* @__PURE__ */ jsx(Row, { design: props.design, label: el.text, onPress: () => props.onAction(onClick) })
+          /* @__PURE__ */ jsx(
+            Row,
+            {
+              design: props.design,
+              label: el.text,
+              onPress: () => {
+                props.onAction(onClick);
+                exit();
+              }
+            }
+          )
         );
         break;
       }
@@ -8870,13 +8984,25 @@ function ActionsScreen(props) {
   }
   return /* @__PURE__ */ jsxs(Panel, { width: "100%", height: "100%", flexDirection: "column", padding: 4, gap: 3, children: [
     /* @__PURE__ */ jsx(Background, { texture: spec.bg }),
-    /* @__PURE__ */ jsx(Banner, { design: props.design, title: props.title, onBack: props.onBack }),
+    /* @__PURE__ */ jsx(
+      Banner,
+      {
+        design: props.design,
+        title: props.title,
+        onBack: props.onBack ? () => {
+          props.onBack?.();
+          exit();
+        } : void 0,
+        onClose: () => exit()
+      }
+    ),
     /* @__PURE__ */ jsx(Scroll, { flexGrow: 1, children: /* @__PURE__ */ jsx(Panel, { width: "100%", flexDirection: "column", gap: spec.rowGap, padding: 2, children: content }) })
   ] });
 }
 function FieldsScreen(props) {
   const spec = DESIGNS.parchment;
   useCloseOnUnmount(props.onClose);
+  const exit = useExit();
   const headerNodes = [];
   const fieldNodes = [];
   let submitLabel = "Valider";
@@ -8886,7 +9012,7 @@ function FieldsScreen(props) {
     } else if (el.kind === "button") {
       submitLabel = el.text;
     } else if (el.kind === "header") {
-      headerNodes.push(/* @__PURE__ */ jsx(Text, { scale: 1.1, shadow: true, children: `§l§6${el.text}` }));
+      headerNodes.push(/* @__PURE__ */ jsx(GroupHeader, { text: el.text, scale: 1.1 }));
     } else if (el.kind === "divider") {
       headerNodes.push(/* @__PURE__ */ jsx(Sep, {}));
     } else if (el.kind === "label" || el.kind === "body") {
@@ -8902,8 +9028,14 @@ function FieldsScreen(props) {
     /* @__PURE__ */ jsx(
       Form,
       {
-        onSubmit: (values) => onSubmit(values),
-        onCancel,
+        onSubmit: (values) => {
+          onSubmit(values);
+          exit();
+        },
+        onCancel: () => {
+          onCancel();
+          exit();
+        },
         children: /* @__PURE__ */ jsxs(Panel, { width: "100%", flexDirection: "column", gap: 4, padding: 6, background: PANE_TEXTURE, children: [
           /* @__PURE__ */ jsx(Panel, { width: "100%", flexDirection: "column", gap: 3, children: headerNodes }),
           /* @__PURE__ */ jsx(Panel, { width: "100%", flexDirection: "column", gap: 3, children: fieldNodes }),
@@ -8999,7 +9131,7 @@ var OMForm = class {
    * multi-lignes restent fragiles en JSON UI).
    */
   button(label, onClick, _options, _icon) {
-    const flat = plain(label).replace(/\s*\n\s*/g, "  —  ").trim();
+    const flat = plain(label).replace(/\s*\n\s*/g, "  ·  ").trim();
     const wrapped = () => {
       try {
         onClick();
@@ -9395,7 +9527,7 @@ function say(player, message) {
 }
 function openCreateMenu(player, manager) {
   if (manager.findByMemberId(player.id) !== void 0 || manager.findByOwner(player.name) !== void 0) {
-    say(player, "§e[Clans] Tu fais déjà partie d'un clan. Utilise §f/sn:menu §e→ États pour le retrouver.");
+    say(player, "§e[Clans] Tu fais déjà partie d'un clan. Utilise §f/sn:menu §e> États pour le retrouver.");
     return;
   }
   const name = obString("");
@@ -9416,7 +9548,6 @@ function openCreateMenu(player, manager) {
         `§7Règles du nom :`,
         `§8· 3 à 24 caractères`,
         `§8· lettres, chiffres, espaces, _ et -`,
-        ``,
         `§8Un seul clan par joueur.`
       ].join("\n")
     );
@@ -9609,7 +9740,7 @@ function openMembersMenu(player, manager, territory) {
   const canManage = isOwner || myRank === "officer";
   void openWindowRaw(player, windowTitle("Membres du clan"), (form) => {
     form.back(() => openMyClanMenu(player, manager, territory));
-    form.header(`§b▓ §l${data.name}§r §7— membres`);
+    form.header(`§b§l${data.name}§r §7— membres`);
     form.label(
       [
         `§eChef : §f${data.owner}`,
@@ -10268,17 +10399,17 @@ function openWorldMenu(player, mines2, back) {
     if (back !== void 0) form.back(back);
     form.header(`§b§lLes portes du monde§r`);
     form.label(
-      inMines ? `§7Tu es actuellement : §b✦ dans §lLa Mine§r` : `§7Tu es actuellement : §a✦ dans le §lMonde normal§r`
+      inMines ? `§7Tu es actuellement dans §b§lLa Mine§r` : `§7Tu es actuellement dans le §a§lMonde normal§r`
     );
     form.divider();
-    form.header(`§a▓▓▓ §l§aMONDE NORMAL§r §a▓▓▓`);
+    form.header(`§l§aMONDE NORMAL§r`);
     form.label(
       [
         `§7La surface : biomes, constructions, tes clans…`,
-        inMines ? `§eAller : §fte téléporte à ta DERNIÈRE position§e ici.` : `§a✔ Tu y es.`
+        inMines ? `§eAller : §fte téléporte à ta DERNIÈRE position§e ici.` : `§aTu y es déjà.`
       ].join("\n")
     );
-    form.button(`§a§l⬥ Aller au monde normal`, () => {
+    form.button(`§a§lAller au monde normal`, () => {
       if (!inMines) {
         player.sendMessage("§7[Mines] Tu es déjà dans le monde normal.");
         return;
@@ -10286,7 +10417,7 @@ function openWorldMenu(player, mines2, back) {
       player.sendMessage(mines2.goNormal(player));
     });
     form.divider();
-    form.header(`§b▓▓▓ §l§bLA MINE§r §b▓▓▓`);
+    form.header(`§l§bLA MINE§r`);
     form.label(
       [
         `§7Un monde §fentièrement massé dans la pierre§7, en profondeur :`,
@@ -10295,7 +10426,7 @@ function openWorldMenu(player, mines2, back) {
         `§8· minerais §fplus riches qu'en surface§8, sans excès`
       ].join("\n")
     );
-    form.button(`§b§l⬥ Descendre dans la Mine`, () => {
+    form.button(`§b§lDescendre dans la Mine`, () => {
       if (inMines) {
         player.sendMessage("§7[Mines] Tu es déjà dans la mine.");
         return;
@@ -11503,11 +11634,11 @@ function openPlayersMenu(player, permissions2, db2) {
     const online = world12.getAllPlayers();
     form.header(`§b§lJoueurs`);
     form.label(
-      `§a● En ligne : §f${online.length}
-§7● Connus (DB) : §f${db2 !== void 0 ? allKnownPlayers(db2).length : "?"}`
+      `§aEn ligne : §f${online.length}
+§7Connus (DB) : §f${db2 !== void 0 ? allKnownPlayers(db2).length : "?"}`
     );
     form.divider();
-    form.label(`§a§l● En ligne§r §7(${online.length})`);
+    form.label(`§a§lEn ligne§r §7(${online.length})`);
     if (online.length === 0) {
       form.label("§7Personne d'autre n'est connecté.");
     }
@@ -11520,7 +11651,7 @@ function openPlayersMenu(player, permissions2, db2) {
       );
     }
     form.divider();
-    form.label(`§7§l● Hors ligne / historique§r §7(index complet)`);
+    form.label(`§7§lHors ligne / historique§r §7(index complet)`);
     form.button(
       `§a§lGérer un joueur hors ligne (saisir le pseudo)`,
       () => openPlayerLookupMenu(player, permissions2, db2)
@@ -11562,7 +11693,7 @@ function openPlayerConfigMenu(player, targetName, permissions2, db2) {
   const record = db2 !== void 0 ? allKnownPlayers(db2).find((r) => r.data.name === targetName) : void 0;
   const classLabel = record?.data.class ? record.data.class : "§8pas encore choisie";
   void openWindow(player, targetName, (form) => {
-    form.header(`§b§l${targetName}§r ${isOnline ? "§a●" : "§8●"}`);
+    form.header(`§b§l${targetName}§r ${isOnline ? "§a(en ligne)" : "§8(hors ligne)"}`);
     form.label(
       `§7Rôle : ${roleLabel}
 §7Classe : §f${classLabel}
@@ -12045,9 +12176,9 @@ function xpBar(xp, perLevel) {
   return `§a${"█".repeat(filled)}§8${"░".repeat(10 - filled)}§r`;
 }
 var CLASS_TRAITS = {
-  guerrier: ["§c✦ Dégâts au corps à corps", "§c✦ Résistance au combat", "§7✧ Portée courte"],
-  mage: ["§5✦ Puissance magique", "§5✦ Potions renforcées", "§7✧ Fragile de près"],
-  archer: ["§a✦ Précision à distance", "§a✦ Déplacement rapide", "§7✧ Faible au mêlée"]
+  guerrier: ["§c+ Dégâts au corps à corps", "§c+ Résistance au combat", "§7- Portée courte"],
+  mage: ["§5+ Puissance magique", "§5+ Potions renforcées", "§7- Fragile de près"],
+  archer: ["§a+ Précision à distance", "§a+ Déplacement rapide", "§7- Faible au mêlée"]
 };
 function banner(info) {
   return [
@@ -12084,13 +12215,10 @@ function myClassCard(player, classes2, info, xp, isAdmin) {
     form.label(
       [
         `§f${info.description}`,
-        ``,
         ...CLASS_TRAITS[info.id],
-        ``,
         `§7Niveau : §f§l${level}§r`,
         `§7Progression : ${xpBar(progress, XP_PER_LEVEL)}`,
         `§7XP : §f${progress}§7/§f${XP_PER_LEVEL} §8(total : ${xp})`,
-        ``,
         `§8Les bonus de voie et le catalogue seront complétés prochainement.`
       ].join("\n")
     );
@@ -12148,7 +12276,6 @@ function confirmClassChoice(player, classes2, info, backTo) {
     form.label(
       [
         `Tu choisis la voie ${info.color}§l${info.name}§r§f ?`,
-        ``,
         `§7Ce choix est §lpermanent§r§7 : seul un admin`,
         `§7pourra le réinitialiser (via §f/sn:db§7).`
       ].join("\n")
@@ -12215,20 +12342,14 @@ function xpBar2(xp, perLevel) {
 }
 function openJobsMenu(player, jobs2) {
   void openWindow(player, "Métiers", (form) => {
-    form.label(
-      [
-        `§6╔══════════════════════╗`,
-        `§f§l        Métiers`,
-        `§6╚══════════════════════╝`
-      ].join("\n")
-    );
+    form.header(`§f§lMétiers`);
     const mine = jobs2.jobsOf(player.name);
     if (mine.length > 0) {
       for (const job of mine) {
         const level = jobLevel(job.xp);
         const progress = job.xp % 50;
         form.label(
-          `§6✦ §f${job.jobId} §7— niveau §f§l${level}§r
+          `§6- §f${job.jobId} §7— niveau §f§l${level}§r
 ${xpBar2(progress, 50)} §8(${progress}/50 XP)`
         );
       }
@@ -12299,7 +12420,7 @@ function openModulesMenu(player, modules2, territories2) {
     for (const info of MODULE_CATALOG) {
       const enabled = modules2.isEnabled(info.id);
       form.button(
-        `${enabled ? "§a✔" : "§c✘"} §l${info.name}§r §7— ${info.description}`,
+        `${enabled ? "§a[ON]" : "§8[OFF]"} §l${info.name}§r §7— ${info.description}`,
         () => {
           const next = !modules2.isEnabled(info.id);
           modules2.setEnabled(info.id, next);
@@ -12315,7 +12436,7 @@ function openModulesMenu(player, modules2, territories2) {
       form.button(`§e§lVoir les États`, () => {
         if (territories2 !== void 0) openStatesMenu(player, territories2);
       });
-      form.button(`§c§lSupprimer TOUS les États`, () => {
+      form.button(`§c§lDANGER : supprimer TOUS les États`, () => {
         if (territories2 !== void 0) openWipeTerritoriesMenu(player, modules2, territories2);
       });
     }
@@ -12323,7 +12444,7 @@ function openModulesMenu(player, modules2, territories2) {
 }
 function openWipeTerritoriesMenu(player, modules2, territories2) {
   void openWindowRaw(player, windowTitle("Supprimer les États"), (form) => {
-    form.header(`§4⚠ §lDANGER`);
+    form.header(`§4§lDANGER`);
     form.label(
       `Supprimer §lTOUS§r§4 les États (${territories2.all().length}) ?
 
@@ -12404,7 +12525,6 @@ function openHubMenu(player, deps) {
         `§7Ton rôle : ${roleTag}§r`,
         myClass !== void 0 ? `§7Ta classe : §d${myClass.classId}` : `§7Ta classe : §8pas encore choisie`,
         ``,
-        `§8────────────────────`,
         `§7En ligne : §f${online}   §7États : §f${stateCount}   §7Joueurs connus : §f${knownCount}`,
         ``,
         `§8Choisis une section à gauche.`,
@@ -12437,15 +12557,13 @@ function openMyInfoMenu(player, deps) {
   void openWindow(player, "Mes infos", (form) => {
     form.body(
       [
-        `§6━━━ §f§l${player.name}§r §6━━━`,
+        `§f§l${player.name}§r`,
         ``,
         `§eRôle      ${roleLabel}`,
         `§eClasse    ${classLevelLabel}`,
         `§eClan      ${myClan !== void 0 ? `§a${myClan.data.name}` : "§8aucun"}`,
         `§eMétiers   ${myJobs.length > 0 ? `§f${myJobs.map((j) => j.jobId).join(", ")}` : "§8aucun"}`,
         `§eDons      §8bientôt disponible`,
-        ``,
-        `§8────────────────────`,
         record !== void 0 ? `§7Sessions : §f${record.data.sessions}   §7Première visite : §f${formatDate(record.data.firstSeen)}` : `§7Sessions : §f?`
       ].join("\n")
     );
@@ -12807,7 +12925,7 @@ function registerModerationCommands(deps) {
         }
         const count = sanctions2.warnsOf(target).length;
         player.sendMessage(`§a[Modération] ${target} averti (${count} warn(s) au total).`);
-        notifyTarget(target, `§6[Modération] ⚠ Avertissement (${count}) : ${reason}`);
+        notifyTarget(target, `§6[Modération] Avertissement (${count}) : ${reason}`);
       })
     );
     event.customCommandRegistry.registerCommand(
@@ -12974,7 +13092,7 @@ world19.afterEvents.playerSpawn.subscribe((event) => {
   if (classes.classOf(player.name) === void 0) {
     player.sendMessage("§d[Classes]§r Choisis ta route avec §f/sn:classes§r — c'est définitif !");
   }
-  player.onScreenDisplay.setTitle("§6NaLandia §f✔");
+  player.onScreenDisplay.setTitle("§6NaLandia");
 });
 system16.runInterval(() => {
   if (!permissions.loaded) return;

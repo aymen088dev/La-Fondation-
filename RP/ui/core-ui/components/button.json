@@ -19,6 +19,10 @@
 		"$focus_override_left|default": "",
 		"$focus_override_right|default": "",
 		"focus_identifier": "$focus_id",
+		// Pointer clicks are resolved against the HOVERED element: without this the
+		// cursor can hover one tile while the engine's focus sits on another, and the
+		// press lands on the focused one (clicks "not doing anything").
+		"always_handle_pointer": true,
 		"focus_change_down": "$focus_override_down",
 		"focus_change_up": "$focus_override_up",
 		"focus_change_left": "$focus_override_left",

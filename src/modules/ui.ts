@@ -21,7 +21,7 @@ export function openModulesMenu(player: Player, modules: ModuleManager, territor
     for (const info of MODULE_CATALOG) {
       const enabled = modules.isEnabled(info.id);
       form.button(
-        `${enabled ? "§a✔" : "§c✘"} §l${info.name}§r §7— ${info.description}`,
+        `${enabled ? "§a[ON]" : "§8[OFF]"} §l${info.name}§r §7— ${info.description}`,
         () => {
           const next = !modules.isEnabled(info.id);
           modules.setEnabled(info.id, next);
@@ -39,7 +39,7 @@ export function openModulesMenu(player: Player, modules: ModuleManager, territor
       form.button(`§e§lVoir les États`, () => {
         if (territories !== undefined) openStatesMenu(player, territories);
       });
-      form.button(`§c§lSupprimer TOUS les États`, () => {
+      form.button(`§c§lDANGER : supprimer TOUS les États`, () => {
         if (territories !== undefined) openWipeTerritoriesMenu(player, modules, territories);
       });
     }
@@ -82,7 +82,7 @@ export function openModuleConfigMenu(
  */
 function openWipeTerritoriesMenu(player: Player, modules: ModuleManager, territories: TerritoryManager): void {
   void openWindowRaw(player, windowTitle("Supprimer les États"), (form) => {
-    form.header(`§4⚠ §lDANGER`);
+    form.header(`§4§lDANGER`);
     form.label(
       `Supprimer §lTOUS§r§4 les États (${territories.all().length}) ?\n\n§7Action irréversible !`,
     );

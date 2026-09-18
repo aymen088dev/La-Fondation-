@@ -4,14 +4,14 @@
     "name": "NaLandia UI",
     "description": "Resource Pack NaLandia : les menus sont désormais dessinés en JSX par le script (@bedrock-core/ui) et ce pack embarque le décodeur qui les peint. Trois silhouettes distinctes — console (hub/admin : barre de titre or + tuiles fines), cartes (Classes/Métiers/Monde/Mines/États : grand bandeau doré + grandes cartes sur fond émeraude) et fiches (Clans/Membres/Mes infos : bandeau + panneau bleu nuit). Flèche retour blanche en haut à gauche, actionbar restylée.",
     "uuid": "33ca6e1c-4f30-46ae-8b56-1510382e3f61",
-    "version": [2, 0, 0],
+    "version": [2, 1, 0],
     "min_engine_version": [1, 26, 50]
   },
   "modules": [
     {
       "type": "resources",
       "uuid": "3d4b14c5-a09d-493f-8cbe-799dd3688d18",
-      "version": [2, 0, 0]
+      "version": [2, 1, 0]
     }
   ]
 }

@@ -21,13 +21,7 @@ function xpBar(xp: number, perLevel: number): string {
 export function openJobsMenu(player: Player, jobs: JobManager): void {
   void openWindow(player, "Métiers", (form) => {
     // ---- Bannière du registre ----
-    form.label(
-      [
-        `§6╔══════════════════════╗`,
-        `§f§l        Métiers`,
-        `§6╚══════════════════════╝`,
-      ].join("\n"),
-    );
+    form.header(`§f§lMétiers`);
 
     const mine = jobs.jobsOf(player.name);
 
@@ -37,7 +31,7 @@ export function openJobsMenu(player: Player, jobs: JobManager): void {
         const level = jobLevel(job.xp);
         const progress = job.xp % 50;
         form.label(
-          `§6✦ §f${job.jobId} §7— niveau §f§l${level}§r\n` +
+          `§6- §f${job.jobId} §7— niveau §f§l${level}§r\n` +
             `${xpBar(progress, 50)} §8(${progress}/50 XP)`,
         );
       }

@@ -236,7 +236,7 @@ world.afterEvents.playerSpawn.subscribe((event) => {
   }
 
   // Le titre « ✔ » au spawn confirme que le script est chargé.
-  player.onScreenDisplay.setTitle("§6NaLandia §f✔");
+  player.onScreenDisplay.setTitle("§6NaLandia");
 });
 
 // Le tag est rafraîchi régulièrement (nouveaux rôles, changements de prefix...)

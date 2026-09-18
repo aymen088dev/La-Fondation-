@@ -40,6 +40,7 @@ import {
   Text,
   render,
   useEffect,
+  useExit,
   type JSX,
 } from "@bedrock-core/ui";
 import { logMod } from "../lib/log";
@@ -91,11 +92,11 @@ export function isUiDesignEnabled(): boolean {
 export const UI_TITLE_TAG = "";
 
 /**
- * Sanitiseur de texte : retire les puces décoratives ■ et ≡ (elles rendent en
- * carrés colorés abscons) et les marqueurs internes §h.
+ * Sanitiseur de texte : retire les puces décoratives (■ ≡ ⬥ ✦ — elles rendent
+ * en carrés abscons sur la police Bedrock) et les marqueurs internes §h.
  */
 function plain(text: string): string {
-  return text.replace(/§h/g, "").replace(/[■≡]\s?/g, "").trim();
+  return text.replace(/§h/g, "").replace(/[■≡⬥✦]\s?/g, "").trim();
 }
 
 /** Construit un titre de fenêtre normalisé : "NaLandia » <title>". */
@@ -226,7 +227,14 @@ type FormElement =
  * Composants JSX du moteur
  * ------------------------------------------------------------------------- */
 
-/** Bouton retour : vraie pastille-flèche 22×22 en haut à gauche du bandeau. */
+/** Texture de la croix de fermeture (Ore UI). */
+const CLOSE_TEXTURE = "textures/ui/ore-styled/button/close/background";
+const CLOSE_HOVER = "textures/ui/ore-styled/button/close/background_hover";
+const CLOSE_PRESS = "textures/ui/ore-styled/button/close/background_pressed";
+
+/**
+ * Bouton retour : vraie pastille-flèche 22×22 en haut à gauche du bandeau.
+ */
 function BackArrow({ onBack }: { onBack: () => void }): JSX.Element {
   return (
     <Button
@@ -240,23 +248,41 @@ function BackArrow({ onBack }: { onBack: () => void }): JSX.Element {
   );
 }
 
-/** Bandeau de titre (or) — accueille la flèche retour à gauche. */
+/**
+ * Croix de fermeture (22×22, en haut à droite du bandeau) — remet la croix
+ * native des menus Bedrock qui disparaissait derrière le render pack.
+ */
+function CloseCross({ onClose }: { onClose: () => void }): JSX.Element {
+  return (
+    <Button
+      width={22}
+      height={22}
+      background={CLOSE_TEXTURE}
+      backgroundHover={CLOSE_HOVER}
+      backgroundPressed={CLOSE_PRESS}
+      onPress={onClose}
+    />
+  );
+}
+
+/**
+ * Bandeau de titre (or) : flèche retour à GAUCHE, croix de fermeture à DROITE.
+ * Le nom de la section seul est affiché (l'écran canonique ne fait que
+ * 320×210 px — le préfixe « NaLandia » débordait).
+ */
 function Banner({
   design,
   title,
   onBack,
+  onClose,
 }: {
   design: ScreenDesign;
   title: string;
   onBack?: (() => void) | undefined;
+  onClose?: (() => void) | undefined;
 }): JSX.Element {
   const spec = DESIGNS[design];
   const section = title.startsWith(TITLE_PREFIX) ? title.slice(TITLE_PREFIX.length) : title;
-  /*
-   * L'écran canonique ne fait que 320×210 px : on n'affiche donc QUE le nom de
-   * la section (le préfixe « NaLandia » tient déjà le titre natif du formulaire
-   * et le hub). Un titre long + le préfixe débordait du bandeau.
-   */
   return (
     <Panel
       width={"100%"}
@@ -267,24 +293,103 @@ function Banner({
       background={spec.banner}
     >
       {onBack ? <BackArrow onBack={onBack} /> : <Panel width={22} height={22} />}
-      <Text scale={spec.titleScale} maxLines={1} overflow={"ellipsis"} shadow={true}>
-        {`§l§6${section}`}
-      </Text>
+      <Panel width={"100%"} flexDirection={"row"} justifyContent={"center"} alignItems={"center"}>
+        <Text scale={spec.titleScale} maxLines={1} overflow={"ellipsis"} shadow={true}>
+          {`§l§6${section}`}
+        </Text>
+      </Panel>
+      {onClose ? <CloseCross onClose={onClose} /> : <Panel width={22} height={22} />}
     </Panel>
   );
 }
 
-/** Entrée cliquable (tuile fine ou grande carte selon la famille). */
-function Row({
-  design,
-  label,
-  onPress,
-}: {
-  design: ScreenDesign;
-  label: string;
-  onPress: () => void;
-}): JSX.Element {
-  const spec = DESIGNS[design];
+/** Accent doré fin (petite ligne lumineuse sous un en-tête). */
+function AccentLine(): JSX.Element {
+  return <Panel width={24} height={2} background={"textures/ui/om_header_band"} marginTop={1} />;
+}
+
+/** En-tête de section : or, gras + filet d'accent sous le texte. */
+function GroupHeader({ text, scale }: { text: string; scale: number }): JSX.Element {
+  return (
+    <Panel width={"100%"} flexDirection={"column"} gap={1} marginTop={3}>
+      <Text scale={scale} shadow={true}>{`§l§6${text}`}</Text>
+      <AccentLine />
+    </Panel>
+  );
+}
+
+/**
+ * Entrée « console » : tuile fine à marqueur doré vertical à gauche, façon
+ * liste de console. Le survol allume la tuile entière.
+ */
+function ConsoleRow({ label, onPress }: { label: string; onPress: () => void }): JSX.Element {
+  const spec = DESIGNS.console;
+  return (
+    <Button
+      width={"100%"}
+      height={spec.rowHeight}
+      background={spec.row}
+      backgroundHover={spec.rowHover}
+      backgroundPressed={spec.rowPress}
+      onPress={onPress}
+    >
+      <Panel
+        width={"100%"}
+        height={"100%"}
+        flexDirection={"row"}
+        alignItems={"center"}
+        paddingLeft={6}
+        paddingRight={8}
+      >
+        <Panel width={2} height={"60%"} background={"textures/ui/om_header_band"} marginRight={6} />
+        <Text scale={spec.scale} maxLines={1} overflow={"ellipsis"} shadow={true}>
+          {label}
+        </Text>
+      </Panel>
+    </Button>
+  );
+}
+
+/**
+ * Grande carte « contenu » : liseré doré à gauche (4 px), libellé plus gros et
+ * chevron doré en bout — une pile de plaques, sans rapport avec la console.
+ */
+function CardRow({ label, onPress }: { label: string; onPress: () => void }): JSX.Element {
+  const spec = DESIGNS.cards;
+  return (
+    <Button
+      width={"100%"}
+      height={spec.rowHeight}
+      background={spec.row}
+      backgroundHover={spec.rowHover}
+      backgroundPressed={spec.rowPress}
+      onPress={onPress}
+    >
+      <Panel
+        width={"100%"}
+        height={"100%"}
+        flexDirection={"row"}
+        alignItems={"center"}
+        paddingLeft={4}
+        paddingRight={10}
+      >
+        <Panel width={4} height={"100%"} background={"textures/ui/om_header_band"} marginRight={8} />
+        <Text scale={spec.scale} maxLines={1} overflow={"ellipsis"} shadow={true}>
+          {label}
+        </Text>
+        <Panel flexGrow={1} />
+        <Panel width={3} height={"55%"} background={"textures/ui/om_header_band"} marginLeft={2} />
+      </Panel>
+    </Button>
+  );
+}
+
+/**
+ * Tuile « parchemin » : bouton Ore UI (bleu acier) + chevron gris en bout —
+ * la fiche se lit comme un registre.
+ */
+function ParchmentRow({ label, onPress }: { label: string; onPress: () => void }): JSX.Element {
+  const spec = DESIGNS.parchment;
   return (
     <Button
       width={"100%"}
@@ -305,9 +410,26 @@ function Row({
         <Text scale={spec.scale} maxLines={1} overflow={"ellipsis"} shadow={true}>
           {label}
         </Text>
+        <Panel flexGrow={1} />
+        <Panel width={3} height={"55%"} background={"textures/ui/om_header_band"} marginLeft={2} />
       </Panel>
     </Button>
   );
+}
+
+/** Entrée cliquable : délègue à la tuile de sa famille. */
+function Row({
+  design,
+  label,
+  onPress,
+}: {
+  design: ScreenDesign;
+  label: string;
+  onPress: () => void;
+}): JSX.Element {
+  if (design === "cards") return <CardRow label={label} onPress={onPress} />;
+  if (design === "parchment") return <ParchmentRow label={label} onPress={onPress} />;
+  return <ConsoleRow label={label} onPress={onPress} />;
 }
 
 /** Filet or/argent. */
@@ -342,12 +464,21 @@ function useCloseOnUnmount(onClose: () => void): void {
 function ActionsScreen(props: RootProps): JSX.Element {
   const spec = DESIGNS[props.design];
   useCloseOnUnmount(props.onClose);
+  /*
+   * VERDICT DU FRAMEWORK : après un clic, `runInteractiveCallback` ne rend
+   * `'cleanup'` (démontage réel) QUE si une fibre a demandé sa fermeture via
+   * `exit()`. Sans ça, le runtime RE-PRÉSENTE le formulaire : le menu clignote
+   * puis revient (le fameux « je clique, rien ne se passe, le menu revient »).
+   * Chaque interaction (action, croix, retour) appelle donc exit() DANS la
+   * transaction du clic.
+   */
+  const exit = useExit();
 
   const content: JSX.Element[] = [];
   for (const el of props.elements) {
     switch (el.kind) {
       case "header":
-        content.push(<Text scale={1.1} shadow={true}>{`§l§6${el.text}`}</Text>);
+        content.push(<GroupHeader text={el.text} scale={spec.scale * 1.1} />);
         break;
       case "label":
         content.push(<Text>{`§7${el.text}`}</Text>);
@@ -362,7 +493,14 @@ function ActionsScreen(props: RootProps): JSX.Element {
         if (el.text === BUTTON_BACK_MARKER) break;
         const onClick = el.onClick;
         content.push(
-          <Row design={props.design} label={el.text} onPress={(): void => props.onAction(onClick)} />,
+          <Row
+            design={props.design}
+            label={el.text}
+            onPress={(): void => {
+              props.onAction(onClick);
+              exit();
+            }}
+          />,
         );
         break;
       }
@@ -374,7 +512,19 @@ function ActionsScreen(props: RootProps): JSX.Element {
   return (
     <Panel width={"100%"} height={"100%"} flexDirection={"column"} padding={4} gap={3}>
       <Background texture={spec.bg} />
-      <Banner design={props.design} title={props.title} onBack={props.onBack} />
+      <Banner
+        design={props.design}
+        title={props.title}
+        onBack={
+          props.onBack
+            ? (): void => {
+                props.onBack?.();
+                exit();
+              }
+            : undefined
+        }
+        onClose={(): void => exit()}
+      />
       <Scroll flexGrow={1}>
         <Panel width={"100%"} flexDirection={"column"} gap={spec.rowGap} padding={2}>
           {content}
@@ -387,6 +537,8 @@ function ActionsScreen(props: RootProps): JSX.Element {
 function FieldsScreen(props: RootProps): JSX.Element {
   const spec = DESIGNS.parchment;
   useCloseOnUnmount(props.onClose);
+  /* Même verdict que l'écran d'actions : submit/cancel doivent démonter. */
+  const exit = useExit();
 
   const headerNodes: JSX.Element[] = [];
   const fieldNodes: JSX.Element[] = [];
@@ -397,7 +549,7 @@ function FieldsScreen(props: RootProps): JSX.Element {
     } else if (el.kind === "button") {
       submitLabel = el.text; // le DERNIER bouton est le submit
     } else if (el.kind === "header") {
-      headerNodes.push(<Text scale={1.1} shadow={true}>{`§l§6${el.text}`}</Text>);
+      headerNodes.push(<GroupHeader text={el.text} scale={1.1} />);
     } else if (el.kind === "divider") {
       headerNodes.push(<Sep />);
     } else if (el.kind === "label" || el.kind === "body") {
@@ -421,8 +573,14 @@ function FieldsScreen(props: RootProps): JSX.Element {
       <Background texture={spec.bg} />
       <Banner design={props.design} title={props.title} />
       <Form
-        onSubmit={(values): void => onSubmit(values as Record<string, unknown>)}
-        onCancel={onCancel}
+        onSubmit={(values): void => {
+          onSubmit(values as Record<string, unknown>);
+          exit();
+        }}
+        onCancel={(): void => {
+          onCancel();
+          exit();
+        }}
       >
         <Panel width={"100%"} flexDirection={"column"} gap={4} padding={6} background={PANE_TEXTURE}>
           <Panel width={"100%"} flexDirection={"column"} gap={3}>
@@ -574,7 +732,7 @@ export class OMForm {
    * multi-lignes restent fragiles en JSON UI).
    */
   button(label: string, onClick: () => void, _options?: ButtonOptions, _icon?: UIIcon): OMForm {
-    const flat = plain(label).replace(/\s*\n\s*/g, "  —  ").trim();
+    const flat = plain(label).replace(/\s*\n\s*/g, "  ·  ").trim();
     const wrapped = (): void => {
       try {
         onClick();

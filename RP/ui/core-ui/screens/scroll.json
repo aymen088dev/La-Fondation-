@@ -275,8 +275,10 @@
 			"6px",
 			"100%"
 		],
-		"anchor_from": "right_middle",
-		"anchor_to": "right_middle",
+		/* Barre à GAUCHE (demande utilisateur) : ancrée au bord gauche du
+		   scroll_view ; la piste et le curseur suivent sans autre réglage. */
+		"anchor_from": "left_middle",
+		"anchor_to": "left_middle",
 		"controls": [
 			{
 				"track": {

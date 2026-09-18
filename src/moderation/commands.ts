@@ -238,7 +238,7 @@ export function registerModerationCommands(deps: ModDeps): void {
           }
           const count = sanctions.warnsOf(target).length;
           player.sendMessage(`§a[Modération] ${target} averti (${count} warn(s) au total).`);
-          notifyTarget(target, `§6[Modération] ⚠ Avertissement (${count}) : ${reason}`);
+          notifyTarget(target, `§6[Modération] Avertissement (${count}) : ${reason}`);
         }),
     );
 

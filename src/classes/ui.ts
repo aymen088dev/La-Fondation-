@@ -27,9 +27,9 @@ function xpBar(xp: number, perLevel: number): string {
 
 /** Points forts/faibles affichés sur la fiche de chaque voie. */
 const CLASS_TRAITS: Record<string, string[]> = {
-  guerrier: ["§c✦ Dégâts au corps à corps", "§c✦ Résistance au combat", "§7✧ Portée courte"],
-  mage: ["§5✦ Puissance magique", "§5✦ Potions renforcées", "§7✧ Fragile de près"],
-  archer: ["§a✦ Précision à distance", "§a✦ Déplacement rapide", "§7✧ Faible au mêlée"],
+  guerrier: ["§c+ Dégâts au corps à corps", "§c+ Résistance au combat", "§7- Portée courte"],
+  mage: ["§5+ Puissance magique", "§5+ Potions renforcées", "§7- Fragile de près"],
+  archer: ["§a+ Précision à distance", "§a+ Déplacement rapide", "§7- Faible au mêlée"],
 };
 
 /** Grande bannière d'une voie : bandeaux couleur + NOM BLANC centré. */
@@ -90,13 +90,10 @@ function myClassCard(
     form.label(
       [
         `§f${info.description}`,
-        ``,
         ...CLASS_TRAITS[info.id],
-        ``,
         `§7Niveau : §f§l${level}§r`,
         `§7Progression : ${xpBar(progress, XP_PER_LEVEL)}`,
         `§7XP : §f${progress}§7/§f${XP_PER_LEVEL} §8(total : ${xp})`,
-        ``,
         `§8Les bonus de voie et le catalogue seront complétés prochainement.`,
       ].join("\n"),
     );
@@ -171,7 +168,6 @@ function confirmClassChoice(
     form.label(
       [
         `Tu choisis la voie ${info.color}§l${info.name}§r§f ?`,
-        ``,
         `§7Ce choix est §lpermanent§r§7 : seul un admin`,
         `§7pourra le réinitialiser (via §f/sn:db§7).`,
       ].join("\n"),

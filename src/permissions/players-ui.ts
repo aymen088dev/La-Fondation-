@@ -23,12 +23,12 @@ export function openPlayersMenu(player: Player, permissions: PermissionManager, 
     const online = world.getAllPlayers();
     form.header(`§b§lJoueurs`);
     form.label(
-      `§a● En ligne : §f${online.length}\n§7● Connus (DB) : §f${db !== undefined ? allKnownPlayers(db).length : "?"}`,
+      `§aEn ligne : §f${online.length}\n§7Connus (DB) : §f${db !== undefined ? allKnownPlayers(db).length : "?"}`,
     );
     form.divider();
 
     // --- Onglet 1 : joueurs en ligne ---
-    form.label(`§a§l● En ligne§r §7(${online.length})`);
+    form.label(`§a§lEn ligne§r §7(${online.length})`);
     if (online.length === 0) {
       form.label("§7Personne d'autre n'est connecté.");
     }
@@ -44,7 +44,7 @@ export function openPlayersMenu(player: Player, permissions: PermissionManager, 
     form.divider();
 
     // --- Onglet 2 : joueurs hors ligne (index DB) ---
-    form.label(`§7§l● Hors ligne / historique§r §7(index complet)`);
+    form.label(`§7§lHors ligne / historique§r §7(index complet)`);
     form.button(`§a§lGérer un joueur hors ligne (saisir le pseudo)`, () =>
       openPlayerLookupMenu(player, permissions, db),
     );
@@ -100,7 +100,7 @@ export function openPlayerConfigMenu(
   const classLabel = record?.data.class ? record.data.class : "§8pas encore choisie";
 
   void openWindow(player, targetName, (form) => {
-    form.header(`§b§l${targetName}§r ${isOnline ? "§a●" : "§8●"}`);
+    form.header(`§b§l${targetName}§r ${isOnline ? "§a(en ligne)" : "§8(hors ligne)"}`);
     form.label(
       `§7Rôle : ${roleLabel}\n§7Classe : §f${classLabel}\n§7Prefix perso : §f${prefixLabel}`,
     );

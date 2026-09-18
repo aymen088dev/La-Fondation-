@@ -71,7 +71,6 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
         `§7Ton rôle : ${roleTag}§r`,
         myClass !== undefined ? `§7Ta classe : §d${myClass.classId}` : `§7Ta classe : §8pas encore choisie`,
         ``,
-        `§8────────────────────`,
         `§7En ligne : §f${online}   §7États : §f${stateCount}   §7Joueurs connus : §f${knownCount}`,
         ``,
         `§8Choisis une section à gauche.`,
@@ -122,16 +121,13 @@ export function openMyInfoMenu(player: Player, deps: HubDeps): void {
   void openWindow(player, "Mes infos", (form) => {
     // ---- Panneau de droite : la fiche ----
     form.body(
-      [
-        `§6━━━ §f§l${player.name}§r §6━━━`,
+      [        `§f§l${player.name}§r`,
         ``,
         `§eRôle      ${roleLabel}`,
         `§eClasse    ${classLevelLabel}`,
         `§eClan      ${myClan !== undefined ? `§a${myClan.data.name}` : "§8aucun"}`,
         `§eMétiers   ${myJobs.length > 0 ? `§f${myJobs.map((j) => j.jobId).join(", ")}` : "§8aucun"}`,
         `§eDons      §8bientôt disponible`,
-        ``,
-        `§8────────────────────`,
         record !== undefined
           ? `§7Sessions : §f${record.data.sessions}   §7Première visite : §f${formatDate(record.data.firstSeen)}`
           : `§7Sessions : §f?`,

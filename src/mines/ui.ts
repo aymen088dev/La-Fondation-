@@ -34,22 +34,22 @@ export function openWorldMenu(player: Player, mines: MinesManager, back?: () => 
     form.header(`§b§lLes portes du monde§r`);
     form.label(
       inMines
-        ? `§7Tu es actuellement : §b✦ dans §lLa Mine§r`
-        : `§7Tu es actuellement : §a✦ dans le §lMonde normal§r`,
+        ? `§7Tu es actuellement dans §b§lLa Mine§r`
+        : `§7Tu es actuellement dans le §a§lMonde normal§r`,
     );
     form.divider();
 
     // --- Carte 1 : Monde normal (vert doux) ---
-    form.header(`§a▓▓▓ §l§aMONDE NORMAL§r §a▓▓▓`);
+    form.header(`§l§aMONDE NORMAL§r`);
     form.label(
       [
         `§7La surface : biomes, constructions, tes clans…`,
         inMines
           ? `§eAller : §fte téléporte à ta DERNIÈRE position§e ici.`
-          : `§a✔ Tu y es.`,
+          : `§aTu y es déjà.`,
       ].join("\n"),
     );
-    form.button(`§a§l⬥ Aller au monde normal`, () => {
+    form.button(`§a§lAller au monde normal`, () => {
       if (!inMines) {
         player.sendMessage("§7[Mines] Tu es déjà dans le monde normal.");
         return;
@@ -60,7 +60,7 @@ export function openWorldMenu(player: Player, mines: MinesManager, back?: () => 
     form.divider();
 
     // --- Carte 2 : Mine (bleu acier) ---
-    form.header(`§b▓▓▓ §l§bLA MINE§r §b▓▓▓`);
+    form.header(`§l§bLA MINE§r`);
     form.label(
       [
         `§7Un monde §fentièrement massé dans la pierre§7, en profondeur :`,
@@ -69,7 +69,7 @@ export function openWorldMenu(player: Player, mines: MinesManager, back?: () => 
         `§8· minerais §fplus riches qu'en surface§8, sans excès`,
       ].join("\n"),
     );
-    form.button(`§b§l⬥ Descendre dans la Mine`, () => {
+    form.button(`§b§lDescendre dans la Mine`, () => {
       if (inMines) {
         player.sendMessage("§7[Mines] Tu es déjà dans la mine.");
         return;
@@ -103,15 +103,12 @@ export function openMineMenu(player: Player, mines: MinesManager, back?: () => v
     form.body(
       [
         `§b§lLa dimension minière§r`,
-        ``,
         `§7Un monde §fentièrement massé dans la pierre§7 :`,
         `§8· §f70 couches§8 à miner entre deux lits de bedrock`,
         `§8· creuse tes propres galeries, façon vrai minage`,
         `§8· minerais §fplus riches qu'en surface§8, équilibrés par profondeur`,
-        ``,
         `§8Strates : §fcharbon§7 partout, §fcuivre/fer§7 puis §for/redstone§7,`,
         `§8et tout en bas §flapis, émeraude et diamant§8.`,
-        ``,
         `§8Aller/retour : §f/sn:monde§8, ou le bouton ci-contre.`,
       ].join("\n"),
     );

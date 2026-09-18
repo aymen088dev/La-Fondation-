@@ -1,7 +1,22 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v20 — REPART DE ZÉRO DES MENUS SUR UN MOTEUR JSX (@bedrock-core/ui) : la mise en page est désormais choisie par le SCRIPT, pas devinée par le JSON UI**.
+> Dernière mise à jour : **v20.1 — FIX « clic sans effet / le menu revient » + croix de fermeture + slider à gauche + glyphes nettoyés**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v20.1 — Verdict du framework maîtrisé : clics qui durent (sept. 2026)
+
+**La demande** : « parfois les boutons se cliquent mais le menu se réalise rien ne se passe et le menu revient » + croix de fermeture + slider à gauche + glyphes.
+
+- [x] **CAUSE RACINE du « le menu revient » enfin trouvée dans le runtime `@bedrock-core/ui`** : après un clic, `runInteractiveCallback` décide — `cleanup` (démontage) **seulement si une fibre appelle `exit()`** (`useExit` → `fiber.shouldRender = false`), sinon il **RE-PRÉSENTE le formulaire**. Nos callbacks ne faisaient que résoudre la promesse → le menu clignotait puis revenait (surtout visible après une téléportation / un message). **Fix moteur** : action de bouton, croix de fermeture, flèche retour, submit et cancel du modal appellent désormais `exit()` DANS la transaction interactive du clic — l'écran se démonte vraiment.
+- [x] **Double curseur expérimental retiré** (`gamepad_cursor_under` layer -20 dans `server_form.json`) : deux boutons curseur plein écran superposés = course entre eux pour les clics — remis au pattern vanilla à UN seul curseur.
+- [x] **`always_handle_pointer: true` sur le socle des boutons** (`core-ui/components/button.json`) : les clics pointeur sont résolus contre l'élément SURVOLÉ, plus contre le focus moteur (fini « je clique une tuile, c'est sa voisine qui réagit / rien ne se passe »).
+- [x] **CROIX DE FERMETURE (X) en haut à droite du bandeau** : bouton 22×22 aux textures Ore UI `close/background{,_hover,_pressed}` existantes — clique = `exit()`, l'écran se ferme net.
+- [x] **BARRE DE DÉFILEMENT remise à GAUCHE** (`core-ui/screens/scroll.json` : ancrage `right_middle` → `left_middle`) — la piste et le curseur suivent.
+- [x] **Glyphes chelous nettoyés** : `⬥` retiré des boutons du Monde (le sanitiseur moteur filtre en plus ■ ≡ ⬥ ✦ à la source), chevrons `›` codés en dur remplacés par un marqueur graphique doré (barre 3×55 %) dans les tuiles cartes/parchemin — plus aucun caractère exotique affiché.
+- [x] Enchaînement sous-menus : le clic lance l'action ET démonte l'écran ; la navigation retour rouvre proprement (fini le clignotement de re-présentation).
+- [x] Typecheck ✅ · **76/76 tests** ✅ · build ✅ (le bundle embarque `useExit`). Packs **2.1.0** (BP, RP, serveur) — bump obligatoire pour invalider le cache Bedrock.
 
 ---
 

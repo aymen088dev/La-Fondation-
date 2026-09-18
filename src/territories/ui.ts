@@ -67,7 +67,7 @@ function say(player: Player, message: string): void {
  */
 export function openCreateMenu(player: Player, manager: TerritoryManager): void {
   if (manager.findByMemberId(player.id) !== undefined || manager.findByOwner(player.name) !== undefined) {
-    say(player, "§e[Clans] Tu fais déjà partie d'un clan. Utilise §f/sn:menu §e→ États pour le retrouver.");
+    say(player, "§e[Clans] Tu fais déjà partie d'un clan. Utilise §f/sn:menu §e> États pour le retrouver.");
     return;
   }
 
@@ -91,7 +91,6 @@ export function openCreateMenu(player: Player, manager: TerritoryManager): void 
         `§7Règles du nom :`,
         `§8· 3 à 24 caractères`,
         `§8· lettres, chiffres, espaces, _ et -`,
-        ``,
         `§8Un seul clan par joueur.`,
       ].join("\n"),
     );
@@ -355,7 +354,7 @@ export function openMembersMenu(
 
   void openWindowRaw(player, windowTitle("Membres du clan"), (form) => {
     form.back(() => openMyClanMenu(player, manager, territory));
-    form.header(`§b▓ §l${data.name}§r §7— membres`);
+    form.header(`§b§l${data.name}§r §7— membres`);
     form.label(
       [
         `§eChef : §f${data.owner}`,
