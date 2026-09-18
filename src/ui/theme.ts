@@ -451,6 +451,16 @@ export class OMForm {
   }
 
   /**
+   * Bouton RETOUR standardisé (v19.1) : une flèche « ← » BLANCHE — à poser
+   * en PREMIER élément de la sidebar (le premier bouton s'affiche en haut
+   * à gauche), à la place de l'ancien « Retour ». Ne rien afficher d'autre
+   * dans le label : la flèche parle d'elle-même.
+   */
+  back(onBack: () => void): OMForm {
+    return this.button("§f←", onBack);
+  }
+
+  /**
    * Affiche le formulaire (différé de 2 ticks : un show() dans le même tick
    * qu'une fermeture est perdu en silence).
    */

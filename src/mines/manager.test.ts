@@ -9,8 +9,6 @@ import {
   spawnRingPositions,
   Y_STONE_MIN,
   Y_STONE_MAX,
-  Y_GALLERY_AIR_MIN,
-  Y_GALLERY_AIR_MAX,
 } from "./generator";
 import { MAX_CHUNKS_PER_TERRITORY } from "../territories/manager";
 
@@ -32,12 +30,10 @@ describe("Générateur des mines", () => {
     expect(hash("nalania:mines#1337#0:0")).not.toBe(hash("nalania:mines#1337#0:1"));
   });
 
-  it("le plan d'un chunk est déterministe (même graine → mêmes salles)", () => {
+  it("le plan d'un chunk est déterministe (même graine → mêmes veines)", () => {
     const a = planChunk(1337, 3, -2);
     const b = planChunk(1337, 3, -2);
-    expect(a.rooms).toEqual(b.rooms);
     expect(a.veins).toEqual(b.veins);
-    expect(a.corridorX).toEqual(b.corridorX);
   });
 
   it("les plans de chunks différents sont distincts", () => {
@@ -46,36 +42,10 @@ describe("Générateur des mines", () => {
     expect(a.veins).not.toEqual(b.veins);
   });
 
-  it("les salles sont intérieures au chunk et assez hautes", () => {
-    for (const cx of [0, 1, -1, 5, -7]) {
-      for (const cz of [0, 2, -3]) {
-        const plan = planChunk(1337, cx, cz);
-        for (const room of plan.rooms) {
-          // Marge ≥ 1 du bord du chunk (continuité du mur de pierre).
-          expect(room.x0).toBeGreaterThanOrEqual(cx * 16 + 1);
-          expect(room.x1).toBeLessThanOrEqual(cx * 16 + 14);
-          expect(room.z0).toBeGreaterThanOrEqual(cz * 16 + 1);
-          expect(room.z1).toBeLessThanOrEqual(cz * 16 + 14);
-          // Hauteur sous plafond : jamais plus haut que la couche plafond.
-          expect(room.y1).toBeLessThan(72);
-          // Au moins 4 blocs de haut (pas de tunnels à ramper).
-          expect(room.y1 - room.y0 + 1).toBeGreaterThanOrEqual(4);
-        }
-      }
-    }
-  });
-
-  it("les galeries croisées traversent tout le chunk (continuité)", () => {
-    const plan = planChunk(1337, 2, 2);
-    expect(plan.corridorX.x0).toBe(32);
-    expect(plan.corridorX.x1).toBe(47);
-    expect(plan.corridorX.z0).toBe(39);
-    expect(plan.corridorX.z1).toBe(41);
-    expect(plan.corridorZ.z0).toBe(32);
-    expect(plan.corridorZ.z1).toBe(47);
-    // Hauteur de galerie : 6 blocs (marche + tête).
-    expect(plan.corridorX.y1 - plan.corridorX.y0 + 1).toBe(6);
-    expect(Y_GALLERY_AIR_MAX - Y_GALLERY_AIR_MIN + 1).toBe(6);
+  it("la mine est SOLIDE : le plan ne contient que des veines (pas de salles/galeries)", () => {
+    const plan = planChunk(1337, 0, 0);
+    expect(Object.keys(plan)).toEqual(["cx", "cz", "veins"]);
+    expect(plan.veins.length).toBeGreaterThan(0);
   });
 
   it("le budget de minerais est ÉQUILIBRÉ (plus que la surface, sans excès)", () => {

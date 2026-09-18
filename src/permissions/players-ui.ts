@@ -21,7 +21,7 @@ export function confirmDialog(_player: Player, _title: string, _body: string): P
 export function openPlayersMenu(player: Player, permissions: PermissionManager, db?: JsonDatabase): void {
   void openWindow(player, "Joueurs", (form) => {
     const online = world.getAllPlayers();
-    form.header(`§b■ §lJoueurs`);
+    form.header(`§b§lJoueurs`);
     form.label(
       `§a● En ligne : §f${online.length}\n§7● Connus (DB) : §f${db !== undefined ? allKnownPlayers(db).length : "?"}`,
     );
@@ -45,7 +45,7 @@ export function openPlayersMenu(player: Player, permissions: PermissionManager, 
 
     // --- Onglet 2 : joueurs hors ligne (index DB) ---
     form.label(`§7§l● Hors ligne / historique§r §7(index complet)`);
-    form.button(`§a■ §lGérer un joueur hors ligne (saisir le pseudo)`, () =>
+    form.button(`§a§lGérer un joueur hors ligne (saisir le pseudo)`, () =>
       openPlayerLookupMenu(player, permissions, db),
     );
     if (db !== undefined) {
@@ -73,7 +73,7 @@ export function openPlayerLookupMenu(player: Player, permissions: PermissionMana
   void openWindowRaw(player, windowTitle("Gérer un joueur"), (form) => {
     form.label("§7Fonctionne même si le joueur n'est pas connecté.");
     form.textField("§ePseudo du joueur", name);
-    form.button(`§b■ §lRechercher`, () => {
+    form.button(`§b§lRechercher`, () => {
       const target = name.getData().trim();
       if (target !== "") openPlayerConfigMenu(player, target, permissions, db);
     });
@@ -100,22 +100,22 @@ export function openPlayerConfigMenu(
   const classLabel = record?.data.class ? record.data.class : "§8pas encore choisie";
 
   void openWindow(player, targetName, (form) => {
-    form.header(`§b■ §l${targetName}§r ${isOnline ? "§a●" : "§8●"}`);
+    form.header(`§b§l${targetName}§r ${isOnline ? "§a●" : "§8●"}`);
     form.label(
       `§7Rôle : ${roleLabel}\n§7Classe : §f${classLabel}\n§7Prefix perso : §f${prefixLabel}`,
     );
     form.divider();
-    form.button(`§e■ §lAttribuer / changer de rôle`, () =>
+    form.button(`§e§lAttribuer / changer de rôle`, () =>
       openAssignRoleMenu(player, targetName, permissions, db),
     );
-    form.button(`§e■ §lPrefix personnalisé`, () =>
+    form.button(`§e§lPrefix personnalisé`, () =>
       openPrefixMenu(player, `Prefix perso de ${targetName}`, (prefix) => {
         const result = permissions.setCustomPrefix(targetName, prefix);
         player.sendMessage(result.ok ? "§a[Rôles] Prefix mis à jour." : `§c[Rôles] ${result.error}`);
       }),
     );
     if (db !== undefined && record?.data.class) {
-      form.button(`§d■ §lRéinitialiser la classe §7(${record.data.class})`, () => {
+      form.button(`§d§lRéinitialiser la classe §7(${record.data.class})`, () => {
         if (resetClassOf(db, targetName)) {
           db.save();
           player.sendMessage(`§a[Classes] Classe de ${targetName} réinitialisée — il re-choisira librement.`);
@@ -123,7 +123,7 @@ export function openPlayerConfigMenu(
       });
     }
     if (member !== undefined) {
-      form.button(`§c■ §lRetirer tous les rôles`, () => {
+      form.button(`§c§lRetirer tous les rôles`, () => {
         permissions.removeRole(targetName);
         player.sendMessage(`§a[Rôles] Rôles de ${targetName} retirés.`);
       });

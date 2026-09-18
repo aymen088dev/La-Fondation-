@@ -35,7 +35,7 @@ export function openAdminMenu(player: Player, deps: HubDeps): void {
     // ---- Panneau de droite : état du serveur ----
     form.body(
       [
-        `§6§l■ Panneau d'administration§r`,
+        `§6§lPanneau d'administration§r`,
         ``,
         `§eEn ligne : §f${online}`,
         `§eRôles : §f${roleCount}   §eÉtats : §f${stateCount}`,
@@ -49,18 +49,18 @@ export function openAdminMenu(player: Player, deps: HubDeps): void {
     );
 
     // ---- Sidebar ----
-    form.header(`§6§l≡ Gestion`);
+    form.header(`§6§lGestion`);
 
-    form.button(`§6■ Rôles`, () => openRolesMenu(player, permissions));
-    form.button(`§b■ Joueurs`, () => openPlayersMenu(player, permissions, db));
-    form.button(`§d■ Modules`, () => openModulesMenu(player, modules, territories));
+    form.button(`§6Rôles`, () => openRolesMenu(player, permissions));
+    form.button(`§bJoueurs`, () => openPlayersMenu(player, permissions, db));
+    form.button(`§dModules`, () => openModulesMenu(player, modules, territories));
     if (db !== undefined) {
-      form.button(`§a■ Base de données`, () => {
+      form.button(`§aBase de données`, () => {
         void openDbMenu(db, player);
       });
     }
     if (classes !== undefined) {
-      form.button(`§d■ Classes (reset admin)`, () => openClassesMenu(player, classes, true));
+      form.button(`§dClasses (reset admin)`, () => openClassesMenu(player, classes, true));
     }
   }).catch((error: unknown) => console.warn(`[Admin] ${error instanceof Error ? error.message : String(error)}`));
 }

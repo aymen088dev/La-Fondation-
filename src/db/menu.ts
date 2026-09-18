@@ -53,7 +53,7 @@ export async function openDbMenu(db: JsonDatabase, player: Player): Promise<void
     const stats = db.stats();
     const sections = listSections(db);
 
-    form.header(`§a■ §lBase de données`);
+    form.header(`§a§lBase de données`);
     form.label(
       `§7${stats.documents} documents · ${stats.bytes} octets\n§7État : ${stats.dirty ? "§eà sauvegarder" : "§aà jour"}`,
     );
@@ -69,13 +69,13 @@ export async function openDbMenu(db: JsonDatabase, player: Player): Promise<void
     }
 
     form.divider();
-    form.button(`§a■ §lForcer la sauvegarde`, () => {
+    form.button(`§a§lForcer la sauvegarde`, () => {
       db.save(true);
       // v17.1 : plus aucun retour DB dans le chat (console uniquement).
     });
 
     // ---- v18 : actions rapides d'administration ----
-    form.button(`§d■ §lRéinitialiser une classe`, () => {
+    form.button(`§d§lRéinitialiser une classe`, () => {
       void openResetClassMenu(db, player);
     });
   }).catch((error: unknown) =>
@@ -127,7 +127,7 @@ async function openSectionMenu(db: JsonDatabase, player: Player, section: string
     }
 
     form.divider();
-    form.button(`§c■ §lVider la section`, () => {
+    form.button(`§c§lVider la section`, () => {
       db.clear(section);
       db.save();
       // Retour silencieux (console) — plus de message DB dans le chat.
@@ -158,7 +158,7 @@ async function openDocumentMenu(
   const entries = Object.entries(doc.data).filter(([key]) => !READONLY_KEYS.has(key));
 
   await openWindowRaw(player, windowTitle(docId), (form) => {
-    form.header(`§b■ §l${docId}`);
+    form.header(`§b§l${docId}`);
     form.label(`§7collection : §f${section}`);
 
     // Champs éditables : textes, nombres, booléens (toggle). Le reste est
@@ -194,7 +194,7 @@ async function openDocumentMenu(
     }
 
     form.divider();
-    form.button(`§a■ §lAppliquer`, () => {
+    form.button(`§a§lAppliquer`, () => {
       // NOTE : les textes saisis ne sont pas relisibles depuis l'Observable
       // après fermeture dans cette bêta (le binding est initialisé avec la
       // valeur d'origine) : seuls les toggles sont appliqués de façon fiable.

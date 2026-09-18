@@ -23,15 +23,15 @@ export function openSanctionsMenu(player: Player, sanctions: SanctionsManager, p
   const stats = sanctions.stats();
 
   void openWindow(player, "Modération", (form) => {
-    form.header(`§4■ §lModération`);
+    form.header(`§4§lModération`);
     form.label(
       `§7Bans actifs : §f${stats.bans}\n§7Mutes actifs : §f${stats.mutes}\n§7Warns au total : §f${stats.warns}`,
     );
     form.divider();
-    form.button(`§4■ §lBans actifs`, () => openBansList(player, sanctions, permissions));
-    form.button(`§6■ §lMutes actifs`, () => openMutesList(player, sanctions, permissions));
-    form.button(`§e■ §lSanctionner un joueur`, () => openSanctionForm(player, sanctions));
-    form.button(`§b■ §lHistorique d'un joueur`, () => openHistoryLookup(player, sanctions));
+    form.button(`§4§lBans actifs`, () => openBansList(player, sanctions, permissions));
+    form.button(`§6§lMutes actifs`, () => openMutesList(player, sanctions, permissions));
+    form.button(`§e§lSanctionner un joueur`, () => openSanctionForm(player, sanctions));
+    form.button(`§b§lHistorique d'un joueur`, () => openHistoryLookup(player, sanctions));
   }).catch((error: unknown) =>
     console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`),
   );
@@ -99,7 +99,7 @@ function openSanctionForm(player: Player, sanctions: SanctionsManager): void {
   const reason = obString("");
 
   void openWindowRaw(player, windowTitle("Sanctionner un joueur"), (form) => {
-    form.header(`§e■ §lSanctionner`);
+    form.header(`§e§lSanctionner`);
     form.textField("§ePseudo du joueur", target);
     form.dropdown(
       "§eType de sanction",
@@ -114,7 +114,7 @@ function openSanctionForm(player: Player, sanctions: SanctionsManager): void {
     form.slider("§eDurée en minutes (0 = permanent)", minutes, 0, 1440, { step: 15 });
     form.textField("§eRaison", reason);
     form.divider();
-    form.button(`§e■ §lAppliquer la sanction`, () => {
+    form.button(`§e§lAppliquer la sanction`, () => {
       const name = target.getData().trim();
       const cleanReason = reason.getData().trim() || "non spécifiée";
       if (name === "") {
@@ -165,7 +165,7 @@ function openHistoryLookup(player: Player, sanctions: SanctionsManager): void {
 
   void openWindowRaw(player, windowTitle("Historique"), (form) => {
     form.textField("§ePseudo du joueur", target);
-    form.button(`§b■ §lVoir l'historique`, () => {
+    form.button(`§b§lVoir l'historique`, () => {
       const name = target.getData().trim();
       if (name === "") return;
 

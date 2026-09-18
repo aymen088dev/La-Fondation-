@@ -85,7 +85,7 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
     form.button(`§6États`, () => openStatesMenu(player, territories));
     form.button(`§eMes infos`, () => openMyInfoMenu(player, deps));
     if (deps.mines !== undefined && deps.mines.isUsable()) {
-      form.button(`§bMonde`, () => openWorldMenu(player, deps.mines as MinesManager));
+      form.button(`§bMonde`, () => openWorldMenu(player, deps.mines as MinesManager, () => openHubMenu(player, deps)));
     }
 
     if (isMod) {

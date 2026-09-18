@@ -15,10 +15,10 @@ export function openRolesMenu(player: Player, permissions: PermissionManager): v
   const roles = permissions.allRoles();
 
   void openWindow(player, "Rôles", (form) => {
-    form.header(`§6■ §lRôles du serveur`);
+    form.header(`§6§lRôles du serveur`);
     form.label(`§7${roles.length} rôle(s). Clique pour configurer :`);
     form.divider();
-    form.button(`§a■ §lCréer un rôle`, () => openCreateRoleMenu(player, permissions));
+    form.button(`§a§lCréer un rôle`, () => openCreateRoleMenu(player, permissions));
 
     for (const role of roles) {
       form.button(
@@ -36,17 +36,17 @@ export function openCreateRoleMenu(player: Player, permissions: PermissionManage
   const level = obNumber(10);
 
   void openWindowRaw(player, windowTitle("Créer un rôle"), (form) => {
-    form.header(`§a■ §lNouveau rôle`);
+    form.header(`§a§lNouveau rôle`);
     form.divider();
     form.textField("§eNom (2-16 caractères)", name);
     form.dropdown(
       "§eCouleur",
       colorIndex,
-      ROLE_COLORS.map((color, value) => ({ label: `${color.code}■ ${color.id}`, value })),
+      ROLE_COLORS.map((color, value) => ({ label: `${color.code}${color.id}`, value })),
     );
     form.slider("§eNiveau hiérarchique (100 = admin max)", level, 0, 100, { step: 5 });
     form.divider();
-    form.button(`§a■ §lCréer le rôle`, () => {
+    form.button(`§a§lCréer le rôle`, () => {
       const clean = name.getData().trim();
       const color = ROLE_COLORS[colorIndex.getData()] ?? ROLE_COLORS[0];
       if (clean === "") {
@@ -69,26 +69,26 @@ export function openRoleConfigMenu(
   permissions: PermissionManager,
 ): void {
   void openWindow(player, `Rôle ${role.data.color}${role.data.name}`, (form) => {
-    form.header(`${role.data.color}■ §l${role.data.name}§r §7(niveau ${role.data.level})`);
+    form.header(`${role.data.color}§l${role.data.name}§r §7(niveau ${role.data.level})`);
     form.label(
       `§7Membres : §f${permissions.membersWithRole(role.data.name).length}\n§7Prefix : §f${role.data.prefix}`,
     );
     form.divider();
-    form.button(`§e■ §lChanger la couleur`, () =>
+    form.button(`§e§lChanger la couleur`, () =>
       openColorPicker(player, "Couleur du rôle", (colorId) => {
         const result = permissions.setRoleColor(role.data.name, colorId);
         player.sendMessage(result.ok ? "§a[Rôles] Couleur mise à jour." : `§c[Rôles] ${result.error}`);
       }),
     );
-    form.button(`§e■ §lChanger le prefix`, () =>
+    form.button(`§e§lChanger le prefix`, () =>
       openPrefixMenu(player, `Prefix du rôle [${role.data.name}]`, (prefix) => {
         const result = permissions.setRolePrefix(role.data.name, prefix);
         player.sendMessage(result.ok ? "§a[Rôles] Prefix mis à jour." : `§c[Rôles] ${result.error}`);
       }),
     );
-    form.button(`§e■ §lChanger le niveau (actuel : ${role.data.level})`, () => openLevelMenu(player, role, permissions));
-    form.button(`§b■ §lVoir les membres`, () => openRoleMembersMenu(player, role, permissions));
-    form.button(`§c■ §lSupprimer ce rôle`, () => {
+    form.button(`§e§lChanger le niveau (actuel : ${role.data.level})`, () => openLevelMenu(player, role, permissions));
+    form.button(`§b§lVoir les membres`, () => openRoleMembersMenu(player, role, permissions));
+    form.button(`§c§lSupprimer ce rôle`, () => {
       const result = permissions.deleteRole(role.data.name);
       player.sendMessage(result.ok ? "§a[Rôles] Rôle supprimé." : `§c[Rôles] ${result.error}`);
     });
@@ -101,7 +101,7 @@ function openLevelMenu(player: Player, role: StoredDocument<RoleData>, permissio
 
   void openWindowRaw(player, windowTitle(`Niveau de [${role.data.name}]`), (form) => {
     form.slider("§eNiveau (100 = admin max)", level, 0, 100, { step: 5 });
-    form.button(`§a■ §lValider`, () => {
+    form.button(`§a§lValider`, () => {
       const result = permissions.setRoleLevel(role.data.name, level.getData());
       player.sendMessage(result.ok ? "§a[Rôles] Niveau mis à jour." : `§c[Rôles] ${result.error}`);
     });
@@ -141,7 +141,7 @@ export function openColorPicker(player: Player, title: string, onPick: (colorId:
   void openWindow(player, title, (form) => {
     form.label("§7Choisis une couleur :");
     for (const color of ROLE_COLORS) {
-      form.button(`${color.code}■■■ ${color.id}`, () => onPick(color.id));
+      form.button(`${color.code}${color.id}`, () => onPick(color.id));
     }
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -152,7 +152,7 @@ export function openPrefixMenu(player: Player, title: string, onDone: (prefix: s
 
   void openWindowRaw(player, windowTitle(title), (form) => {
     form.textField("§ePrefix (vide = défaut [Nom])", prefix);
-    form.button(`§a■ §lValider`, () => onDone(prefix.getData()));
+    form.button(`§a§lValider`, () => onDone(prefix.getData()));
     form.closeButton();
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }

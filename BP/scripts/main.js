@@ -4472,6 +4472,15 @@ var OMForm = class {
     return this;
   }
   /**
+   * Bouton RETOUR standardisé (v19.1) : une flèche « ← » BLANCHE — à poser
+   * en PREMIER élément de la sidebar (le premier bouton s'affiche en haut
+   * à gauche), à la place de l'ancien « Retour ». Ne rien afficher d'autre
+   * dans le label : la flèche parle d'elle-même.
+   */
+  back(onBack) {
+    return this.button("§f←", onBack);
+  }
+  /**
    * Affiche le formulaire (différé de 2 ticks : un show() dans le même tick
    * qu'une fermeture est perdu en silence).
    */
@@ -4656,7 +4665,7 @@ async function openDbMenu(db2, player) {
   await openWindow(player, "Base de données", (form) => {
     const stats = db2.stats();
     const sections = listSections(db2);
-    form.header(`§a■ §lBase de données`);
+    form.header(`§a§lBase de données`);
     form.label(
       `§7${stats.documents} documents · ${stats.bytes} octets
 §7État : ${stats.dirty ? "§eà sauvegarder" : "§aà jour"}`
@@ -4671,10 +4680,10 @@ async function openDbMenu(db2, player) {
       );
     }
     form.divider();
-    form.button(`§a■ §lForcer la sauvegarde`, () => {
+    form.button(`§a§lForcer la sauvegarde`, () => {
       db2.save(true);
     });
-    form.button(`§d■ §lRéinitialiser une classe`, () => {
+    form.button(`§d§lRéinitialiser une classe`, () => {
       void openResetClassMenu(db2, player);
     });
   }).catch(
@@ -4715,7 +4724,7 @@ async function openSectionMenu(db2, player, section) {
       });
     }
     form.divider();
-    form.button(`§c■ §lVider la section`, () => {
+    form.button(`§c§lVider la section`, () => {
       db2.clear(section);
       db2.save();
       console.warn(`[DB] Section "${section}" vidée par ${player.name}.`);
@@ -4733,7 +4742,7 @@ async function openDocumentMenu(db2, player, section, docId) {
   }
   const entries = Object.entries(doc.data).filter(([key]) => !READONLY_KEYS.has(key));
   await openWindowRaw(player, windowTitle(docId), (form) => {
-    form.header(`§b■ §l${docId}`);
+    form.header(`§b§l${docId}`);
     form.label(`§7collection : §f${section}`);
     const editableKeys = [];
     const kinds = [];
@@ -4764,7 +4773,7 @@ async function openDocumentMenu(db2, player, section, docId) {
 ${readonlyLines.join("\n")}`);
     }
     form.divider();
-    form.button(`§a■ §lAppliquer`, () => {
+    form.button(`§a§lAppliquer`, () => {
       const patch = {};
       for (const [key, toggle] of Object.entries(boolValues)) {
         const current = doc.data[key];
@@ -4894,7 +4903,7 @@ function openStatesMenu(player, manager) {
     const here = clanAtPlayer(manager, player);
     form.header(`§e§lÉtats de NaLandia`);
     form.label(
-      states.length === 0 ? `§7Aucun État fondé pour l'instant.` : `§7${states.length} État(s) sur la carte :`
+      states.length === 0 ? `§8Aucun État fondé pour l'instant — sois le premier :` : `§7${states.length} État(s) sur la carte — clique pour la fiche :`
     );
     form.divider();
     if (states.length > 0) {
@@ -4933,6 +4942,7 @@ function showStateInfo(player, territory, manager) {
   const isOwner = data.ownerId === player.id || data.owner === player.name;
   const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
   void openWindowRaw(player, windowTitle(data.name), (form) => {
+    form.back(() => openStatesMenu(player, manager));
     form.label(
       [
         `${color.code}╔══════════════════════╗`,
@@ -4954,7 +4964,6 @@ function showStateInfo(player, territory, manager) {
     if (isOwner || myRank !== void 0) {
       form.button(`§6§lMon clan`, () => openMyClanMenu(player, manager, territory));
     }
-    form.button(`§7§lRetour aux États`, () => openStatesMenu(player, manager));
   }).catch(
     (error) => console.warn(`[Clans] Erreur fiche État : ${error instanceof Error ? error.message : String(error)}`)
   );
@@ -4972,6 +4981,7 @@ function openMyClanMenu(player, manager, territory) {
   const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
   const rankLabel = isOwner ? "§6Chef" : myRank === "officer" ? "§bOfficier" : "§7Membre";
   void openWindowRaw(player, windowTitle("Mon clan"), (form) => {
+    form.back(() => openStatesMenu(player, manager));
     form.label(
       [
         `${color.code}╔══════════════════════╗`,
@@ -5006,7 +5016,6 @@ function openMyClanMenu(player, manager, territory) {
         );
       });
     }
-    form.button(`§7§lRetour`, () => openStatesMenu(player, manager));
   }).catch(
     (error) => console.warn(`[Clans] Erreur menu Mon clan : ${error instanceof Error ? error.message : String(error)}`)
   );
@@ -5042,7 +5051,8 @@ function openMembersMenu(player, manager, territory) {
   const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
   const canManage = isOwner || myRank === "officer";
   void openWindowRaw(player, windowTitle("Membres du clan"), (form) => {
-    form.header(`§b§l${data.name} §7— membres`);
+    form.back(() => openMyClanMenu(player, manager, territory));
+    form.header(`§b▓ §l${data.name}§r §7— membres`);
     form.label(
       [
         `§eChef : §f${data.owner}`,
@@ -5065,7 +5075,6 @@ function openMembersMenu(player, manager, territory) {
         );
       }
     }
-    form.button(`§7§lRetour`, () => openMyClanMenu(player, manager, territory));
   }).catch(
     (error) => console.warn(`[Clans] Erreur menu Membres : ${error instanceof Error ? error.message : String(error)}`)
   );
@@ -5079,6 +5088,7 @@ function openMemberActionsMenu(player, manager, territory, memberId, memberName)
     return;
   }
   void openWindowRaw(player, windowTitle(memberName), (form) => {
+    form.back(() => openMembersMenu(player, manager, territory));
     form.header(`§f§l${memberName}`);
     form.label(`§7Rang actuel : ${member.rank === "officer" ? "§bofficier" : "membre"}`);
     form.divider();
@@ -5102,7 +5112,6 @@ function openMemberActionsMenu(player, manager, territory, memberId, memberName)
       );
       openMembersMenu(player, manager, territory);
     });
-    form.button(`§7§lRetour`, () => openMembersMenu(player, manager, territory));
   }).catch(
     (error) => console.warn(`[Clans] Erreur menu membre : ${error instanceof Error ? error.message : String(error)}`)
   );
@@ -5159,6 +5168,7 @@ function openFlagMenu(player, manager, territory) {
     openMyClanMenu(player, manager, territory);
   };
   void openWindowRaw(player, windowTitle("Drapeau"), (form) => {
+    form.back(() => openMyClanMenu(player, manager, territory));
     const current = territory.data.color;
     form.header(`§6§lDrapeau de ${territory.data.name}`);
     form.label(`§7Actuel : §f${current.startsWith("flag:") ? current.slice(5) : current}`);
@@ -5174,7 +5184,7 @@ function openFlagMenu(player, manager, territory) {
       form.button(`§bBlason ${n}`, () => apply(flagValue, `Blason ${n}`));
     }
     form.divider();
-    form.button(`§7§lRetour`, () => openMyClanMenu(player, manager, territory));
+    form.back(() => openMyClanMenu(player, manager, territory));
   }).catch(
     (error) => console.warn(`[Clans] Erreur menu drapeau : ${error instanceof Error ? error.message : String(error)}`)
   );
@@ -5231,8 +5241,8 @@ var Y_BEDROCK_MAX = 1;
 var Y_STONE_MIN = 2;
 var Y_STONE_MAX = 71;
 var Y_CEIL_BEDROCK = 72;
-var Y_GALLERY_AIR_MIN = 5;
-var Y_GALLERY_AIR_MAX = 10;
+var Y_POCKET_AIR_MIN = 5;
+var Y_POCKET_AIR_MAX = 7;
 var Y_SPAWN_FEET = 5;
 var ORE_SPECS = [
   { block: "minecraft:coal_ore", tries: 8, veinMin: 4, veinMax: 9, yMin: Y_STONE_MIN, yMax: Y_STONE_MAX },
@@ -5251,52 +5261,6 @@ function planChunk(seed, cx, cz) {
   const rand = rng(hash(`nalania:mines#${seed}#${cx}:${cz}`));
   const ox = cx * 16;
   const oz = cz * 16;
-  const corridorX = {
-    x0: ox,
-    x1: ox + 15,
-    y0: Y_GALLERY_AIR_MIN,
-    y1: Y_GALLERY_AIR_MAX,
-    z0: oz + 7,
-    z1: oz + 9
-  };
-  const corridorZ = {
-    x0: ox + 7,
-    x1: ox + 9,
-    y0: Y_GALLERY_AIR_MIN,
-    y1: Y_GALLERY_AIR_MAX,
-    z0: oz,
-    z1: oz + 15
-  };
-  const roomCount = 2 + Math.floor(rand() * 2);
-  const rooms = [];
-  const pillars = [];
-  const lanterns = [];
-  for (let i = 0; i < roomCount; i++) {
-    const w = 8 + Math.floor(rand() * 6);
-    const d = 8 + Math.floor(rand() * 6);
-    const h = 5 + Math.floor(rand() * 4);
-    const x0 = ox + 1 + Math.floor(rand() * (15 - w));
-    const z0 = oz + 1 + Math.floor(rand() * (15 - d));
-    const y0 = 6 + Math.floor(rand() * 5);
-    const y1 = Math.min(y0 + h - 1, 30);
-    const room = { x0, x1: x0 + w - 1, y0, y1, z0, z1: z0 + d - 1 };
-    rooms.push(room);
-    if (w >= 10 && rand() < 0.7) {
-      const px = x0 + 2 + Math.floor(rand() * (w - 4));
-      const pz = z0 + 2 + Math.floor(rand() * (d - 4));
-      pillars.push({ x0: px, x1: px, y0: room.y0, y1: room.y1, z0: pz, z1: pz });
-    }
-    lanterns.push({
-      x: x0 + Math.floor(w / 2),
-      y: room.y0,
-      z: z0 + Math.floor(d / 2)
-    });
-  }
-  const torches = [];
-  for (const t of [2, 8, 14]) {
-    torches.push({ x: ox + t, y: Y_GALLERY_AIR_MIN, z: oz + 7 });
-    torches.push({ x: ox + 7, y: Y_GALLERY_AIR_MIN, z: oz + t });
-  }
   const veins = [];
   for (const spec of ORE_SPECS) {
     for (let t = 0; t < spec.tries; t++) {
@@ -5314,7 +5278,7 @@ function planChunk(seed, cx, cz) {
       veins.push({ block: spec.block, cells });
     }
   }
-  return { cx, cz, rooms, corridorX, corridorZ, pillars, veins, lanterns, torches };
+  return { cx, cz, veins };
 }
 function clipBox(box, cx, cz) {
   const x0 = Math.max(box.x0, cx * 16);
@@ -5335,7 +5299,7 @@ function spawnRingPositions() {
     const key = `${x}:${z}`;
     if (!seen.has(key)) {
       seen.add(key);
-      positions.push({ x, y: Y_GALLERY_AIR_MIN, z });
+      positions.push({ x, y: Y_POCKET_AIR_MIN, z });
     }
   }
   return positions;
@@ -5344,6 +5308,7 @@ function spawnRingPositions() {
 // src/mines/manager.ts
 var MINES_DIMENSION_ID = "nalania:mines";
 var RETURN_PROP = "nalania:overworld_return";
+var NIGHT_VISION_TICKS = 20 * 120;
 var ORES_PUBLIC = [
   { label: "Charbon", color: "§8" },
   { label: "Cuivre", color: "§6" },
@@ -5373,6 +5338,7 @@ var MinesManager = class {
   /** Chunks en attente (clé → tâche) : rejoués tant qu'ils échouent. */
   pending = /* @__PURE__ */ new Map();
   queueRunning = false;
+  nightVisionLoopRegistered = false;
   /**
    * La zone de spawn (plateforme à cheval sur les 4 chunks de l'origine)
    * est-elle entièrement générée ?
@@ -5471,6 +5437,10 @@ var MinesManager = class {
   /** Retour : dernière position connue dans le monde normal, sinon spawn. */
   exit(player) {
     const target = this.lastOverworldLocation(player);
+    try {
+      player.removeEffect("night_vision");
+    } catch {
+    }
     if (target !== void 0) {
       try {
         const dimension = world8.getDimension(target.dimensionId);
@@ -5489,13 +5459,41 @@ var MinesManager = class {
     player.teleport({ x: spawn.x + 0.5, y: spawn.y + 2, z: spawn.z + 0.5 }, { dimension: overworld });
     return "§a[Mines] Retour au spawn du monde (pas de position mémorisée).";
   }
-  /** Téléporte aux mines : plateforme du spawn, nuit + night vision. */
+  /** Téléporte aux mines : plateforme, night vision SANS particules. */
   teleportToSpawn(player, dimension) {
     player.teleport({ x: 0.5, y: Y_SPAWN_FEET, z: 0.5 }, { dimension });
+    this.applyNightVision(player);
+  }
+  /**
+   * Night vision sans particules. `showParticles: false` n'est pas honoré
+   * par tous les runtimes pour cet effet : on tente avec l'option, sinon
+   * on retente sans (l'effet passe quand même).
+   */
+  applyNightVision(player) {
     try {
-      player.addEffect("night_vision", 20 * 120, { amplifier: 0, showParticles: false });
+      player.addEffect("night_vision", NIGHT_VISION_TICKS, { amplifier: 0, showParticles: false });
     } catch {
+      try {
+        player.addEffect("night_vision", NIGHT_VISION_TICKS, { amplifier: 0 });
+      } catch {
+      }
     }
+  }
+  /**
+   * Boucle : ré-applique la night vision aux joueurs de la mine (toutes
+   * les 30 s, avant l'expiration des 2 min) — plus jamais aveugle, et
+   * toujours sans particules visibles en jeu.
+   */
+  registerNightVisionLoop() {
+    if (this.nightVisionLoopRegistered) return;
+    this.nightVisionLoopRegistered = true;
+    system8.runInterval(() => {
+      if (!this.loaded || !this.isUsable()) return;
+      for (const player of world8.getAllPlayers()) {
+        if (!this.isInMines(player)) continue;
+        this.applyNightVision(player);
+      }
+    }, 20 * 30);
   }
   /** Arrivées différées (plateforme pas encore prête au moment de /sn:mine). */
   pendingArrivals = /* @__PURE__ */ new Set();
@@ -5592,6 +5590,7 @@ var MinesManager = class {
    * consomme une tâche par tick).
    */
   registerMaintenance(intervalTicks = 40) {
+    this.registerNightVisionLoop();
     system8.runInterval(() => {
       if (!this.loaded || !this.isUsable()) return;
       const dimension = this.dimension();
@@ -5651,11 +5650,6 @@ function generateChunk(dimension, plan, cx, cz) {
   fill(dimension, { ...full, y0: 0, y1: Y_BEDROCK_MAX }, "minecraft:bedrock");
   fill(dimension, { ...full, y0: Y_STONE_MIN, y1: Y_STONE_MAX }, "minecraft:stone");
   fill(dimension, { ...full, y0: Y_CEIL_BEDROCK, y1: Y_CEIL_BEDROCK }, "minecraft:bedrock");
-  for (const room of plan.rooms) fill(dimension, room, "minecraft:air");
-  fill(dimension, clipBox(plan.corridorX, cx, cz) ?? plan.corridorX, "minecraft:air");
-  fill(dimension, clipBox(plan.corridorZ, cx, cz) ?? plan.corridorZ, "minecraft:air");
-  for (const pillar of plan.pillars) fill(dimension, pillar, "minecraft:stone");
-  const oreSet = new Set(ORE_SPECS.map((spec) => spec.block));
   for (const vein of plan.veins) {
     for (const cell of vein.cells) {
       const cellCx = Math.floor(cell.x / 16);
@@ -5666,41 +5660,28 @@ function generateChunk(dimension, plan, cx, cz) {
         const block = dimension.getBlock({ x: cell.x, y: cell.y, z: cell.z });
         if (block === void 0) continue;
         if (block.typeId !== "minecraft:stone") continue;
-        if (oreSet.has(block.typeId)) continue;
         block.setType(vein.block);
       } catch {
       }
     }
   }
-  for (const lantern of plan.lanterns) {
-    try {
-      dimension.getBlock({ x: lantern.x, y: lantern.y, z: lantern.z })?.setType("minecraft:lantern");
-    } catch {
-    }
-  }
-  for (const torch of plan.torches) {
-    try {
-      dimension.getBlock({ x: torch.x, y: torch.y, z: torch.z })?.setType("minecraft:torch");
-    } catch {
-    }
-  }
-  const spawnDisk = {
+  const pocket = {
     x0: -SPAWN_RADIUS,
     x1: SPAWN_RADIUS,
     y0: Y_STONE_MIN,
-    y1: Y_GALLERY_AIR_MAX,
+    y1: Y_POCKET_AIR_MAX,
     z0: -SPAWN_RADIUS,
     z1: SPAWN_RADIUS
   };
-  const portion = clipBox(spawnDisk, cx, cz);
+  const portion = clipBox(pocket, cx, cz);
   if (portion !== null) {
-    fill(dimension, { ...portion, y0: Y_STONE_MIN, y1: Y_GALLERY_AIR_MIN - 1 }, "minecraft:polished_deepslate");
-    fill(dimension, { ...portion, y0: Y_GALLERY_AIR_MIN, y1: Y_GALLERY_AIR_MAX }, "minecraft:air");
+    fill(dimension, { ...portion, y0: Y_STONE_MIN, y1: Y_POCKET_AIR_MIN - 1 }, "minecraft:polished_deepslate");
+    fill(dimension, { ...portion, y0: Y_POCKET_AIR_MIN, y1: Y_POCKET_AIR_MAX }, "minecraft:air");
   }
   for (const ring of spawnRingPositions()) {
     if (Math.floor(ring.x / 16) !== cx || Math.floor(ring.z / 16) !== cz) continue;
     try {
-      dimension.getBlock({ x: ring.x, y: Y_GALLERY_AIR_MIN, z: ring.z })?.setType("minecraft:stone_brick_wall");
+      dimension.getBlock({ x: ring.x, y: Y_POCKET_AIR_MIN, z: ring.z })?.setType("minecraft:stone_brick_wall");
     } catch {
     }
   }
@@ -5708,7 +5689,7 @@ function generateChunk(dimension, plan, cx, cz) {
     const r = SPAWN_RADIUS;
     for (const [lx, lz] of [[1, 1], [r - 1, 1], [1, r - 1], [r - 1, r - 1]]) {
       try {
-        dimension.getBlock({ x: lx, y: Y_GALLERY_AIR_MIN, z: lz })?.setType("minecraft:lantern");
+        dimension.getBlock({ x: lx, y: Y_POCKET_AIR_MIN, z: lz })?.setType("minecraft:lantern");
       } catch {
       }
     }
@@ -5716,19 +5697,20 @@ function generateChunk(dimension, plan, cx, cz) {
 }
 
 // src/mines/ui.ts
-function openWorldMenu(player, mines2) {
+function openWorldMenu(player, mines2, back) {
   const inMines = mines2.isInMines(player);
   void openWindowRaw(player, windowTitle("Le Monde"), (form) => {
-    form.header(`§b§lOù veux-tu aller ?§r`);
+    if (back !== void 0) form.back(back);
+    form.header(`§b§lLes portes du monde§r`);
     form.label(
-      inMines ? `§7Tu es actuellement dans §b§ola Mine§r§7.` : `§7Tu es actuellement dans le §a§lMonde normal§r§7.`
+      inMines ? `§7Tu es actuellement : §b✦ dans §lLa Mine§r` : `§7Tu es actuellement : §a✦ dans le §lMonde normal§r`
     );
     form.divider();
-    form.header(`§a═══ §l§aMonde normal§r §a═══`);
+    form.header(`§a▓▓▓ §l§aMONDE NORMAL§r §a▓▓▓`);
     form.label(
       [
-        `§7La surface, les biomes, tes constructions…`,
-        inMines ? `§eRetour : §fte téléporte à ta dernière position§e ici.` : `§8Tu y es déjà.`
+        `§7La surface : biomes, constructions, tes clans…`,
+        inMines ? `§eAller : §fte téléporte à ta DERNIÈRE position§e ici.` : `§a✔ Tu y es.`
       ].join("\n")
     );
     form.button(`§a§l⬥ Aller au monde normal`, () => {
@@ -5739,13 +5721,13 @@ function openWorldMenu(player, mines2) {
       player.sendMessage(mines2.goNormal(player));
     });
     form.divider();
-    form.header(`§b═══ §l§bLa Mine§r §b═══`);
+    form.header(`§b▓▓▓ §l§bLA MINE§r §b▓▓▓`);
     form.label(
       [
-        `§7Un monde §fentièrement creusé dans la pierre§7, en profondeur :`,
-        `§8· galeries croisées §f6 blocs de haut§8, grandes salles éclairées`,
-        `§8· minerais §fplus riches qu'en surface§8, sans excès`,
-        `§8· profondeur minable : §fy ${Y_STONE_MIN} à ${Y_STONE_MAX}§8 (${Y_STONE_MAX - Y_STONE_MIN + 1} couches)`
+        `§7Un monde §fentièrement massé dans la pierre§7, en profondeur :`,
+        `§8· §f70 couches§8 à miner entre deux lits de bedrock`,
+        `§8· à toi de creuser tes galeries, façon vrai minage`,
+        `§8· minerais §fplus riches qu'en surface§8, sans excès`
       ].join("\n")
     );
     form.button(`§b§l⬥ Descendre dans la Mine`, () => {
@@ -5757,7 +5739,7 @@ function openWorldMenu(player, mines2) {
     });
     form.divider();
     form.label(
-      `§8Minerais de la mine : ${ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join("§8, ")}`
+      `§8Strates : ${ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join("§8 · ")}`
     );
   }).catch(
     (error) => console.warn(`[Mines] Erreur menu monde : ${error instanceof Error ? error.message : String(error)}`)
@@ -6772,10 +6754,10 @@ var PermissionManager = class {
 function openRolesMenu(player, permissions2) {
   const roles = permissions2.allRoles();
   void openWindow(player, "Rôles", (form) => {
-    form.header(`§6■ §lRôles du serveur`);
+    form.header(`§6§lRôles du serveur`);
     form.label(`§7${roles.length} rôle(s). Clique pour configurer :`);
     form.divider();
-    form.button(`§a■ §lCréer un rôle`, () => openCreateRoleMenu(player, permissions2));
+    form.button(`§a§lCréer un rôle`, () => openCreateRoleMenu(player, permissions2));
     for (const role of roles) {
       form.button(
         `${role.data.color}[${role.data.name}]§r §7— niv. ${role.data.level} · ${permissions2.membersWithRole(role.data.name).length} membre(s)`,
@@ -6789,17 +6771,17 @@ function openCreateRoleMenu(player, permissions2) {
   const colorIndex = obNumber(0);
   const level = obNumber(10);
   void openWindowRaw(player, windowTitle("Créer un rôle"), (form) => {
-    form.header(`§a■ §lNouveau rôle`);
+    form.header(`§a§lNouveau rôle`);
     form.divider();
     form.textField("§eNom (2-16 caractères)", name);
     form.dropdown(
       "§eCouleur",
       colorIndex,
-      ROLE_COLORS.map((color, value) => ({ label: `${color.code}■ ${color.id}`, value }))
+      ROLE_COLORS.map((color, value) => ({ label: `${color.code}${color.id}`, value }))
     );
     form.slider("§eNiveau hiérarchique (100 = admin max)", level, 0, 100, { step: 5 });
     form.divider();
-    form.button(`§a■ §lCréer le rôle`, () => {
+    form.button(`§a§lCréer le rôle`, () => {
       const clean = name.getData().trim();
       const color = ROLE_COLORS[colorIndex.getData()] ?? ROLE_COLORS[0];
       if (clean === "") {
@@ -6816,29 +6798,29 @@ function openCreateRoleMenu(player, permissions2) {
 }
 function openRoleConfigMenu(player, role, permissions2) {
   void openWindow(player, `Rôle ${role.data.color}${role.data.name}`, (form) => {
-    form.header(`${role.data.color}■ §l${role.data.name}§r §7(niveau ${role.data.level})`);
+    form.header(`${role.data.color}§l${role.data.name}§r §7(niveau ${role.data.level})`);
     form.label(
       `§7Membres : §f${permissions2.membersWithRole(role.data.name).length}
 §7Prefix : §f${role.data.prefix}`
     );
     form.divider();
     form.button(
-      `§e■ §lChanger la couleur`,
+      `§e§lChanger la couleur`,
       () => openColorPicker(player, "Couleur du rôle", (colorId) => {
         const result = permissions2.setRoleColor(role.data.name, colorId);
         player.sendMessage(result.ok ? "§a[Rôles] Couleur mise à jour." : `§c[Rôles] ${result.error}`);
       })
     );
     form.button(
-      `§e■ §lChanger le prefix`,
+      `§e§lChanger le prefix`,
       () => openPrefixMenu(player, `Prefix du rôle [${role.data.name}]`, (prefix) => {
         const result = permissions2.setRolePrefix(role.data.name, prefix);
         player.sendMessage(result.ok ? "§a[Rôles] Prefix mis à jour." : `§c[Rôles] ${result.error}`);
       })
     );
-    form.button(`§e■ §lChanger le niveau (actuel : ${role.data.level})`, () => openLevelMenu(player, role, permissions2));
-    form.button(`§b■ §lVoir les membres`, () => openRoleMembersMenu(player, role, permissions2));
-    form.button(`§c■ §lSupprimer ce rôle`, () => {
+    form.button(`§e§lChanger le niveau (actuel : ${role.data.level})`, () => openLevelMenu(player, role, permissions2));
+    form.button(`§b§lVoir les membres`, () => openRoleMembersMenu(player, role, permissions2));
+    form.button(`§c§lSupprimer ce rôle`, () => {
       const result = permissions2.deleteRole(role.data.name);
       player.sendMessage(result.ok ? "§a[Rôles] Rôle supprimé." : `§c[Rôles] ${result.error}`);
     });
@@ -6848,7 +6830,7 @@ function openLevelMenu(player, role, permissions2) {
   const level = obNumber(role.data.level);
   void openWindowRaw(player, windowTitle(`Niveau de [${role.data.name}]`), (form) => {
     form.slider("§eNiveau (100 = admin max)", level, 0, 100, { step: 5 });
-    form.button(`§a■ §lValider`, () => {
+    form.button(`§a§lValider`, () => {
       const result = permissions2.setRoleLevel(role.data.name, level.getData());
       player.sendMessage(result.ok ? "§a[Rôles] Niveau mis à jour." : `§c[Rôles] ${result.error}`);
     });
@@ -6876,7 +6858,7 @@ function openColorPicker(player, title, onPick) {
   void openWindow(player, title, (form) => {
     form.label("§7Choisis une couleur :");
     for (const color of ROLE_COLORS) {
-      form.button(`${color.code}■■■ ${color.id}`, () => onPick(color.id));
+      form.button(`${color.code}${color.id}`, () => onPick(color.id));
     }
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -6884,7 +6866,7 @@ function openPrefixMenu(player, title, onDone) {
   const prefix = obString("");
   void openWindowRaw(player, windowTitle(title), (form) => {
     form.textField("§ePrefix (vide = défaut [Nom])", prefix);
-    form.button(`§a■ §lValider`, () => onDone(prefix.getData()));
+    form.button(`§a§lValider`, () => onDone(prefix.getData()));
     form.closeButton();
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -6954,7 +6936,7 @@ function allKnownPlayers(db2) {
 function openPlayersMenu(player, permissions2, db2) {
   void openWindow(player, "Joueurs", (form) => {
     const online = world12.getAllPlayers();
-    form.header(`§b■ §lJoueurs`);
+    form.header(`§b§lJoueurs`);
     form.label(
       `§a● En ligne : §f${online.length}
 §7● Connus (DB) : §f${db2 !== void 0 ? allKnownPlayers(db2).length : "?"}`
@@ -6975,7 +6957,7 @@ function openPlayersMenu(player, permissions2, db2) {
     form.divider();
     form.label(`§7§l● Hors ligne / historique§r §7(index complet)`);
     form.button(
-      `§a■ §lGérer un joueur hors ligne (saisir le pseudo)`,
+      `§a§lGérer un joueur hors ligne (saisir le pseudo)`,
       () => openPlayerLookupMenu(player, permissions2, db2)
     );
     if (db2 !== void 0) {
@@ -7000,7 +6982,7 @@ function openPlayerLookupMenu(player, permissions2, db2) {
   void openWindowRaw(player, windowTitle("Gérer un joueur"), (form) => {
     form.label("§7Fonctionne même si le joueur n'est pas connecté.");
     form.textField("§ePseudo du joueur", name);
-    form.button(`§b■ §lRechercher`, () => {
+    form.button(`§b§lRechercher`, () => {
       const target = name.getData().trim();
       if (target !== "") openPlayerConfigMenu(player, target, permissions2, db2);
     });
@@ -7015,7 +6997,7 @@ function openPlayerConfigMenu(player, targetName, permissions2, db2) {
   const record = db2 !== void 0 ? allKnownPlayers(db2).find((r) => r.data.name === targetName) : void 0;
   const classLabel = record?.data.class ? record.data.class : "§8pas encore choisie";
   void openWindow(player, targetName, (form) => {
-    form.header(`§b■ §l${targetName}§r ${isOnline ? "§a●" : "§8●"}`);
+    form.header(`§b§l${targetName}§r ${isOnline ? "§a●" : "§8●"}`);
     form.label(
       `§7Rôle : ${roleLabel}
 §7Classe : §f${classLabel}
@@ -7023,18 +7005,18 @@ function openPlayerConfigMenu(player, targetName, permissions2, db2) {
     );
     form.divider();
     form.button(
-      `§e■ §lAttribuer / changer de rôle`,
+      `§e§lAttribuer / changer de rôle`,
       () => openAssignRoleMenu(player, targetName, permissions2, db2)
     );
     form.button(
-      `§e■ §lPrefix personnalisé`,
+      `§e§lPrefix personnalisé`,
       () => openPrefixMenu(player, `Prefix perso de ${targetName}`, (prefix) => {
         const result = permissions2.setCustomPrefix(targetName, prefix);
         player.sendMessage(result.ok ? "§a[Rôles] Prefix mis à jour." : `§c[Rôles] ${result.error}`);
       })
     );
     if (db2 !== void 0 && record?.data.class) {
-      form.button(`§d■ §lRéinitialiser la classe §7(${record.data.class})`, () => {
+      form.button(`§d§lRéinitialiser la classe §7(${record.data.class})`, () => {
         if (resetClassOf(db2, targetName)) {
           db2.save();
           player.sendMessage(`§a[Classes] Classe de ${targetName} réinitialisée — il re-choisira librement.`);
@@ -7042,7 +7024,7 @@ function openPlayerConfigMenu(player, targetName, permissions2, db2) {
       });
     }
     if (member !== void 0) {
-      form.button(`§c■ §lRetirer tous les rôles`, () => {
+      form.button(`§c§lRetirer tous les rôles`, () => {
         permissions2.removeRole(targetName);
         player.sendMessage(`§a[Rôles] Rôles de ${targetName} retirés.`);
       });
@@ -7262,17 +7244,17 @@ function resolveTargetId(targetName) {
 function openSanctionsMenu(player, sanctions2, permissions2) {
   const stats = sanctions2.stats();
   void openWindow(player, "Modération", (form) => {
-    form.header(`§4■ §lModération`);
+    form.header(`§4§lModération`);
     form.label(
       `§7Bans actifs : §f${stats.bans}
 §7Mutes actifs : §f${stats.mutes}
 §7Warns au total : §f${stats.warns}`
     );
     form.divider();
-    form.button(`§4■ §lBans actifs`, () => openBansList(player, sanctions2, permissions2));
-    form.button(`§6■ §lMutes actifs`, () => openMutesList(player, sanctions2, permissions2));
-    form.button(`§e■ §lSanctionner un joueur`, () => openSanctionForm(player, sanctions2));
-    form.button(`§b■ §lHistorique d'un joueur`, () => openHistoryLookup(player, sanctions2));
+    form.button(`§4§lBans actifs`, () => openBansList(player, sanctions2, permissions2));
+    form.button(`§6§lMutes actifs`, () => openMutesList(player, sanctions2, permissions2));
+    form.button(`§e§lSanctionner un joueur`, () => openSanctionForm(player, sanctions2));
+    form.button(`§b§lHistorique d'un joueur`, () => openHistoryLookup(player, sanctions2));
   }).catch(
     (error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`)
   );
@@ -7325,7 +7307,7 @@ function openSanctionForm(player, sanctions2) {
   const minutes = obNumber(60);
   const reason = obString("");
   void openWindowRaw(player, windowTitle("Sanctionner un joueur"), (form) => {
-    form.header(`§e■ §lSanctionner`);
+    form.header(`§e§lSanctionner`);
     form.textField("§ePseudo du joueur", target);
     form.dropdown(
       "§eType de sanction",
@@ -7340,7 +7322,7 @@ function openSanctionForm(player, sanctions2) {
     form.slider("§eDurée en minutes (0 = permanent)", minutes, 0, 1440, { step: 15 });
     form.textField("§eRaison", reason);
     form.divider();
-    form.button(`§e■ §lAppliquer la sanction`, () => {
+    form.button(`§e§lAppliquer la sanction`, () => {
       const name = target.getData().trim();
       const cleanReason = reason.getData().trim() || "non spécifiée";
       if (name === "") {
@@ -7383,7 +7365,7 @@ function openHistoryLookup(player, sanctions2) {
   const target = obString("");
   void openWindowRaw(player, windowTitle("Historique"), (form) => {
     form.textField("§ePseudo du joueur", target);
-    form.button(`§b■ §lVoir l'historique`, () => {
+    form.button(`§b§lVoir l'historique`, () => {
       const name = target.getData().trim();
       if (name === "") return;
       const entries = sanctions2.historyOf(name, 15);
@@ -7509,8 +7491,9 @@ function banner(info) {
     `${info.color}╚══════════════════════╝`
   ].join("\n");
 }
-function classCard(player, classes2, info, isAdmin, backTo) {
+function classCard(player, classes2, info, _isAdmin, backTo) {
   void openWindowRaw(player, windowTitle(info.name), (form) => {
+    form.back(backTo);
     form.label(banner(info));
     form.label(
       [
@@ -7523,8 +7506,6 @@ function classCard(player, classes2, info, isAdmin, backTo) {
     );
     form.divider();
     form.button(`§a§lChoisir la voie ${info.name}`, () => confirmClassChoice(player, classes2, info, backTo));
-    form.button(`§7§lRevoir les autres voies`, backTo);
-    void isAdmin;
   }).catch(
     (error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`)
   );
@@ -7533,6 +7514,7 @@ function myClassCard(player, classes2, info, xp, isAdmin) {
   const level = classLevel(xp);
   const progress = classProgress(xp);
   void openWindowRaw(player, windowTitle(info.name), (form) => {
+    form.back(() => openClassesMenu(player, classes2, isAdmin));
     form.label(banner(info));
     form.label(
       [
@@ -7556,7 +7538,6 @@ function myClassCard(player, classes2, info, xp, isAdmin) {
         openClassesMenu(player, classes2, isAdmin);
       });
     }
-    form.button(`§7§lRetour`, () => openClassesMenu(player, classes2, isAdmin));
   }).catch(
     (error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`)
   );
@@ -7597,6 +7578,7 @@ il déterminera ta progression sur le serveur.`
 }
 function confirmClassChoice(player, classes2, info, backTo) {
   void openWindowRaw(player, windowTitle("Confirmer"), (form) => {
+    form.back(backTo);
     form.label(banner(info));
     form.label(
       [
@@ -7613,7 +7595,7 @@ function confirmClassChoice(player, classes2, info, backTo) {
         result.ok ? `§a[Classes] Bienvenue dans la voie ${info.color}§l${info.name}§r§a ! Ta progression commence maintenant.` : `§c[Classes] ${result.error}`
       );
     });
-    form.button(`§7§lRevoir les autres voies`, backTo);
+    form.back(backTo);
   }).catch(
     (error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`)
   );
@@ -7747,7 +7729,7 @@ var ModuleManager = class {
 // src/modules/ui.ts
 function openModulesMenu(player, modules2, territories2) {
   void openWindow(player, "Modules", (form) => {
-    form.header(`§6■ §lModules du serveur`);
+    form.header(`§6§lModules du serveur`);
     form.label(`§7${modules2.enabledCount()}/${MODULE_CATALOG.length} module(s) actif(s).`);
     form.divider();
     for (const info of MODULE_CATALOG) {
@@ -7766,10 +7748,10 @@ function openModulesMenu(player, modules2, territories2) {
     }
     if (MODULE_CATALOG.some((info) => info.id === "territories")) {
       form.divider();
-      form.button(`§e■ §lVoir les États`, () => {
+      form.button(`§e§lVoir les États`, () => {
         if (territories2 !== void 0) openStatesMenu(player, territories2);
       });
-      form.button(`§c■ §lSupprimer TOUS les États`, () => {
+      form.button(`§c§lSupprimer TOUS les États`, () => {
         if (territories2 !== void 0) openWipeTerritoriesMenu(player, modules2, territories2);
       });
     }
@@ -7784,7 +7766,7 @@ function openWipeTerritoriesMenu(player, modules2, territories2) {
 §7Action irréversible !`
     );
     form.divider();
-    form.button(`§4■ §lSUPPRIMER TOUT`, () => {
+    form.button(`§4§lSUPPRIMER TOUT`, () => {
       let removed = 0;
       for (const territory of territories2.all()) {
         if (territories2.removeForced(territory.id)) removed++;
@@ -7792,7 +7774,7 @@ function openWipeTerritoriesMenu(player, modules2, territories2) {
       player.sendMessage(`§a[Modules] ${removed} État(s) supprimé(s).`);
       openModulesMenu(player, modules2, territories2);
     });
-    form.button(`§a■ §lAnnuler`, () => openModulesMenu(player, modules2, territories2));
+    form.button(`§a§lAnnuler`, () => openModulesMenu(player, modules2, territories2));
   }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
 }
 
@@ -7811,7 +7793,7 @@ function openAdminMenu(player, deps) {
   void openWindow(player, "Administration", (form) => {
     form.body(
       [
-        `§6§l■ Panneau d'administration§r`,
+        `§6§lPanneau d'administration§r`,
         ``,
         `§eEn ligne : §f${online}`,
         `§eRôles : §f${roleCount}   §eÉtats : §f${stateCount}`,
@@ -7821,17 +7803,17 @@ function openAdminMenu(player, deps) {
         `§8Choisis une section à gauche.`
       ].join("\n")
     );
-    form.header(`§6§l≡ Gestion`);
-    form.button(`§6■ Rôles`, () => openRolesMenu(player, permissions2));
-    form.button(`§b■ Joueurs`, () => openPlayersMenu(player, permissions2, db2));
-    form.button(`§d■ Modules`, () => openModulesMenu(player, modules2, territories2));
+    form.header(`§6§lGestion`);
+    form.button(`§6Rôles`, () => openRolesMenu(player, permissions2));
+    form.button(`§bJoueurs`, () => openPlayersMenu(player, permissions2, db2));
+    form.button(`§dModules`, () => openModulesMenu(player, modules2, territories2));
     if (db2 !== void 0) {
-      form.button(`§a■ Base de données`, () => {
+      form.button(`§aBase de données`, () => {
         void openDbMenu(db2, player);
       });
     }
     if (classes2 !== void 0) {
-      form.button(`§d■ Classes (reset admin)`, () => openClassesMenu(player, classes2, true));
+      form.button(`§dClasses (reset admin)`, () => openClassesMenu(player, classes2, true));
     }
   }).catch((error) => console.warn(`[Admin] ${error instanceof Error ? error.message : String(error)}`));
 }
@@ -7868,7 +7850,7 @@ function openHubMenu(player, deps) {
     form.button(`§6États`, () => openStatesMenu(player, territories2));
     form.button(`§eMes infos`, () => openMyInfoMenu(player, deps));
     if (deps.mines !== void 0 && deps.mines.isUsable()) {
-      form.button(`§bMonde`, () => openWorldMenu(player, deps.mines));
+      form.button(`§bMonde`, () => openWorldMenu(player, deps.mines, () => openHubMenu(player, deps)));
     }
     if (isMod) {
       form.divider();

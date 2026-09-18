@@ -11,7 +11,7 @@ import type { TerritoryManager } from "../territories/manager";
  */
 export function openModulesMenu(player: Player, modules: ModuleManager, territories?: TerritoryManager): void {
   void openWindow(player, "Modules", (form) => {
-    form.header(`§6■ §lModules du serveur`);
+    form.header(`§6§lModules du serveur`);
     form.label(`§7${modules.enabledCount()}/${MODULE_CATALOG.length} module(s) actif(s).`);
     form.divider();
 
@@ -36,10 +36,10 @@ export function openModulesMenu(player: Player, modules: ModuleManager, territor
     // Gestion spécifique des États (clans).
     if (MODULE_CATALOG.some((info) => info.id === "territories")) {
       form.divider();
-      form.button(`§e■ §lVoir les États`, () => {
+      form.button(`§e§lVoir les États`, () => {
         if (territories !== undefined) openStatesMenu(player, territories);
       });
-      form.button(`§c■ §lSupprimer TOUS les États`, () => {
+      form.button(`§c§lSupprimer TOUS les États`, () => {
         if (territories !== undefined) openWipeTerritoriesMenu(player, modules, territories);
       });
     }
@@ -59,11 +59,11 @@ export function openModuleConfigMenu(
   const enabled = modules.isEnabled(moduleId);
 
   void openWindow(player, info.name, (form) => {
-    form.header(`§6■ §l${info.name}`);
+    form.header(`§6§l${info.name}`);
     form.label(`§7${info.description}\n\n§7État : ${enabled ? "§aactivé" : "§cdésactivé"}`);
     form.divider();
     form.button(
-      enabled ? `§c■ §lDésactiver ce module` : `§a■ §lActiver ce module`,
+      enabled ? `§c§lDésactiver ce module` : `§a§lActiver ce module`,
       () => {
         const next = !modules.isEnabled(moduleId);
         modules.setEnabled(moduleId, next);
@@ -87,7 +87,7 @@ function openWipeTerritoriesMenu(player: Player, modules: ModuleManager, territo
       `Supprimer §lTOUS§r§4 les États (${territories.all().length}) ?\n\n§7Action irréversible !`,
     );
     form.divider();
-    form.button(`§4■ §lSUPPRIMER TOUT`, () => {
+    form.button(`§4§lSUPPRIMER TOUT`, () => {
       let removed = 0;
       for (const territory of territories.all()) {
         if (territories.removeForced(territory.id)) removed++;
@@ -95,6 +95,6 @@ function openWipeTerritoriesMenu(player: Player, modules: ModuleManager, territo
       player.sendMessage(`§a[Modules] ${removed} État(s) supprimé(s).`);
       openModulesMenu(player, modules, territories);
     });
-    form.button(`§a■ §lAnnuler`, () => openModulesMenu(player, modules, territories));
+    form.button(`§a§lAnnuler`, () => openModulesMenu(player, modules, territories));
   }).catch((error: unknown) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
 }

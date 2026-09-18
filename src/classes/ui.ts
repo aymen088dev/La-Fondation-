@@ -46,10 +46,11 @@ function classCard(
   player: Player,
   classes: ClassManager,
   info: ClassInfo,
-  isAdmin: boolean,
+  _isAdmin: boolean,
   backTo: () => void,
 ): void {
   void openWindowRaw(player, windowTitle(info.name), (form) => {
+    form.back(backTo);
     form.label(banner(info));
     form.label(
       [
@@ -62,8 +63,6 @@ function classCard(
     );
     form.divider();
     form.button(`§a§lChoisir la voie ${info.name}`, () => confirmClassChoice(player, classes, info, backTo));
-    form.button(`§7§lRevoir les autres voies`, backTo);
-    void isAdmin;
   }).catch((error: unknown) =>
     console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`),
   );
@@ -81,6 +80,7 @@ function myClassCard(
   const progress = classProgress(xp);
 
   void openWindowRaw(player, windowTitle(info.name), (form) => {
+    form.back(() => openClassesMenu(player, classes, isAdmin));
     form.label(banner(info));
     form.label(
       [
@@ -105,7 +105,6 @@ function myClassCard(
         openClassesMenu(player, classes, isAdmin);
       });
     }
-    form.button(`§7§lRetour`, () => openClassesMenu(player, classes, isAdmin));
   }).catch((error: unknown) =>
     console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`),
   );
@@ -162,6 +161,7 @@ function confirmClassChoice(
   backTo: () => void,
 ): void {
   void openWindowRaw(player, windowTitle("Confirmer"), (form) => {
+    form.back(backTo);
     form.label(banner(info));
     form.label(
       [
@@ -180,7 +180,7 @@ function confirmClassChoice(
           : `§c[Classes] ${result.error}`,
       );
     });
-    form.button(`§7§lRevoir les autres voies`, backTo);
+    form.back(backTo);
   }).catch((error: unknown) =>
     console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`),
   );

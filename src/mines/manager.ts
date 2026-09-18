@@ -5,17 +5,19 @@
  * (générateur « void », 384 blocs de haut) : le module la REMPLIT en
  * procédural déterministe (même graine → mêmes mines).
  *
- * v19 — « vraie mine » (cf. generator.ts) :
- *  - monde ENTIÈREMENT en pierre (70 couches entre deux lits de bedrock),
- *    ambiance souterraine permanente ;
- *  - galeries croisées praticables + grandes salles (pas de tunnels de
- *    2 blocs) ;
+ * v19.1 — MINE SOLIDE (à la demande, cf. generator.ts) :
+ *  - PAS de salles, PAS de galeries pré-creusées : un BLOC DE PIERRE
+ *    PLEIN (70 couches) entre deux lits de bedrock — le joueur creuse
+ *    ses propres galeries à la pioche, comme un vrai minage souterrain ;
+ *  - seule exception : la poche de spawn (plateforme éclairée) ;
  *  - minerais PLUS nombreux qu'en surface mais équilibrés (~150 blocs
  *    par chunk, répartis par profondeur) ;
  *  - génération par fillBlocks (rapide), file anti-lag avec RETRY si les
  *    chunks ne sont pas encore chargés ;
- *  - arrivée SÉCURISÉE : la téléportation n'a lieu que la plateforme du
- *    spawn est prête (plus de chute dans le vide).
+ *  - arrivée SÉCURISÉE : la téléportation n'a lieu que la plateforme est
+ *    prête (plus de chute dans le vide) ;
+ *  - NIGHT VISION sans particules, ré-appliquée tant que le joueur reste
+ *    dans la mine (jamais aveugle au bout de 2 minutes).
  */
 
 import { world, system, GameMode } from "@minecraft/server";
@@ -30,10 +32,9 @@ import {
   Y_STONE_MIN,
   Y_STONE_MAX,
   Y_CEIL_BEDROCK,
-  Y_GALLERY_AIR_MIN,
-  Y_GALLERY_AIR_MAX,
+  Y_POCKET_AIR_MIN,
+  Y_POCKET_AIR_MAX,
   Y_SPAWN_FEET,
-  ORE_SPECS,
   SPAWN_RADIUS,
 } from "./generator";
 import type { Box } from "./generator";
@@ -45,7 +46,6 @@ export {
   ORE_SPECS,
   Y_STONE_MIN,
   Y_STONE_MAX,
-  Y_GALLERY_AIR_MAX,
   averageOreCellsPerChunk,
 } from "./generator";
 
@@ -54,6 +54,9 @@ export const MINES_DIMENSION_ID = "nalania:mines";
 
 /** Propriété dynamique : position de retour dans le monde normal. */
 const RETURN_PROP = "nalania:overworld_return";
+
+/** Durée d'une application de night vision (2 min, ré-appliquée après). */
+const NIGHT_VISION_TICKS = 20 * 120;
 
 /**
  * Liste publique des minerais (affichage du menu) — plus riche que la
@@ -104,6 +107,7 @@ export class MinesManager {
   /** Chunks en attente (clé → tâche) : rejoués tant qu'ils échouent. */
   private readonly pending = new Map<string, ChunkTask>();
   private queueRunning = false;
+  private nightVisionLoopRegistered = false;
 
   /**
    * La zone de spawn (plateforme à cheval sur les 4 chunks de l'origine)
@@ -222,6 +226,13 @@ export class MinesManager {
   private exit(player: Player): string {
     const target = this.lastOverworldLocation(player);
 
+    // Le retour retire la night vision (on est dehors).
+    try {
+      player.removeEffect("night_vision");
+    } catch {
+      // pas d'effet : on ignore
+    }
+
     if (target !== undefined) {
       try {
         const dimension = world.getDimension(target.dimensionId);
@@ -242,14 +253,44 @@ export class MinesManager {
     return "§a[Mines] Retour au spawn du monde (pas de position mémorisée).";
   }
 
-  /** Téléporte aux mines : plateforme du spawn, nuit + night vision. */
+  /** Téléporte aux mines : plateforme, night vision SANS particules. */
   private teleportToSpawn(player: Player, dimension: Dimension): void {
     player.teleport({ x: 0.5, y: Y_SPAWN_FEET, z: 0.5 }, { dimension });
+    this.applyNightVision(player);
+  }
+
+  /**
+   * Night vision sans particules. `showParticles: false` n'est pas honoré
+   * par tous les runtimes pour cet effet : on tente avec l'option, sinon
+   * on retente sans (l'effet passe quand même).
+   */
+  private applyNightVision(player: Player): void {
     try {
-      player.addEffect("night_vision", 20 * 120, { amplifier: 0, showParticles: false });
+      player.addEffect("night_vision", NIGHT_VISION_TICKS, { amplifier: 0, showParticles: false });
     } catch {
-      // effet indisponible : on ignore
+      try {
+        player.addEffect("night_vision", NIGHT_VISION_TICKS, { amplifier: 0 });
+      } catch {
+        // effet indisponible : le joueur minera « à la lanterne »
+      }
     }
+  }
+
+  /**
+   * Boucle : ré-applique la night vision aux joueurs de la mine (toutes
+   * les 30 s, avant l'expiration des 2 min) — plus jamais aveugle, et
+   * toujours sans particules visibles en jeu.
+   */
+  private registerNightVisionLoop(): void {
+    if (this.nightVisionLoopRegistered) return;
+    this.nightVisionLoopRegistered = true;
+    system.runInterval(() => {
+      if (!this.loaded || !this.isUsable()) return;
+      for (const player of world.getAllPlayers()) {
+        if (!this.isInMines(player)) continue;
+        this.applyNightVision(player);
+      }
+    }, 20 * 30);
   }
 
   /** Arrivées différées (plateforme pas encore prête au moment de /sn:mine). */
@@ -360,6 +401,7 @@ export class MinesManager {
    * consomme une tâche par tick).
    */
   registerMaintenance(intervalTicks = 40): void {
+    this.registerNightVisionLoop();
     system.runInterval(() => {
       if (!this.loaded || !this.isUsable()) return;
       const dimension = this.dimension();
@@ -419,12 +461,9 @@ function fill(dimension: Dimension, box: Box, block: string): void {
 
 /**
  * Génère un chunk de mine selon son plan :
- *  1. lits de bedrock (bas/haut) + corps de pierre massif ;
- *  2. creusement des salles et des galeries (air) ;
- *  3. pose des piliers de soutien (pierre) ;
- *  4. veines de minerais (bloc par bloc, UNIQUEMENT dans la pierre) ;
- *  5. éclairage (lanternes de salles, torches de galeries) ;
- *  6. plateforme du spawn (chunk 0,0 uniquement).
+ *  1. lits de bedrock (bas/haut) + corps de pierre PLEIN ;
+ *  2. veines de minerais (bloc par bloc, dans la pierre) ;
+ *  3. poche de spawn (portion clippée : sol renforcé + air + muret).
  */
 function generateChunk(dimension: Dimension, plan: ReturnType<typeof planChunk>, cx: number, cz: number): void {
   const full: Box = {
@@ -433,23 +472,13 @@ function generateChunk(dimension: Dimension, plan: ReturnType<typeof planChunk>,
     z0: cz * 16, z1: cz * 16 + 15,
   };
 
-  // 1) Squelette : bedrock bas/haut, corps de pierre entre les deux.
+  // 1) Squelette : bedrock bas/haut, corps de pierre PLEIN entre les deux.
   fill(dimension, { ...full, y0: 0, y1: Y_BEDROCK_MAX }, "minecraft:bedrock");
   fill(dimension, { ...full, y0: Y_STONE_MIN, y1: Y_STONE_MAX }, "minecraft:stone");
   fill(dimension, { ...full, y0: Y_CEIL_BEDROCK, y1: Y_CEIL_BEDROCK }, "minecraft:bedrock");
 
-  // 2) Creusement : salles puis galeries (les boîtes sont déjà prévues
-  //    pour rester dans le corps de pierre).
-  for (const room of plan.rooms) fill(dimension, room, "minecraft:air");
-  fill(dimension, clipBox(plan.corridorX, cx, cz) ?? plan.corridorX, "minecraft:air");
-  fill(dimension, clipBox(plan.corridorZ, cx, cz) ?? plan.corridorZ, "minecraft:air");
-
-  // 3) Piliers de soutien (rendus à la pose des salles, ils restent pierre).
-  for (const pillar of plan.pillars) fill(dimension, pillar, "minecraft:stone");
-
-  // 4) Veines de minerais : seulement les cellules du chunk courant,
-  //    uniquement dans la pierre (ne perce JAMAIS une salle/galerie).
-  const oreSet = new Set(ORE_SPECS.map((spec) => spec.block));
+  // 2) Veines de minerais : seulement les cellules du chunk courant,
+  //    uniquement dans la pierre.
   for (const vein of plan.veins) {
     for (const cell of vein.cells) {
       const cellCx = Math.floor(cell.x / 16);
@@ -460,7 +489,6 @@ function generateChunk(dimension: Dimension, plan: ReturnType<typeof planChunk>,
         const block = dimension.getBlock({ x: cell.x, y: cell.y, z: cell.z });
         if (block === undefined) continue;
         if (block.typeId !== "minecraft:stone") continue;
-        if (oreSet.has(block.typeId)) continue;
         block.setType(vein.block);
       } catch {
         // position illisible (bord de monde) : on ignore
@@ -468,36 +496,19 @@ function generateChunk(dimension: Dimension, plan: ReturnType<typeof planChunk>,
     }
   }
 
-  // 5) Éclairage.
-  for (const lantern of plan.lanterns) {
-    try {
-      dimension.getBlock({ x: lantern.x, y: lantern.y, z: lantern.z })?.setType("minecraft:lantern");
-    } catch {
-      // ignore
-    }
-  }
-  for (const torch of plan.torches) {
-    try {
-      dimension.getBlock({ x: torch.x, y: torch.y, z: torch.z })?.setType("minecraft:torch");
-    } catch {
-      // ignore
-    }
-  }
-
-  // 6) Plateforme du spawn (à cheval sur les 4 chunks de l'origine) :
-  //    chaque chunk ne pose QUE sa portion (clippée) — les 4 portions
-  //    assemblées forment le disque complet. Le muret et les lanternes
-  //    sont posés position par position (déjà clippés par construction).
-  const spawnDisk: Box = {
+  // 3) Poche de spawn (à cheval sur les 4 chunks de l'origine) : chaque
+  //    chunk ne pose QUE sa portion (clippée) — les 4 portions assemblées
+  //    forment le disque complet.
+  const pocket: Box = {
     x0: -SPAWN_RADIUS, x1: SPAWN_RADIUS,
-    y0: Y_STONE_MIN, y1: Y_GALLERY_AIR_MAX,
+    y0: Y_STONE_MIN, y1: Y_POCKET_AIR_MAX,
     z0: -SPAWN_RADIUS, z1: SPAWN_RADIUS,
   };
-  const portion = clipBox(spawnDisk, cx, cz);
+  const portion = clipBox(pocket, cx, cz);
   if (portion !== null) {
-    // Sous-sol renforcé puis air dégagé, uniquement sur la portion.
-    fill(dimension, { ...portion, y0: Y_STONE_MIN, y1: Y_GALLERY_AIR_MIN - 1 }, "minecraft:polished_deepslate");
-    fill(dimension, { ...portion, y0: Y_GALLERY_AIR_MIN, y1: Y_GALLERY_AIR_MAX }, "minecraft:air");
+    // Sol renforcé puis air dégagé, uniquement sur la portion.
+    fill(dimension, { ...portion, y0: Y_STONE_MIN, y1: Y_POCKET_AIR_MIN - 1 }, "minecraft:polished_deepslate");
+    fill(dimension, { ...portion, y0: Y_POCKET_AIR_MIN, y1: Y_POCKET_AIR_MAX }, "minecraft:air");
   }
 
   // Muret circulaire : chaque chunk pose les positions du muret qu'il
@@ -505,18 +516,18 @@ function generateChunk(dimension: Dimension, plan: ReturnType<typeof planChunk>,
   for (const ring of spawnRingPositions()) {
     if (Math.floor(ring.x / 16) !== cx || Math.floor(ring.z / 16) !== cz) continue;
     try {
-      dimension.getBlock({ x: ring.x, y: Y_GALLERY_AIR_MIN, z: ring.z })?.setType("minecraft:stone_brick_wall");
+      dimension.getBlock({ x: ring.x, y: Y_POCKET_AIR_MIN, z: ring.z })?.setType("minecraft:stone_brick_wall");
     } catch {
       // ignore
     }
   }
 
   if (cx === 0 && cz === 0) {
-    // Lanternes d'angle du spawn (toutes dans le chunk 0,0).
+    // Lanternes d'angle de la plateforme (toutes dans le chunk 0,0).
     const r = SPAWN_RADIUS;
     for (const [lx, lz] of [[1, 1], [r - 1, 1], [1, r - 1], [r - 1, r - 1]] as Array<[number, number]>) {
       try {
-        dimension.getBlock({ x: lx, y: Y_GALLERY_AIR_MIN, z: lz })?.setType("minecraft:lantern");
+        dimension.getBlock({ x: lx, y: Y_POCKET_AIR_MIN, z: lz })?.setType("minecraft:lantern");
       } catch {
         // ignore
       }

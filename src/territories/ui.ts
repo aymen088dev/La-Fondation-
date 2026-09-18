@@ -149,8 +149,8 @@ export function openStatesMenu(player: Player, manager: TerritoryManager): void 
     form.header(`§e§lÉtats de NaLandia`);
     form.label(
       states.length === 0
-        ? `§7Aucun État fondé pour l'instant.`
-        : `§7${states.length} État(s) sur la carte :`,
+        ? `§8Aucun État fondé pour l'instant — sois le premier :`
+        : `§7${states.length} État(s) sur la carte — clique pour la fiche :`,
     );
     form.divider();
 
@@ -202,6 +202,7 @@ export function showStateInfo(
   const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
 
   void openWindowRaw(player, windowTitle(data.name), (form) => {
+    form.back(() => openStatesMenu(player, manager));
     form.label(
       [
         `${color.code}╔══════════════════════╗`,
@@ -225,8 +226,6 @@ export function showStateInfo(
     if (isOwner || myRank !== undefined) {
       form.button(`§6§lMon clan`, () => openMyClanMenu(player, manager, territory));
     }
-
-    form.button(`§7§lRetour aux États`, () => openStatesMenu(player, manager));
   }).catch((error: unknown) =>
     console.warn(`[Clans] Erreur fiche État : ${error instanceof Error ? error.message : String(error)}`),
   );
@@ -257,6 +256,7 @@ export function openMyClanMenu(
   const rankLabel = isOwner ? "§6Chef" : myRank === "officer" ? "§bOfficier" : "§7Membre";
 
   void openWindowRaw(player, windowTitle("Mon clan"), (form) => {
+    form.back(() => openStatesMenu(player, manager));
     form.label(
       [
         `${color.code}╔══════════════════════╗`,
@@ -295,7 +295,6 @@ export function openMyClanMenu(
         );
       });
     }
-    form.button(`§7§lRetour`, () => openStatesMenu(player, manager));
   }).catch((error: unknown) =>
     console.warn(`[Clans] Erreur menu Mon clan : ${error instanceof Error ? error.message : String(error)}`),
   );
@@ -352,7 +351,8 @@ export function openMembersMenu(
   const canManage = isOwner || myRank === "officer";
 
   void openWindowRaw(player, windowTitle("Membres du clan"), (form) => {
-    form.header(`§b§l${data.name} §7— membres`);
+    form.back(() => openMyClanMenu(player, manager, territory));
+    form.header(`§b▓ §l${data.name}§r §7— membres`);
     form.label(
       [
         `§eChef : §f${data.owner}`,
@@ -378,8 +378,6 @@ export function openMembersMenu(
         );
       }
     }
-
-    form.button(`§7§lRetour`, () => openMyClanMenu(player, manager, territory));
   }).catch((error: unknown) =>
     console.warn(`[Clans] Erreur menu Membres : ${error instanceof Error ? error.message : String(error)}`),
   );
@@ -402,6 +400,7 @@ function openMemberActionsMenu(
   }
 
   void openWindowRaw(player, windowTitle(memberName), (form) => {
+    form.back(() => openMembersMenu(player, manager, territory));
     form.header(`§f§l${memberName}`);
     form.label(`§7Rang actuel : ${member.rank === "officer" ? "§bofficier" : "membre"}`);
     form.divider();
@@ -430,7 +429,6 @@ function openMemberActionsMenu(
       );
       openMembersMenu(player, manager, territory);
     });
-    form.button(`§7§lRetour`, () => openMembersMenu(player, manager, territory));
   }).catch((error: unknown) =>
     console.warn(`[Clans] Erreur menu membre : ${error instanceof Error ? error.message : String(error)}`),
   );
@@ -516,6 +514,7 @@ export function openFlagMenu(
   };
 
   void openWindowRaw(player, windowTitle("Drapeau"), (form) => {
+    form.back(() => openMyClanMenu(player, manager, territory));
     const current = territory.data.color;
     form.header(`§6§lDrapeau de ${territory.data.name}`);
     form.label(`§7Actuel : §f${current.startsWith("flag:") ? current.slice(5) : current}`);
@@ -533,7 +532,7 @@ export function openFlagMenu(
     }
 
     form.divider();
-    form.button(`§7§lRetour`, () => openMyClanMenu(player, manager, territory));
+    form.back(() => openMyClanMenu(player, manager, territory));
   }).catch((error: unknown) =>
     console.warn(`[Clans] Erreur menu drapeau : ${error instanceof Error ? error.message : String(error)}`),
   );

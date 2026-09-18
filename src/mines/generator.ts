@@ -4,15 +4,14 @@
  * est la propriété clé : deux mondes avec la même graine produisent des
  * mines identiques.
  *
- * v19 : FINI les « tunnels de 2 blocs ». La dimension est une VRAIE mine :
- *  - corps de pierre massif (y 2 → 71, 70 couches) entre deux couches de
- *    bedrock — de quoi miner en tous sens ;
- *  - galeries croisées de 6 blocs de haut qui traversent les chunks
- *    (continuité garantie d'un chunk à l'autre) ;
- *  - 2 à 3 grandes salles par chunk (8-13 de large, 5-8 de haut) avec
- *    piliers de soutien, lanternes et contours « bruchés » organiques ;
- *  - minerais ÉQUILIBRÉS (~150 blocs/chunk, soit dense mais pas absurde),
- *    répartis par bandes de profondeur (diamant tout en bas, etc.).
+ * v19.1 — MINE SOLIDE (à la demande) :
+ *  - PAS de salles, PAS de galeries pré-creusées : la dimension est un
+ *    BLOC DE PIERRE PLEIN (y 2 → 71, 70 couches) entre deux lits de
+ *    bedrock. C'est au joueur de creuser ses propres galeries à la pioche.
+ *  - SEULE exception : la poche de spawn (plateforme 3 blocs de haut,
+ *    éclairée) pour arriver dans un espace vivable.
+ *  - minerais ÉQUILIBRÉS (~150 blocs/chunk, répartis par profondeur) :
+ *    plus riches que la surface, sans excès.
  */
 
 /** Petit RNG déterministe (mulberry32). */
@@ -43,17 +42,17 @@ export function hash(str: string): number {
 
 /** Sol indestructible : y 0..1 (bedrock). */
 export const Y_BEDROCK_MAX = 1;
-/** Corps de pierre : y 2..71 (70 couches à miner). */
+/** Corps de pierre PLEIN : y 2..71 (70 couches à miner). */
 export const Y_STONE_MIN = 2;
 export const Y_STONE_MAX = 71;
 /** Plafond indestructible : bedrock (une couche). */
 export const Y_CEIL_BEDROCK = 72;
-/** Niveau du sol des galeries : la pierre s'arrête à y 4 (marche sur y 5). */
-export const Y_GALLERY_FLOOR = 4;
-/** Air des galeries : y 5..10 (6 blocs de haut — on marche y 5, tête y 10). */
-export const Y_GALLERY_AIR_MIN = 5;
-export const Y_GALLERY_AIR_MAX = 10;
-/** Position des pieds du joueur à l'arrivée (plateforme du spawn). */
+/** Sol de la poche de spawn : la pierre s'arrête à y 4 (marche sur y 5). */
+export const Y_POCKET_FLOOR = 4;
+/** Air de la poche de spawn : y 5..7 (3 blocs de haut). */
+export const Y_POCKET_AIR_MIN = 5;
+export const Y_POCKET_AIR_MAX = 7;
+/** Position des pieds du joueur à l'arrivée. */
 export const Y_SPAWN_FEET = 5;
 
 // ---------------------------------------------------------------------------
@@ -94,93 +93,27 @@ export interface Box { x0: number; x1: number; y0: number; y1: number; z0: numbe
 /** Veine de minerai : bloc + liste de cellules (à ne peindre que sur pierre). */
 export interface OreVein { block: string; cells: Vec3[]; }
 
-/** Plan complet d'un chunk de mine. */
+/** Plan complet d'un chunk de mine : uniquement ses veines de minerais. */
 export interface ChunkPlan {
   cx: number;
   cz: number;
-  /** Salles creusées en air (entièrement dans le chunk, marge ≥ 1 du bord). */
-  rooms: Box[];
-  /** Galerie est-ouest (continue à travers les chunks voisins). */
-  corridorX: Box;
-  /** Galerie nord-sud (continue à travers les chunks voisins). */
-  corridorZ: Box;
-  /** Piliers de soutien (pierre) à REPOSER dans les salles. */
-  pillars: Box[];
-  /** Veines de minerais. */
+  /** Veines de minerais (marche aléatoire bornée dans le chunk). */
   veins: OreVein[];
-  /** Lanternes au sol des salles. */
-  lanterns: Vec3[];
-  /** Torches des galeries. */
-  torches: Vec3[];
 }
 
-/** Détache un point du bord d'une boîte (pour les contours bruchés). */
+/** Détache un point du bord d'une veine (-1, 0 ou +1). */
 function rndOffset(rand: () => number): number {
-  return Math.floor(rand() * 3) - 1; // -1, 0 ou +1
+  return Math.floor(rand() * 3) - 1;
 }
 
 /**
  * Plan de génération d'un chunk : déterministe (même graine → même plan).
- * Les salles sont entièrement intérieures au chunk ; la continuité entre
- * chunks est assurée par les galeries croisées (mêmes bandes locales 7-9).
+ * Le chunk est un bloc de pierre plein ; seul le mineraillage est planifié.
  */
 export function planChunk(seed: number, cx: number, cz: number): ChunkPlan {
   const rand = rng(hash(`nalania:mines#${seed}#${cx}:${cz}`));
   const ox = cx * 16;
   const oz = cz * 16;
-
-  // Galeries croisées : 3 de large, 6 de haut — le sol (y 4) reste pierre.
-  const corridorX: Box = {
-    x0: ox, x1: ox + 15,
-    y0: Y_GALLERY_AIR_MIN, y1: Y_GALLERY_AIR_MAX,
-    z0: oz + 7, z1: oz + 9,
-  };
-  const corridorZ: Box = {
-    x0: ox + 7, x1: ox + 9,
-    y0: Y_GALLERY_AIR_MIN, y1: Y_GALLERY_AIR_MAX,
-    z0: oz, z1: oz + 15,
-  };
-
-  // 2 à 3 salles par chunk, entièrement à l'intérieur (x/z dans [1..14]).
-  const roomCount = 2 + Math.floor(rand() * 2);
-  const rooms: Box[] = [];
-  const pillars: Box[] = [];
-  const lanterns: Vec3[] = [];
-
-  for (let i = 0; i < roomCount; i++) {
-    const w = 8 + Math.floor(rand() * 6); // 8..13
-    const d = 8 + Math.floor(rand() * 6); // 8..13
-    const h = 5 + Math.floor(rand() * 4); // 5..8
-    const x0 = ox + 1 + Math.floor(rand() * (15 - w));
-    const z0 = oz + 1 + Math.floor(rand() * (15 - d));
-    // Plancher des salles dans 6..10 : chaque salle croise OBLIGATOIREMENT
-    // les galeries (bandes x/z 7..9, air y 5..10) → toujours accessible.
-    const y0 = 6 + Math.floor(rand() * 5); // 6..10
-    const y1 = Math.min(y0 + h - 1, 30);
-    const room: Box = { x0, x1: x0 + w - 1, y0, y1, z0, z1: z0 + d - 1 };
-    rooms.push(room);
-
-    // Piliers de soutien dans les grandes salles.
-    if (w >= 10 && rand() < 0.7) {
-      const px = x0 + 2 + Math.floor(rand() * (w - 4));
-      const pz = z0 + 2 + Math.floor(rand() * (d - 4));
-      pillars.push({ x0: px, x1: px, y0: room.y0, y1: room.y1, z0: pz, z1: pz });
-    }
-
-    // Lanterne au centre de la salle (posée sur le sol de pierre).
-    lanterns.push({
-      x: x0 + Math.floor(w / 2),
-      y: room.y0,
-      z: z0 + Math.floor(d / 2),
-    });
-  }
-
-  // Torches des galeries : sur le bord des couloirs, tous les 6 blocs.
-  const torches: Vec3[] = [];
-  for (const t of [2, 8, 14]) {
-    torches.push({ x: ox + t, y: Y_GALLERY_AIR_MIN, z: oz + 7 });
-    torches.push({ x: ox + 7, y: Y_GALLERY_AIR_MIN, z: oz + t });
-  }
 
   // Veines de minerais (marche aléatoire bornée dans le corps de pierre).
   const veins: OreVein[] = [];
@@ -201,7 +134,7 @@ export function planChunk(seed: number, cx: number, cz: number): ChunkPlan {
     }
   }
 
-  return { cx, cz, rooms, corridorX, corridorZ, pillars, veins, lanterns, torches };
+  return { cx, cz, veins };
 }
 
 /**
@@ -230,10 +163,10 @@ export function clipBox(box: Box, cx: number, cz: number): Box | null {
 }
 
 // ---------------------------------------------------------------------------
-// Spawn des mines (chunk 0,0 uniquement) — plateforme sûre et lumineuse
+// Poche de spawn (seul volume en air de la dimension)
 // ---------------------------------------------------------------------------
 
-/** Rayon de la plateforme d'arrivée (carré (2r+1)×(2r+1) autour de 0,0). */
+/** Rayon de la plateforme d'arrivée (cercle (2r+1)×(2r+1) autour de 0,0). */
 export const SPAWN_RADIUS = 8;
 
 /** Contour circulaire de la plateforme (positions x,z du muret). */
@@ -247,7 +180,7 @@ export function spawnRingPositions(): Vec3[] {
     const key = `${x}:${z}`;
     if (!seen.has(key)) {
       seen.add(key);
-      positions.push({ x, y: Y_GALLERY_AIR_MIN, z });
+      positions.push({ x, y: Y_POCKET_AIR_MIN, z });
     }
   }
   return positions;

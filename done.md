@@ -1,7 +1,18 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v19 — MINE RÉÉCRITE (monde 100 % pierre, minerais équilibrés) + /sn:monde + menus différenciés**.
+> Dernière mise à jour : **v19.1 — MINE SOLIDE (creuse tes galeries toi-même) + flèche ← de retour + night vision invisible**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v19.1 — Mine solide + navigation affinée (sept. 2026)
+- [x] **Plus de salles ni de galeries pré-creusées** : la mine est un **BLOC DE PIERRE PLEIN** (70 couches, y 2→71, entre deux lits de bedrock). Le joueur **creuse ses propres galeries à la pioche**, comme un vrai minage souterrain. Seule exception : la **poche de spawn** (plateforme éclairée r=8, à cheval sur les 4 chunks de l'origine, arrivée différée jusqu'à ce qu'elle soit prête).
+- [x] **Night vision SANS particules** : appliquée avec `showParticles: false` (fallback sans option si le runtime le refuse) et **ré-appliquée toutes les 30 s** tant que le joueur reste dans la mine — jamais aveugle, jamais d'effet visible. Retirée au retour dans le monde normal.
+- [x] **Bouton retour remplacé par une flèche « ← » BLANCHE** en haut à gauche de chaque fiche (nouvelle méthode moteur `form.back(cb)`) : Classes, Le Monde, Mines, fiche État, Mon clan, Membres, fiche membre, Drapeau. Les confirmations gardent leur bouton « Annuler » (annulation ≠ navigation).
+- [x] **Design affiné** : carte du menu « Le Monde » avec repère « tu es ici » (✦), bandeaux ▓ des cartes Monde/Mine, intro des États contextuelle, header Membres aligné ; nettoyage à la source des derniers glyphes ■/≡ (les six menus concernés).
+- [x] **Audit complet** : plus aucun libellé « Retour » oublié, aucune commande dupliquée, aucun bouton multi-ligne, plus aucune mention obsolète de l'ancienne génération ; menu « Monde » du hub relié à sa flèche de retour.
+- [x] **Tests** : 57/57 (plan sans salles/galeries vérifié : `ChunkPlan = { cx, cz, veins }`).
+- Packs **1.9.1** (BP, RP, serveur).
 
 ---
 
