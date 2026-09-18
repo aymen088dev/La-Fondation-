@@ -15,7 +15,7 @@ le BP (et le RP qu'il appelle) se chargent dès le démarrage.
 | Dossier | Contenu |
 |---|---|
 | `BP/` | Behavior Pack NaLandia (scripts compilés `BP/scripts/main.js`) |
-| `RP/` | Resource Pack NaLandia UI (JSON UI + textures) |
+| `RP/` | Resource Pack NaLandia UI (textures des CustomForm + HUD) |
 
 ### 2. Copier les packs dans ton serveur
 
@@ -108,4 +108,4 @@ Puis re-copie `BP/` vers `<serveur>/behavior_packs/NaLandiaBP/`.
 
 - Minecraft **1.26.50** requis (Beta APIs activées par le BP via `min_engine_version`).
 - Les **Dynamic Properties** du monde stockent la DB — ne supprime pas le fichier `db/` du monde.
-- Le RP contient désormais une couche JSON UI légère : elle place les fonds gameplay, fiches et gestion derrière les formulaires natifs sans intercepter les clics. Les textures restent remplaçables dans `RP/textures/` en conservant les mêmes noms.
+- Le RP contient les textures utilisées directement par les CustomForm : bandeau gameplay, carte de contenu, panneau de fiche et habillage de gestion. Elles sont ajoutées avant les boutons par le script et n'interceptent pas les clics. Les textures restent remplaçables dans `RP/textures/` en conservant les mêmes noms.

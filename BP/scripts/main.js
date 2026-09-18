@@ -4370,6 +4370,10 @@ var OMForm = class {
   hero(_kind) {
     return this;
   }
+  image(path, width = 1) {
+    this.elements.push({ kind: "image", path, width: Math.max(0.1, Math.min(1, width)) });
+    return this;
+  }
   header(text) {
     this.elements.push({ kind: "header", text: clean(text) });
     return this;
@@ -4456,13 +4460,23 @@ var OMForm = class {
     try {
       const form = new NativeCustomForm(this.player, this.titleText);
       this.activeForm = form;
+      if (this.design === "cards") {
+        form.image("textures/ui/om_header_band", RP_PACK_ID, { width: 1 });
+        form.image("textures/ui/om_card", RP_PACK_ID, { width: 0.82 });
+      } else if (this.design === "parchment") {
+        form.image("textures/ui/om_sheet_pane", RP_PACK_ID, { width: 1 });
+        form.image("textures/ui/om_content_bg", RP_PACK_ID, { width: 0.9 });
+      } else {
+        form.image("textures/ui/om_header_band", RP_PACK_ID, { width: 1 });
+      }
       for (const element of this.elements) {
         if (element.kind === "button") {
           form.button(element.text, () => {
             if (form.isShowing()) form.close();
             element.onClick();
           });
-        } else if (element.kind === "header") form.header(element.text);
+        } else if (element.kind === "image") form.image(element.path, RP_PACK_ID, { width: element.width });
+        else if (element.kind === "header") form.header(element.text);
         else if (element.kind === "body" || element.kind === "label") form.label(element.text);
         else if (element.kind === "divider") form.divider();
         else if (element.kind === "field") element.add(form);

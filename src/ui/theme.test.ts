@@ -7,17 +7,17 @@ import { CARD_SECTIONS, DESIGN_SPECS, PARCHMENT_SECTIONS, designForSection, desi
 const ROOT = join(import.meta.dir, "..", "..");
 
 describe("Native Bedrock UI adapter", () => {
-  it("declares a valid lightweight JSON UI presentation layer", () => {
+  it("uses the real CustomForm image components instead of a fake JSON backdrop", () => {
     const defs = JSON.parse(readFileSync(join(ROOT, "RP/ui/_ui_defs.json"), "utf8")) as { ui_defs: string[] };
-    const serverForm = JSON.parse(readFileSync(join(ROOT, "RP/ui/server_form.json"), "utf8")) as {
-      long_form?: { modifications?: unknown[] };
-      custom_form?: { modifications?: unknown[] };
-    };
-    expect(defs.ui_defs).toContain("ui/server_form.json");
-    expect(serverForm.long_form?.modifications?.length).toBeGreaterThan(0);
-    expect(serverForm.custom_form?.modifications?.length).toBeGreaterThan(0);
-    expect(readFileSync(join(ROOT, "RP/textures/ui/om_sheet_bg.png"))).toBeTruthy();
-    expect(readFileSync(join(ROOT, "RP/textures/ui/om_cards_bg.png"))).toBeTruthy();
+    const source = readFileSync(join(ROOT, "src/ui/theme.ts"), "utf8");
+    expect(defs.ui_defs).not.toContain("ui/server_form.json");
+    expect(source).toContain("form.image");
+    expect(source).toContain("om_header_band");
+    expect(source).toContain("om_card");
+    expect(source).toContain("om_sheet_pane");
+    expect(readFileSync(join(ROOT, "RP/textures/ui/om_header_band.png"))).toBeTruthy();
+    expect(readFileSync(join(ROOT, "RP/textures/ui/om_card.png"))).toBeTruthy();
+    expect(readFileSync(join(ROOT, "RP/textures/ui/om_sheet_pane.png"))).toBeTruthy();
   });
 
   it("does not depend on the removed custom renderer", () => {

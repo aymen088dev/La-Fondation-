@@ -2,7 +2,7 @@
   "format_version": 2,
   "header": {
     "name": "NaLandia UI",
-    "description": "Resource Pack NaLandia : textures or et argent, HUD et couche JSON UI légère pour les formulaires officiels Bedrock.",
+    "description": "Resource Pack NaLandia : textures or et argent, HUD et images utilisées par les CustomForm officiels Bedrock.",
     "uuid": "33ca6e1c-4f30-46ae-8b56-1510382e3f61",
     "version": [2, 4, 0],
     "min_engine_version": [1, 26, 50]

@@ -75,6 +75,7 @@ export interface TextFieldOptions { placeholder?: string; defaultValue?: string;
 type Element =
   | { kind: "header" | "label" | "body" | "divider"; text: string }
   | { kind: "button"; text: string; onClick: () => void }
+  | { kind: "image"; path: string; width: number }
   | { kind: "field"; add: (form: NativeCustomForm) => void };
 
 function clean(text: string): string {
@@ -95,6 +96,10 @@ export class OMForm {
   }
 
   hero(_kind: HeroKind): OMForm { return this; }
+  image(path: string, width = 1): OMForm {
+    this.elements.push({ kind: "image", path, width: Math.max(0.1, Math.min(1, width)) });
+    return this;
+  }
   header(text: string): OMForm { this.elements.push({ kind: "header", text: clean(text) }); return this; }
   body(text: string): OMForm { this.elements.push({ kind: "body", text: clean(text) }); return this; }
   label(text: string): OMForm { this.elements.push({ kind: "label", text: clean(text) }); return this; }
@@ -170,6 +175,20 @@ export class OMForm {
     try {
       const form = new NativeCustomForm(this.player, this.titleText);
       this.activeForm = form;
+
+      // Vrais composants visuels CustomForm : ils sont générés par le script,
+      // contrairement à l'ancien backdrop JSON UI qui ne faisait que changer
+      // le fond. Chaque famille possède son bandeau et sa texture de carte.
+      if (this.design === "cards") {
+        form.image("textures/ui/om_header_band", RP_PACK_ID, { width: 1 });
+        form.image("textures/ui/om_card", RP_PACK_ID, { width: 0.82 });
+      } else if (this.design === "parchment") {
+        form.image("textures/ui/om_sheet_pane", RP_PACK_ID, { width: 1 });
+        form.image("textures/ui/om_content_bg", RP_PACK_ID, { width: 0.9 });
+      } else {
+        form.image("textures/ui/om_header_band", RP_PACK_ID, { width: 1 });
+      }
+
       for (const element of this.elements) {
         if (element.kind === "button") {
           form.button(element.text, () => {
@@ -178,7 +197,8 @@ export class OMForm {
             if (form.isShowing()) form.close();
             element.onClick();
           });
-        } else if (element.kind === "header") form.header(element.text);
+        } else if (element.kind === "image") form.image(element.path, RP_PACK_ID, { width: element.width });
+        else if (element.kind === "header") form.header(element.text);
         else if (element.kind === "body" || element.kind === "label") form.label(element.text);
         else if (element.kind === "divider") form.divider();
         else if (element.kind === "field") element.add(form);

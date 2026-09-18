@@ -1,9 +1,9 @@
 /**
- * CONTRAT DE NAVIGATION DES MENUS NATIFS — NaLandia v21.
+ * CONTRAT DE NAVIGATION ET DE DESIGN DES CUSTOMFORM — NaLandia.
  *
- * Les formulaires sont rendus par l'API officielle `@minecraft/server-ui`.
- * Ce module conserve uniquement les familles de sections et leurs métriques
- * de compatibilité : il ne tente jamais de modifier le JSON UI de Bedrock.
+ * Les formulaires et leurs composants visuels sont rendus par l'API officielle
+ * `@minecraft/server-ui`. Ce module conserve les familles de sections et les
+ * métriques utilisées par l'adaptateur `OMForm` pour choisir ses images.
  *
  * Ce module est VOLONTAIREMENT SANS AUCUN IMPORT : c'est le seul endroit du
  * projet où l'on peut vérifier par des tests unitaires l'accord entre les menus

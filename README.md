@@ -51,15 +51,15 @@ Persistée dans le monde via les Dynamic Properties Bedrock :
 - **Night vision sans particules**, ré-appliquée toutes les 30 s dans la mine et retirée au retour
 - `/sn:monde` — menu « Le Monde » (Monde normal / Mine) ; **le retour au monde normal te ramène à ta dernière position** mémorisée
 
-### UI — JSON UI Bedrock + formulaires natifs
-Les interactions utilisent `@minecraft/server-ui` et restent compatibles avec le tactile, la manette et le clavier. Une couche JSON UI légère (`RP/ui/server_form.json`) habille les formulaires sans remplacer le moteur officiel ni ajouter de framework communautaire.
+### UI — vrai CustomForm Bedrock
+Les interactions et la composition visuelle utilisent directement `@minecraft/server-ui` `CustomForm`. Les menus restent compatibles avec le tactile, la manette et le clavier, sans framework communautaire ni faux renderer JSON UI.
 
-- **Gameplay** : fond émeraude pour Classes, Métiers, Monde, Mines, États et Quêtes.
-- **Fiches** : fond bleu nuit pour Clan, Mon clan, Membres, Drapeau et Mes infos.
-- **Gestion** : fond orné pour le hub, l'administration et les outils de modération.
+- **Gameplay** : bandeau et carte visuelle pour Classes, Métiers, Monde, Mines, États et Quêtes.
+- **Fiches** : panneau et texture de contenu pour Clan, Mon clan, Membres, Drapeau et Mes infos.
+- **Gestion** : bandeau de gestion pour le hub, l'administration et les outils de modération.
+- Les images sont ajoutées par le script avec `CustomForm.image`, avant les contrôles interactifs.
 - Les callbacks ferment explicitement l'écran avant chaque navigation afin d'éviter les menus fantômes ou réapparitions.
-- Les textures sont placées derrière les contrôles et n'interceptent pas les clics tactiles.
-- `RP/ui/hud_screen.json` reste dédié à l'actionbar et aux titres ; `RP/ui/server_form.json` gère la présentation des formulaires.
+- `RP/ui/hud_screen.json` reste dédié à l'actionbar et aux titres ; `RP/ui/server_form.json` est neutre et n'intercepte plus les formulaires.
 
 ## Commandes en jeu
 
@@ -95,7 +95,7 @@ Les interactions utilisent `@minecraft/server-ui` et restent compatibles avec le
 │   └── scripts/main.js      #   ← généré par le build, NE PAS éditer
 ├── RP/                      # Resource Pack (JSON UI + textures)
 │   ├── manifest.json
-│   ├── ui/                  #   hud_screen.json + server_form.json (présentation JSON UI légère)
+│   ├── ui/                  #   hud_screen.json + server_form.json neutre
 │   ├── texts/               #   (aucun : le pack ne ship pas de .lang)
 │   └── textures/ui/         #   cadres, tuiles, cartes, flèche retour, fonds (générés) + textures Ore UI du render pack
 ├── src/                     # Code source TypeScript
@@ -137,7 +137,7 @@ bun run textures    # régénérer les textures du Resource Pack
 3. **Quitte et relance le monde** (les commandes `/sn:*` s'enregistrent au démarrage)
 4. Vérifie `/sn:menu` ; si l'UI n'a pas changé, **bump la version du RP** (`RP/manifest.json`) et recharge : Bedrock met les packs en cache
 
-> ℹ️ Le RP doit être activé et à jour pour afficher les fonds JSON UI. Si un formulaire ne s'affiche pas, vérifie d'abord la version Bedrock, le RP actif et la présence de `BP/scripts/main.js`.
+> ℹ️ Le RP doit être activé et à jour pour afficher les images des CustomForm. Si un formulaire ne s'affiche pas, vérifie d'abord la version Bedrock, le RP actif et la présence de `BP/scripts/main.js`.
 
 ## Base de données et compatibilité
 
