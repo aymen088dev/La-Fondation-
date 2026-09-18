@@ -698,7 +698,9 @@ import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, sy
 // src/ui/theme.ts
 import { system as system7 } from "@minecraft/server";
 import {
+  ActionFormData as NativeActionForm,
   CustomForm as NativeCustomForm,
+  FormCancelationReason,
   ObservableBoolean as NativeObservableBoolean,
   ObservableNumber as NativeObservableNumber,
   ObservableString as NativeObservableString
@@ -4283,6 +4285,32 @@ function designForTitle(title) {
   return designForSection(clean2.trim());
 }
 
+// src/ui/tiles.ts
+var TILE_MENUS = {
+  /**
+   * Classes : trois grandes cartes verticales (une par voie) + la barre de
+   * retour. Les descriptions sont transportées par des boutons invisibles
+   * placés SOUS les cartes dans la collection, afin que chaque texte reste
+   * une ligne indépendante (pas de texte multi-lignes dans un bouton).
+   */
+  Classes: {
+    actions: ["class_0", "class_1", "class_2", "back"],
+    data: ["desc_0", "desc_1", "desc_2"]
+  },
+  /**
+   * Mon clan : emplacement banque (haut gauche), drapeau (haut droite) puis
+   * les actions en bas. Le drapeau est transporté par deux boutons invisibles :
+   * son identifiant (pour choisir la bannière affichée) et son nom lisible.
+   */
+  "Mon clan": {
+    actions: ["bio", "claim", "members", "flag", "quit", "back"],
+    data: ["flag_id", "flag_name"]
+  }
+};
+function tileTitleFor(section) {
+  return sheetTitleFor(section);
+}
+
 // src/ui/theme.ts
 var RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
 var uiDesignEnabled = true;
@@ -4518,6 +4546,79 @@ function openWindow(player, section, build, hero) {
 }
 function openWindowRaw(player, title, build) {
   return buildAndShow(player, title, build, designForTitle(title.replace(/§./g, "").trim()));
+}
+function openTileMenu(player, section, build) {
+  const actions = /* @__PURE__ */ new Map();
+  const data = /* @__PURE__ */ new Map();
+  let bodyText = "";
+  const builder = {
+    action(key, label, onClick) {
+      actions.set(key, { label, onClick });
+      return builder;
+    },
+    data(key, text) {
+      data.set(key, text);
+      return builder;
+    },
+    body(text) {
+      bodyText = text;
+      return builder;
+    }
+  };
+  try {
+    build(builder);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logMod.warn(`Construction du menu « ${section} » : ${message}`);
+    return;
+  }
+  scheduleTileForm(player, section, actions, data, bodyText, 0);
+}
+function scheduleTileForm(player, section, actions, data, bodyText, attempt) {
+  system7.runTimeout(() => {
+    void presentTileForm(player, section, actions, data, bodyText, attempt);
+  }, attempt === 0 ? 1 : 10);
+}
+async function presentTileForm(player, section, actions, data, bodyText, attempt) {
+  const layout = TILE_MENUS[section];
+  const form = new NativeActionForm();
+  form.title(tileTitleFor(section));
+  if (bodyText.trim().length > 0) form.body(bodyText);
+  for (const key2 of layout.actions) {
+    form.button(actions.get(key2)?.label ?? "§8—");
+  }
+  for (const key2 of layout.data) {
+    form.button(data.get(key2) ?? " ");
+  }
+  let selection;
+  try {
+    const response = await form.show(player);
+    if (response.selection === void 0 && response.cancelationReason === FormCancelationReason.UserBusy && attempt < 3) {
+      scheduleTileForm(player, section, actions, data, bodyText, attempt + 1);
+      return;
+    }
+    selection = response.selection;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (attempt < 3) {
+      scheduleTileForm(player, section, actions, data, bodyText, attempt + 1);
+      return;
+    }
+    logMod.warn(`Menu « ${section} » : ${message}`);
+    player.sendMessage(`§c[NaLandia] Le menu « ${section} » n'a pas pu s'afficher : §f${message}`);
+    return;
+  }
+  if (selection === void 0) return;
+  const key = layout.actions[selection];
+  if (key === void 0) return;
+  const action = actions.get(key);
+  if (action === void 0) return;
+  try {
+    action.onClick();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logMod.warn(`Action « ${section}/${key} » : ${message}`);
+  }
 }
 
 // src/db/menu.ts
@@ -4869,51 +4970,45 @@ function openMyClanMenu(player, manager, territory) {
   const isOwner = data.ownerId === player.id || data.owner === player.name;
   const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
   const rankLabel = isOwner ? "§6Chef" : myRank === "officer" ? "§bOfficier" : "§7Membre";
-  void openWindowRaw(player, windowTitle("Mon clan"), (form) => {
-    form.back(() => openStatesMenu(player, manager));
-    form.label(
+  const flagToken = data.color.startsWith("flag:") ? "blason" : data.color;
+  const flagName = data.color.startsWith("flag:") ? `Blason ${data.color.slice(5)}` : color.id.charAt(0).toUpperCase() + color.id.slice(1);
+  openTileMenu(player, "Mon clan", (menu) => {
+    menu.body(
       [
-        `${color.code}======================`,
-        `§f§l${data.name}`,
-        `${color.code}======================`
+        `${color.code}§l${data.name}§r`,
+        `§eChef §f${data.owner}   §eRang §r${rankLabel}`,
+        `§eDrapeau §r${color.code}${flagName}   §eTerritoire §f${extentLine(data.chunkKeys.length)}`,
+        `§eMembres §f${data.members.length + 1}   §eBanque §8emplacement réservé`,
+        `§8${data.description ?? "Un nouvel État prend forme."}`
       ].join("\n")
     );
-    form.label(
-      [
-        `§eDrapeau       §r${color.code}${color.id}`,
-        `§eBanque        §8emplacement réservé`,
-        `§eTon rang      §r${rankLabel}`,
-        `§eTerritoire    §f${extentLine(data.chunkKeys.length)}`,
-        `§eMembres       §f${data.members.length + 1} §7(chef inclus)`,
-        ``,
-        `§f${data.description ?? "Un nouvel État prend forme."}`
-      ].join("\n")
-    );
-    form.divider();
-    form.header("§6§lGestion du clan");
-    form.button(`§eModifier la bio`, () => openClanBioMenu(player, manager, territory));
-    form.button(`§a§lRevendiquer ce chunk`, () => {
+    menu.action("bio", `§eModifier la bio`, () => openClanBioMenu(player, manager, territory));
+    menu.action("claim", `§aRevendiquer ce chunk`, () => {
       claimHere(player, manager, territory);
     });
-    form.button(`§b§lMembres`, () => openMembersMenu(player, manager, territory));
-    if (isOwner) {
-      form.button(`§6§lModifier le drapeau`, () => openFlagMenu(player, manager, territory));
-    }
-    form.divider();
-    if (isOwner) {
-      form.button(`§c§lDissoudre le clan`, () => openDissolveMenu(player, manager, territory));
-    } else {
-      form.button(`§c§lQuitter le clan`, () => {
-        const ok = manager.leave(territory.id, player.id);
-        say(
-          player,
-          ok ? `§e[Clans] Tu as quitté §f${data.name}§e.` : "§c[Clans] Impossible de quitter le clan."
-        );
-      });
-    }
-  }).catch(
-    (error) => console.warn(`[Clans] Erreur menu Mon clan : ${error instanceof Error ? error.message : String(error)}`)
-  );
+    menu.action("members", `§bMembres du clan`, () => openMembersMenu(player, manager, territory));
+    menu.action("flag", isOwner ? `§6Modifier le drapeau` : `§8Drapeau (chef)`, () => {
+      if (isOwner) {
+        openFlagMenu(player, manager, territory);
+        return;
+      }
+      say(player, "§c[Clans] Seul le chef peut changer le drapeau.");
+    });
+    menu.action("quit", isOwner ? `§cDissoudre le clan` : `§cQuitter le clan`, () => {
+      if (isOwner) {
+        openDissolveMenu(player, manager, territory);
+        return;
+      }
+      const ok = manager.leave(territory.id, player.id);
+      say(
+        player,
+        ok ? `§e[Clans] Tu as quitté §f${data.name}§e.` : "§c[Clans] Impossible de quitter le clan."
+      );
+    });
+    menu.action("back", `§7Retour aux États`, () => openStatesMenu(player, manager));
+    menu.data("flag_id", `FLAG:${flagToken}`);
+    menu.data("flag_name", `${color.code}${flagName}`);
+  });
 }
 function claimHere(player, manager, territory) {
   const key = `${player.dimension.id}:${Math.floor(player.location.x / 16)}:${Math.floor(player.location.z / 16)}`;
@@ -7408,7 +7503,7 @@ function banner(info) {
     `${info.color}======================`
   ].join("\n");
 }
-function classCard(player, classes2, info, _isAdmin, backTo) {
+function classCard(player, classes2, info, allowChoose, backTo) {
   void openWindowRaw(player, windowTitle("Classe"), (form) => {
     form.back(backTo);
     form.label(banner(info));
@@ -7422,7 +7517,14 @@ function classCard(player, classes2, info, _isAdmin, backTo) {
       ].join("\n")
     );
     form.divider();
-    form.button(`§a§lChoisir la voie ${info.name}`, () => confirmClassChoice(player, classes2, info, backTo));
+    if (allowChoose) {
+      form.button(`§a§lChoisir la voie ${info.name}`, () => confirmClassChoice(player, classes2, info, backTo));
+    } else {
+      form.label(
+        `§8Cette voie reste consultable, mais ton choix est définitif :
+§8seul un admin peut le réinitialiser.`
+      );
+    }
   }).catch(
     (error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`)
   );
@@ -7456,49 +7558,47 @@ function myClassCard(player, classes2, info, xp, isAdmin) {
     (error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`)
   );
 }
-function openClassesMenu(player, classes2, isAdmin = false) {
-  void openWindow(player, "Classes", (form) => {
-    form.header(`§d§lLes Voies de NaLandia`);
-    form.divider();
-    const selection = classes2.classOf(player.name);
-    if (selection === void 0) {
-      form.label(
-        `§7Choisis ta §lroute§r§7. Ce choix est §lDÉFINITIF§r§7 :
-il déterminera ta progression sur le serveur.`
+function openClassesMenu(player, classes2, isAdmin = false, back) {
+  const selection = classes2.classOf(player.name);
+  const current = selection === void 0 ? void 0 : CLASS_CATALOG.find((candidate) => candidate.id === selection.classId);
+  openTileMenu(player, "Classes", (menu) => {
+    CLASS_CATALOG.forEach((info, index) => {
+      const isCurrent = current?.id === info.id;
+      menu.action(`class_${index}`, `§f§l${info.name}`, () => {
+        if (selection === void 0) {
+          classCard(player, classes2, info, true, () => openClassesMenu(player, classes2, isAdmin, back));
+          return;
+        }
+        if (isCurrent) {
+          myClassCard(player, classes2, info, selection.xp, isAdmin);
+          return;
+        }
+        classCard(player, classes2, info, false, () => openClassesMenu(player, classes2, isAdmin, back));
+      });
+      menu.data(
+        `desc_${index}`,
+        [
+          `${info.color}§l${info.name}§r`,
+          `${info.description}`,
+          CLASS_TRAITS[info.id].join("\n"),
+          isCurrent ? `§6Voie actuelle  §7niveau §f${classLevel(selection?.xp ?? 0)}` : selection === void 0 ? `§aDisponible` : `§8Choix définitif`
+        ].join("\n")
       );
-      form.divider();
-      for (const info2 of CLASS_CATALOG) {
-        form.header(`${info2.color}§l${info2.name}§r`);
-        form.label(
-          [
-            `§f${info2.description}`,
-            `§7${CLASS_TRAITS[info2.id].join("   ")}`
-          ].join("\n")
-        );
-        form.button(
-          `§6Voir la fiche de ${info2.name}`,
-          () => classCard(player, classes2, info2, isAdmin, () => openClassesMenu(player, classes2, isAdmin))
-        );
-        form.divider();
-      }
-      return;
-    }
-    const info = CLASS_CATALOG.find((candidate) => candidate.id === selection.classId);
-    if (info === void 0) {
-      form.label(`§cVoie inconnue (${selection.classId}) — contacte un admin.`);
-      return;
-    }
-    form.label(`§7Ta voie actuelle`);
-    form.body(`§f${info.description}
-§7Une route unique, construite par tes actions.`);
-    form.divider();
-    form.button(
-      `${info.color}§l${info.name}§r §7| niveau ${classLevel(selection.xp)}`,
-      () => myClassCard(player, classes2, info, selection.xp, isAdmin)
+    });
+    menu.action("back", "§7Retour", () => {
+      if (back !== void 0) back();
+    });
+    menu.body(
+      selection === void 0 || current === void 0 ? [
+        "§7Choisis ta §froute§7. Ce choix est §lDÉFINITIF§r§7.",
+        `§8Trois voies, trois façons de jouer — clique une carte pour sa fiche.`
+      ].join("\n") : [
+        `§7Ta voie : ${current.color}§l${current.name}§r`,
+        `§7Niveau §f${classLevel(selection.xp)}§7   §8|   §7XP §f${classProgress(selection.xp)}§7/§f${XP_PER_LEVEL}§7   §8|   §7total §f${selection.xp}`,
+        `§8Clique ta carte pour ouvrir la progression.`
+      ].join("\n")
     );
-  }).catch(
-    (error) => console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`)
-  );
+  });
 }
 function confirmClassChoice(player, classes2, info, backTo) {
   void openWindowRaw(player, windowTitle("Confirmer"), (form) => {
@@ -8057,7 +8157,7 @@ function openMyInfoMenu(player, deps) {
     );
     form.header(`§e§lActions`);
     form.button(`§dMa classe`, () => {
-      if (classes2 !== void 0) openClassesMenu(player, classes2, false);
+      if (classes2 !== void 0) openClassesMenu(player, classes2, false, () => openMyInfoMenu(player, deps));
     });
     if (jobs2 !== void 0) {
       form.button(`§6Métiers`, () => openJobsMenu(player, jobs2));

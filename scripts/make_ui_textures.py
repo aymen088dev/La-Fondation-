@@ -25,6 +25,7 @@ Sortie :
 
 Usage: python3 scripts/make_ui_textures.py
 """
+import json
 import struct
 import zlib
 from pathlib import Path
@@ -464,6 +465,236 @@ def pack_icon() -> None:
     write_png(RP_ROOT / "pack_icon.png", 64, 64, px)
 
 
+# ---------------------------------------------------------------------------
+# TUILES DES MENUS « JSON UI » (menu Classes + menu Clan)
+# ---------------------------------------------------------------------------
+def _clamp(value: int) -> int:
+    return max(0, min(255, value))
+
+
+def write_nineslice(name: str, nineslice: list[int], base: list[int]) -> None:
+    """Décrit le découpage 9 tranches d'une texture (fichier .json voisin)."""
+    path = RP_ROOT / "textures" / "ui" / f"{name}.json"
+    path.write_text(json.dumps({"nineslice_size": nineslice, "base_size": base}, indent=2) + "\n")
+    print(f"  + {path.relative_to(RP_ROOT.parent)}")
+
+
+def clan_action_tiles() -> None:
+    """`om_clan_tile` (+ _hover / _press) : barres d'action du menu Clan.
+
+    Géométrie PROPRE au menu Clan (différente des tuiles fines du hub) : marge
+    transparente de 2 px, cadre sombre, filet ARGENT sur les côtés, onglet OR
+    en haut, filet argent en bas et barre d'accent dorée à gauche. La barre
+    d'accent reste dans la tranche fixe du nineslice (x 5..7), donc elle est
+    nette quelle que soit la largeur du bouton.
+    """
+    tw = th = 48
+
+    def bar(fill: tuple[int, int, int], top: tuple[int, int, int],
+            accent: tuple[int, int, int], glow: tuple[int, int, int] | None,
+            grain_mod: int) -> list[list[tuple[int, int, int, int]]]:
+        px: list[list[tuple[int, int, int, int]]] = [[(0, 0, 0, 0)] * tw for _ in range(th)]
+        for y in range(th):
+            for x in range(tw):
+                edge = min(x, y, tw - 1 - x, th - 1 - y)
+                if edge <= 1:
+                    continue                                # marge transparente
+                if edge == 2:
+                    px[y][x] = (*INK, 255)                   # contour
+                elif edge == 3:
+                    px[y][x] = (*SILVER_DIM, 255)            # filet argent
+                elif y in (4, 5):
+                    px[y][x] = (*top, 255)                   # onglet or (haut)
+                elif y in (th - 6, th - 5):
+                    px[y][x] = (*SILVER_DIM, 255)            # filet argent (bas)
+                else:
+                    g = ((x * 3 + y * 7) % grain_mod) - grain_mod // 2
+                    px[y][x] = (_clamp(fill[0] + g), _clamp(fill[1] + g), _clamp(fill[2] + g), 255)
+        if glow is not None:
+            for y in range(6, th - 6):
+                for x in range(9, tw - 5):
+                    dx = (x - tw * 0.5) / (tw / 2)
+                    dy = (y - th / 2) / (th / 2)
+                    t = max(0.0, 1.0 - (dx * dx + dy * dy) * 2.4)
+                    if t > 0:
+                        px[y][x] = (*lerp(px[y][x][:3], glow, t * 0.45), 255)
+        for y in range(6, th - 6):
+            for x in range(5, 8):
+                px[y][x] = (*accent, 255)                    # barre d'accent
+        return px
+
+    write_png(RP_ROOT / "textures" / "ui" / "om_clan_tile.png", tw, th,
+              bar((24, 23, 27), GOLD_DIM, GOLD, None, 4))
+    write_png(RP_ROOT / "textures" / "ui" / "om_clan_tile_hover.png", tw, th,
+              bar((38, 36, 41), GOLD_LIGHT, GOLD_LIGHT, GOLD_LIGHT, 3))
+    write_png(RP_ROOT / "textures" / "ui" / "om_clan_tile_press.png", tw, th,
+              bar((17, 16, 19), GOLD, GOLD_LIGHT, None, 3))
+    for name in ("om_clan_tile", "om_clan_tile_hover", "om_clan_tile_press"):
+        write_nineslice(name, [10, 10, 10, 10], [48, 48])
+
+
+def tile_glow_overlays() -> None:
+    """`om_glow_hover` / `om_glow_press` : voiles transparents posés SUR une
+    tuile déjà dessinée (cartes de classe). Ils ne remplacent pas la texture,
+    ils l'éclairent : c'est ce qui donne un état survol/appui sans dupliquer
+    chaque carte en trois versions."""
+    s = 16
+
+    def glow(border: tuple[int, int, int], border_a: int,
+             fill: tuple[int, int, int], fill_a: int) -> list[list[tuple[int, int, int, int]]]:
+        px: list[list[tuple[int, int, int, int]]] = [[(0, 0, 0, 0)] * s for _ in range(s)]
+        for y in range(s):
+            for x in range(s):
+                edge = min(x, y, s - 1 - x, s - 1 - y)
+                if edge == 0:
+                    px[y][x] = (*border, border_a)
+                elif edge == 1:
+                    px[y][x] = (*border, border_a // 2)
+                elif fill_a > 0:
+                    px[y][x] = (*fill, fill_a)
+        return px
+
+    write_png(RP_ROOT / "textures" / "ui" / "om_glow_hover.png", s, s,
+              glow(GOLD_LIGHT, 190, GOLD_LIGHT, 26))
+    write_png(RP_ROOT / "textures" / "ui" / "om_glow_press.png", s, s,
+              glow(GOLD, 210, GOLD_DIM, 58))
+    write_nineslice("om_glow_hover", [6, 6, 6, 6], [16, 16])
+    write_nineslice("om_glow_press", [6, 6, 6, 6], [16, 16])
+
+
+def clan_slot_textures() -> None:
+    """`om_slot_empty` : emplacement encadré (haut gauche de la fiche clan =
+    future banque, et cadre du drapeau). Fond sombre creusé, cadre OR, ombre
+    intérieure : la case est visiblement VIDE, sans aucun glyphe."""
+    s = 40
+    px: list[list[tuple[int, int, int, int]]] = []
+    for y in range(s):
+        row: list[tuple[int, int, int, int]] = []
+        for x in range(s):
+            edge = min(x, y, s - 1 - x, s - 1 - y)
+            if edge == 0:
+                row.append((*INK, 255))
+            elif edge in (1, 2):
+                row.append((*lerp(GOLD, GOLD_DIM, (x + y) / (s * 2)), 255))
+            elif edge == 3:
+                row.append((22, 21, 25, 255))
+            elif edge == 4:
+                row.append((40, 38, 44, 255))            # ombre intérieure
+            else:
+                g = ((x * 5 + y * 3) % 4) - 2
+                row.append((_clamp(19 + g), _clamp(19 + g), _clamp(23 + g), 255))
+        px.append(row)
+    draw_miter(px, s, s, [(2, GOLD_LIGHT), (3, GOLD_DIM)])
+    write_png(RP_ROOT / "textures" / "ui" / "om_slot_empty.png", s, s, px)
+    write_nineslice("om_slot_empty", [8, 8, 8, 8], [40, 40])
+
+
+# Couleurs des drapeaux : mêmes identifiants que TERRITORY_COLORS (src/territories/types.ts).
+FLAG_COLORS: dict[str, tuple[int, int, int]] = {
+    "rouge": (168, 54, 50),
+    "vert": (85, 141, 60),
+    "bleu": (61, 90, 168),
+    "jaune": (200, 176, 60),
+    "or": (212, 175, 88),
+    "violet": (127, 74, 177),
+    "rose": (200, 105, 160),
+    "aqua": (70, 168, 180),
+    "blanc": (232, 232, 232),
+    "gris": (128, 128, 128),
+}
+
+
+def flag_banners() -> None:
+    """Une bannière par couleur de drapeau (`om_flag_<id>`) + `om_flag_blason`
+    pour les blasons importés par le serveur. Le JSON UI choisit la bannière
+    affichée selon la valeur du drapeau, donc chaque couleur doit exister."""
+    w, h = 32, 24
+
+    def banner(base: tuple[int, int, int]) -> list[list[tuple[int, int, int, int]]]:
+        light = lerp(base, WHITE, 0.25)
+        dark = lerp(base, (0, 0, 0), 0.3)
+        px: list[list[tuple[int, int, int, int]]] = [[(0, 0, 0, 0)] * w for _ in range(h)]
+        for y in range(h):
+            for x in range(w):
+                if x <= 3:
+                    # hampe dorée
+                    px[y][x] = (*lerp(GOLD_DIM, GOLD_LIGHT, y / h), 255)
+                    continue
+                if y in (0, h - 1) or x in (4, w - 1):
+                    px[y][x] = (*lerp(GOLD, GOLD_DIM, 0.35), 255)   # liseré doré
+                    continue
+                if y < 8:
+                    px[y][x] = (*base, 255)
+                elif y < 16:
+                    px[y][x] = (*light, 255)
+                else:
+                    px[y][x] = (*dark, 255)
+        return px
+
+    for flag_id, color in FLAG_COLORS.items():
+        write_png(RP_ROOT / "textures" / "ui" / f"om_flag_{flag_id}.png", w, h, banner(color))
+
+    # Blason : damier or/argent neutre, remplacé visuellement par le PNG importé
+    # du serveur aussi souvent que possible, mais toujours disponible.
+    blason: list[list[tuple[int, int, int, int]]] = [[(0, 0, 0, 0)] * w for _ in range(h)]
+    for y in range(h):
+        for x in range(w):
+            if x <= 3:
+                blason[y][x] = (*lerp(GOLD_DIM, GOLD_LIGHT, y / h), 255)
+                continue
+            if y in (0, h - 1) or x in (4, w - 1):
+                blason[y][x] = (*GOLD_DIM, 255)
+                continue
+            checker = ((x // 4) + (y // 4)) % 2 == 0
+            blason[y][x] = (*(SILVER if checker else GOLD_DIM), 255)
+    write_png(RP_ROOT / "textures" / "ui" / "om_flag_blason.png", w, h, blason)
+
+
+def class_card_textures() -> None:
+    """`om_class_guerrier` / `om_class_mage` / `om_class_archer` : grandes
+    cartes verticales du menu Classes. Même cadre OR que le reste du thème,
+    mais chaque voie possède SA couleur : onglet coloré en haut, barre
+    colorée à gauche, corps sombre teinté. Le texte (nom + description) est
+    écrit par le JSON UI par-dessus, donc aucune lettre n'est dessinée ici."""
+    s = 64
+    cards: dict[str, tuple[int, int, int]] = {
+        "guerrier": (140, 45, 45),
+        "mage": (95, 60, 145),
+        "archer": (45, 110, 65),
+    }
+
+    def card(accent: tuple[int, int, int]) -> list[list[tuple[int, int, int, int]]]:
+        body = lerp((24, 23, 27), accent, 0.18)
+        px: list[list[tuple[int, int, int, int]]] = [[(0, 0, 0, 0)] * s for _ in range(s)]
+        for y in range(s):
+            for x in range(s):
+                edge = min(x, y, s - 1 - x, s - 1 - y)
+                if edge <= 1:
+                    continue                                  # marge transparente
+                if edge in (2, 3):
+                    px[y][x] = (*lerp(GOLD, GOLD_DIM, (x + y) / (s * 2)), 255)
+                elif edge == 4:
+                    px[y][x] = (*lerp(accent, SILVER_DIM, 0.4), 255)
+                else:
+                    g = ((x * 7 + y * 5) % 5) - 2
+                    px[y][x] = (_clamp(body[0] + g), _clamp(body[1] + g), _clamp(body[2] + g), 255)
+        # Onglet de couleur en haut (tranche fixe du nineslice).
+        for y in range(6, 12):
+            for x in range(6, s - 6):
+                px[y][x] = (*lerp(accent, WHITE, 0.12 if y == 6 else 0.0), 255)
+        # Barre de couleur à gauche (tranche fixe, continue sur toute la hauteur).
+        for y in range(6, s - 6):
+            for x in range(6, 9):
+                px[y][x] = (*accent, 255)
+        # Petit retour d'angle doré : la carte reste dans le thème or/argent.
+        draw_miter(px, s, s, [(3, GOLD_LIGHT), (4, GOLD_DIM)])
+        return px
+
+    for name, accent in cards.items():
+        write_png(RP_ROOT / "textures" / "ui" / f"om_class_{name}.png", s, s, card(accent))
+        write_nineslice(f"om_class_{name}", [12, 12, 12, 12], [64, 64])
+
+
 def main() -> None:
     print("Génération des textures UI (Resource Pack NaLandia)...")
     button_tiles()
@@ -471,6 +702,11 @@ def main() -> None:
     ornate_textures()
     back_arrow()
     actionbar_bg()
+    clan_action_tiles()
+    tile_glow_overlays()
+    clan_slot_textures()
+    flag_banners()
+    class_card_textures()
     pack_icon()
     print("Terminé.")
 

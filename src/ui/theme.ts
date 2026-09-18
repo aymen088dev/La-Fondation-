@@ -1,14 +1,25 @@
 /**
- * Adaptateur UI NaLandia basé sur CustomForm, l'API officielle Bedrock 1.26.
+ * Adaptateur UI NaLandia — API officielle Bedrock 1.26.
  *
- * CustomForm est le bon compromis pour ce projet : il est fourni par
- * @minecraft/server-ui, comprend boutons/champs/sections et gère nativement
- * le tactile, la manette, le clavier et le bouton de fermeture.
+ * DEUX moteurs cohabitent, volontairement :
+ *
+ *  - `CustomForm` : formulaires à champs (texte, curseur, liste) et fiches de
+ *    lecture. C'est le moteur « classique » du serveur (OMForm).
+ *  - `ActionFormData` : menus à TUILES (Clan, Classes). La liste de boutons
+ *    garde un INDEX stable, ce qui permet au Resource Pack de remplacer le
+ *    rendu `long_form` par un panneau dessiné (voir `RP/ui/server_form.json`)
+ *    tout en continuant à recevoir les clics EXACTEMENT comme un formulaire
+ *    natif. Voir `./tiles.ts` pour le contrat d'ordre des boutons.
+ *
+ * Dans les deux cas la navigation reste native (tactile, manette, clavier) :
+ * aucun curseur ni contrôle maison n'est injecté.
  */
 import { system } from "@minecraft/server";
 import type { Player } from "@minecraft/server";
 import {
+  ActionFormData as NativeActionForm,
   CustomForm as NativeCustomForm,
+  FormCancelationReason,
   ObservableBoolean as NativeObservableBoolean,
   ObservableNumber as NativeObservableNumber,
   ObservableString as NativeObservableString,
@@ -21,6 +32,7 @@ import type {
 } from "@minecraft/server-ui";
 import { logMod } from "../lib/log";
 import { designForSection, designForTitle, sheetTitleFor, TITLE_PREFIX, type ScreenDesign } from "./sheets";
+import { TILE_MENUS, tileTitleFor, type TileSection } from "./tiles";
 
 export const RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
 export const THEME = { primary: "§a", accent: "§6", danger: "§c", muted: "§7" } as const;
@@ -246,3 +258,136 @@ export function openWindowRaw(player: Player, title: string, build: (form: OMFor
 export function closeOpenForm(_player: Player): void { /* native CustomForm closes on replacement */ }
 export type { MessageFormResponse };
 export type NativeFormData = ActionFormData | ModalFormData | CustomForm;
+
+// ---------------------------------------------------------------------------
+// MENUS À TUILES (ActionFormData + JSON UI Bedrock)
+// ---------------------------------------------------------------------------
+
+/**
+ * Constructeur d'un menu à tuiles. L'ORDRE des boutons est imposé par le JSON
+ * UI, donc le script ne choisit pas où va une tuile : il fournit le contenu de
+ * chaque clé déclarée dans `TILE_MENUS`, et l'adaptateur les envoie dans
+ * l'ordre du contrat.
+ */
+export interface TileMenuBuilder {
+  /** Tuile cliquable (index d'action). */
+  action(key: string, label: string, onClick: () => void): TileMenuBuilder;
+  /**
+   * Bouton INVISIBLE : il ne sert qu'à transporter un texte que le JSON UI
+   * affiche ailleurs (description d'une carte, identifiant du drapeau…).
+   */
+  data(key: string, text: string): TileMenuBuilder;
+  /** Texte affiché au centre du panneau (bio, progression…). */
+  body(text: string): TileMenuBuilder;
+}
+
+interface TileAction {
+  label: string;
+  onClick: () => void;
+}
+
+/**
+ * Ouvre un menu à tuiles. Les clés inconnues ou oubliées affichent une tuile
+ * neutre plutôt que de décaler les index : une erreur de câblage reste donc
+ * visible à l'écran sans casser le reste du menu.
+ */
+export function openTileMenu(player: Player, section: TileSection, build: (menu: TileMenuBuilder) => void): void {
+  const actions = new Map<string, TileAction>();
+  const data = new Map<string, string>();
+  let bodyText = "";
+
+  const builder: TileMenuBuilder = {
+    action(key, label, onClick) {
+      actions.set(key, { label, onClick });
+      return builder;
+    },
+    data(key, text) {
+      data.set(key, text);
+      return builder;
+    },
+    body(text) {
+      bodyText = text;
+      return builder;
+    },
+  };
+
+  try {
+    build(builder);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logMod.warn(`Construction du menu « ${section} » : ${message}`);
+    return;
+  }
+
+  scheduleTileForm(player, section, actions, data, bodyText, 0);
+}
+
+function scheduleTileForm(
+  player: Player,
+  section: TileSection,
+  actions: Map<string, TileAction>,
+  data: Map<string, string>,
+  bodyText: string,
+  attempt: number,
+): void {
+  system.runTimeout(() => {
+    void presentTileForm(player, section, actions, data, bodyText, attempt);
+  }, attempt === 0 ? 1 : 10);
+}
+
+async function presentTileForm(
+  player: Player,
+  section: TileSection,
+  actions: Map<string, TileAction>,
+  data: Map<string, string>,
+  bodyText: string,
+  attempt: number,
+): Promise<void> {
+  const layout = TILE_MENUS[section];
+  const form = new NativeActionForm();
+  form.title(tileTitleFor(section));
+  if (bodyText.trim().length > 0) form.body(bodyText);
+  for (const key of layout.actions) {
+    form.button(actions.get(key)?.label ?? "§8—");
+  }
+  for (const key of layout.data) {
+    form.button(data.get(key) ?? " ");
+  }
+
+  let selection: number | undefined;
+  try {
+    const response = await form.show(player);
+    // Le client refuse parfois d'ouvrir un formulaire juste après la fermeture
+    // du précédent : dans ce cas on réessaie au lieu de laisser le joueur
+    // devant un menu qui ne s'ouvre jamais.
+    if (response.selection === undefined && response.cancelationReason === FormCancelationReason.UserBusy && attempt < 3) {
+      scheduleTileForm(player, section, actions, data, bodyText, attempt + 1);
+      return;
+    }
+    selection = response.selection;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (attempt < 3) {
+      scheduleTileForm(player, section, actions, data, bodyText, attempt + 1);
+      return;
+    }
+    logMod.warn(`Menu « ${section} » : ${message}`);
+    player.sendMessage(`§c[NaLandia] Le menu « ${section} » n'a pas pu s'afficher : §f${message}`);
+    return;
+  }
+
+  if (selection === undefined) return;
+  const key = layout.actions[selection];
+  if (key === undefined) return;
+  const action = actions.get(key);
+  if (action === undefined) return;
+  try {
+    action.onClick();
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logMod.warn(`Action « ${section}/${key} » : ${message}`);
+  }
+}
+
+export { TILE_MENUS, tileTitleFor };
+export type { TileSection };

@@ -4,11 +4,11 @@
 
 > **NaLandia** (anciennement « OpenMontage ») : l'add-on de serveur avec territoires/États, clans, rôles, modération, classes, métiers et une dimension minière dédiée — avec des menus robustes basés sur les formulaires officiels Bedrock.
 
-**Packs actuels : 2.4.0** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
+**Packs actuels : 2.5.0** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
 
 ## C'est quoi ce repo ?
 
-Un add-on complet en TypeScript : toolchain de build, base de données persistante, modules de gameplay (territoires, permissions, modération, classes, métiers, mines) et un **reskin JSON UI complet** (Resource Pack) qui habille tous les menus.
+Un add-on complet en TypeScript : toolchain de build, base de données persistante, modules de gameplay (territoires, permissions, modération, classes, métiers, mines) et un **thème or/argent** porté par le Resource Pack, avec des **menus à tuiles JSON UI** (Clan, Classes) là où un formulaire natif ne suffit pas.
 
 ## Ce qu'il y a déjà
 
@@ -51,15 +51,20 @@ Persistée dans le monde via les Dynamic Properties Bedrock :
 - **Night vision sans particules**, ré-appliquée toutes les 30 s dans la mine et retirée au retour
 - `/sn:monde` — menu « Le Monde » (Monde normal / Mine) ; **le retour au monde normal te ramène à ta dernière position** mémorisée
 
-### UI — vrai CustomForm Bedrock
-Les interactions et la composition visuelle utilisent directement `@minecraft/server-ui` `CustomForm`. Les menus restent compatibles avec le tactile, la manette et le clavier, sans framework communautaire ni faux renderer JSON UI.
+### UI — deux moteurs, un seul thème
+
+**1. Formulaires natifs (`CustomForm`)** — champs texte, curseurs, listes déroulantes et fiches de lecture. C'est le moteur par défaut : tactile, manette et clavier natifs, aucun framework communautaire.
+
+**2. Menus à tuiles (`ActionFormData` + JSON UI)** — le script envoie un formulaire à boutons NUMÉROTÉS, et `RP/ui/server_form.json` remplace le rendu `long_form` par un panneau dessiné à la main : cartes de classes de la couleur de la voie, fiche clan (banque en haut à gauche, drapeau en haut à droite, bio au centre, actions en bas).
+
+L'ordre des boutons est un contrat partagé (`src/ui/tiles.ts` ↔ `RP/ui/server_form.json`) vérifié par les tests : un index qui se décale, une texture manquante ou un titre mal filtré fait échouer la suite de tests.
 
 - **Gameplay** : bandeau et carte visuelle pour Classes, Métiers, Monde, Mines, États et Quêtes.
 - **Fiches** : panneau et texture de contenu pour Clan, Mon clan, Membres, Drapeau et Mes infos.
 - **Gestion** : bandeau de gestion pour le hub, l'administration et les outils de modération.
-- Les images sont ajoutées par le script avec `CustomForm.image`, avant les contrôles interactifs.
+- Les tuiles sont de vrais boutons natifs (`button.form_button_click`) dessinés par l'image du pack : le tactile, la manette et le clavier continuent de fonctionner normalement.
 - Les callbacks ferment explicitement l'écran avant chaque navigation afin d'éviter les menus fantômes ou réapparitions.
-- `RP/ui/hud_screen.json` reste dédié à l'actionbar et aux titres ; `RP/ui/server_form.json` est neutre et n'intercepte plus les formulaires.
+- `RP/ui/hud_screen.json` reste dédié à l'actionbar et aux titres ; `RP/ui/server_form.json` ne touche QUE les formulaires à tuiles (repérés par leur titre exact) et laisse passer tous les autres. Aucun curseur, aucun HUD de saisie, aucune texture de pointeur n'est injectée.
 
 ## Commandes en jeu
 
@@ -95,7 +100,7 @@ Les interactions et la composition visuelle utilisent directement `@minecraft/se
 │   └── scripts/main.js      #   ← généré par le build, NE PAS éditer
 ├── RP/                      # Resource Pack (JSON UI + textures)
 │   ├── manifest.json
-│   ├── ui/                  #   hud_screen.json + server_form.json neutre
+│   ├── ui/                  #   hud_screen.json + server_form.json (menus à tuiles)
 │   ├── texts/               #   (aucun : le pack ne ship pas de .lang)
 │   └── textures/ui/         #   cadres, tuiles, cartes, flèche retour, fonds (générés) + textures Ore UI du render pack
 ├── src/                     # Code source TypeScript
@@ -128,7 +133,7 @@ bun run typecheck   # vérifier les types
 bun run textures    # régénérer les textures du Resource Pack
 ```
 
-**Tests : 66 tests unitaires** (DB + migrations, territoires, permissions, modération, classes, générateur de mine, adaptateur natif et déclaration JSON UI).
+**Tests : 74 tests unitaires** (DB + migrations, territoires, permissions, modération, classes, générateur de mine, adaptateur natif, contrat des menus à tuiles et déclaration JSON UI).
 
 ## Installer l'add-on en jeu
 
@@ -137,7 +142,7 @@ bun run textures    # régénérer les textures du Resource Pack
 3. **Quitte et relance le monde** (les commandes `/sn:*` s'enregistrent au démarrage)
 4. Vérifie `/sn:menu` ; si l'UI n'a pas changé, **bump la version du RP** (`RP/manifest.json`) et recharge : Bedrock met les packs en cache
 
-> ℹ️ Le RP doit être activé et à jour pour afficher les images des CustomForm. Si un formulaire ne s'affiche pas, vérifie d'abord la version Bedrock, le RP actif et la présence de `BP/scripts/main.js`.
+> ℹ️ Le RP doit être activé et à jour : sans lui, les menus à tuiles (Clan, Classes) perdent leur panneau dessiné et les formulaires natifs leurs images. Si un menu ne s'affiche pas, vérifie d'abord la version Bedrock, le RP actif et la présence de `BP/scripts/main.js`.
 
 ## Base de données et compatibilité
 

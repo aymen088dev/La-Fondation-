@@ -1,11 +1,15 @@
 /**
- * Menu /sn:classes — DESIGN DIFFÉRENCIÉ « voies du personnage » (v19).
+ * Menu Classes — DESIGN DIFFÉRENCIÉ « trois voies » (v20).
  *
- * Présentation en fiches verticales à bannière : bandeau large de la
- * couleur de la voie, NOM EN BEAU TEXTE BLANC centré, puis descriptif.
- * Volontairement différent du layout hub/admin (sidebar) : ici on déroule
- * une carte par classe, avec confirmation solennelle avant le choix
- * DÉFINITIF.
+ * Le menu de choix lui-même n'est PLUS un formulaire vertical : c'est le
+ * premier menu à TUILES du serveur. Le script envoie un `ActionFormData`
+ * (titre + boutons dans un ordre fixe) et `RP/ui/server_form.json` le dessine
+ * en trois GRANDES CARTES VERTICALES côte à côte — une par voie, chacune de la
+ * couleur de sa classe, cadre or, nom en blanc et description en dessous.
+ *
+ * Les fiches (détail d'une voie, ma progression, confirmation) restent des
+ * formulaires natifs : ce sont des écrans de LECTURE, ils n'ont pas besoin de
+ * tuiles et gardent donc le confort des champs et du défilement natifs.
  */
 
 import type { Player } from "@minecraft/server";
@@ -17,7 +21,7 @@ import {
   classProgress,
 } from "./manager";
 import type { ClassInfo } from "./manager";
-import { openWindow, openWindowRaw, windowTitle } from "../ui/theme";
+import { openTileMenu, openWindowRaw, windowTitle } from "../ui/theme";
 
 /** Barre de progression ASCII (10 crans) colorée. */
 function xpBar(xp: number, perLevel: number): string {
@@ -41,12 +45,16 @@ function banner(info: ClassInfo): string {
   ].join("\n");
 }
 
-/** La fiche d'une voie : bannière, descriptif, traits, choix. */
+/**
+ * La fiche d'une voie : bannière, descriptif, traits, choix.
+ * @param allowChoose false quand le joueur a déjà une voie (choix définitif) :
+ *   on garde la fiche informative mais on retire le bouton de sélection.
+ */
 function classCard(
   player: Player,
   classes: ClassManager,
   info: ClassInfo,
-  _isAdmin: boolean,
+  allowChoose: boolean,
   backTo: () => void,
 ): void {
   // Titre FIXE « Classe » (et non le nom de la voie) : le JSON UI identifie la
@@ -65,7 +73,13 @@ function classCard(
       ].join("\n"),
     );
     form.divider();
-    form.button(`§a§lChoisir la voie ${info.name}`, () => confirmClassChoice(player, classes, info, backTo));
+    if (allowChoose) {
+      form.button(`§a§lChoisir la voie ${info.name}`, () => confirmClassChoice(player, classes, info, backTo));
+    } else {
+      form.label(
+        `§8Cette voie reste consultable, mais ton choix est définitif :\n§8seul un admin peut le réinitialiser.`,
+      );
+    }
   }).catch((error: unknown) =>
     console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`),
   );
@@ -113,57 +127,79 @@ function myClassCard(
 }
 
 /**
- * Ouvre le menu des classes.
- * @param isAdmin affiche le bouton de réinitialisation (réservé aux admins).
+ * Ouvre le menu des classes (TUILES : trois cartes verticales).
+ *
+ * L'ordre des trois cartes suit `CLASS_CATALOG`, et le JSON UI associe
+ * l'index du bouton `class_N` à la carte de gauche à droite. Les descriptions
+ * voyagent dans les boutons invisibles `desc_N`, donc chaque carte garde un
+ * nom (sur la carte) et un texte (dans la zone basse de la carte) séparés.
+ *
+ * @param isAdmin affiche la réinitialisation dans la fiche de progression.
+ * @param back écran à rouvrir avec la tuile « Retour » (le hub de départ).
  */
-export function openClassesMenu(player: Player, classes: ClassManager, isAdmin = false): void {
-  void openWindow(player, "Classes", (form) => {
-    form.header(`§d§lLes Voies de NaLandia`);
-    form.divider();
+export function openClassesMenu(
+  player: Player,
+  classes: ClassManager,
+  isAdmin = false,
+  back?: () => void,
+): void {
+  const selection = classes.classOf(player.name);
+  const current =
+    selection === undefined
+      ? undefined
+      : CLASS_CATALOG.find((candidate) => candidate.id === selection.classId);
 
-    const selection = classes.classOf(player.name);
+  openTileMenu(player, "Classes", (menu) => {
+    // ---- Trois cartes : une par voie, dans l'ordre du catalogue ----
+    CLASS_CATALOG.forEach((info, index) => {
+      const isCurrent = current?.id === info.id;
+      menu.action(`class_${index}`, `§f§l${info.name}`, () => {
+        if (selection === undefined) {
+          classCard(player, classes, info, true, () => openClassesMenu(player, classes, isAdmin, back));
+          return;
+        }
+        if (isCurrent) {
+          myClassCard(player, classes, info, selection.xp, isAdmin);
+          return;
+        }
+        // Voie déjà fixée : la fiche reste consultable, sans re-choix.
+        classCard(player, classes, info, false, () => openClassesMenu(player, classes, isAdmin, back));
+      });
 
-    // ----- État 1 : pas encore de voie → catalogue de fiches -----
-    if (selection === undefined) {
-      form.label(
-        `§7Choisis ta §lroute§r§7. Ce choix est §lDÉFINITIF§r§7 :\nil déterminera ta progression sur le serveur.`,
+      menu.data(
+        `desc_${index}`,
+        [
+          `${info.color}§l${info.name}§r`,
+          `${info.description}`,
+          CLASS_TRAITS[info.id].join("\n"),
+          isCurrent
+            ? `§6Voie actuelle  §7niveau §f${classLevel(selection?.xp ?? 0)}`
+            : selection === undefined
+              ? `§aDisponible`
+              : `§8Choix définitif`,
+        ].join("\n"),
       );
-      form.divider();
-      for (const info of CLASS_CATALOG) {
-        // Une classe forme une vraie fiche : nom, identité, puis action. Les
-        // cartes restent entièrement natives et donc accessibles au tactile.
-        form.header(`${info.color}§l${info.name}§r`);
-        form.label(
-          [
-            `§f${info.description}`,
-            `§7${CLASS_TRAITS[info.id].join("   ")}`,
-          ].join("\n"),
-        );
-        form.button(
-          `§6Voir la fiche de ${info.name}`,
-          () => classCard(player, classes, info, isAdmin, () => openClassesMenu(player, classes, isAdmin)),
-        );
-        form.divider();
-      }
-      return;
-    }
+    });
 
-    // ----- État 2 : voie choisie → fiche de progression -----
-    const info = CLASS_CATALOG.find((candidate) => candidate.id === selection.classId);
-    if (info === undefined) {
-      form.label(`§cVoie inconnue (${selection.classId}) — contacte un admin.`);
-      return;
-    }
-    form.label(`§7Ta voie actuelle`);
-    form.body(`§f${info.description}\n§7Une route unique, construite par tes actions.`);
-    form.divider();
-    form.button(
-      `${info.color}§l${info.name}§r §7| niveau ${classLevel(selection.xp)}`,
-      () => myClassCard(player, classes, info, selection.xp, isAdmin),
+    // ---- Barre de retour ----
+    menu.action("back", "§7Retour", () => {
+      if (back !== undefined) back();
+    });
+
+    // ---- Bandeau de texte central : état de la voie ----
+    menu.body(
+      selection === undefined || current === undefined
+        ? [
+            "§7Choisis ta §froute§7. Ce choix est §lDÉFINITIF§r§7.",
+            `§8Trois voies, trois façons de jouer — clique une carte pour sa fiche.`,
+          ].join("\n")
+        : [
+            `§7Ta voie : ${current.color}§l${current.name}§r`,
+            `§7Niveau §f${classLevel(selection.xp)}§7   §8|   §7XP §f${classProgress(selection.xp)}§7/§f${XP_PER_LEVEL}§7   §8|   §7total §f${selection.xp}`,
+            `§8Clique ta carte pour ouvrir la progression.`,
+          ].join("\n"),
     );
-  }).catch((error: unknown) =>
-    console.warn(`[Classes] ${error instanceof Error ? error.message : String(error)}`),
-  );
+  });
 }
 
 /** Confirmation solennelle avant le choix DÉFINITIF. */

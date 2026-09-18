@@ -144,7 +144,7 @@ export function openMyInfoMenu(player: Player, deps: HubDeps): void {
     // ---- Sidebar : cartes d'action ----
     form.header(`§e§lActions`);
     form.button(`§dMa classe`, () => {
-      if (classes !== undefined) openClassesMenu(player, classes, false);
+      if (classes !== undefined) openClassesMenu(player, classes, false, () => openMyInfoMenu(player, deps));
     });
     if (jobs !== undefined) {
       form.button(`§6Métiers`, () => openJobsMenu(player, jobs));

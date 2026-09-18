@@ -1,9 +1,14 @@
 /**
- * CONTRAT DE NAVIGATION ET DE DESIGN DES CUSTOMFORM — NaLandia.
+ * CONTRAT DE NAVIGATION ET DE DESIGN DES FORMULAIRES — NaLandia.
  *
  * Les formulaires et leurs composants visuels sont rendus par l'API officielle
  * `@minecraft/server-ui`. Ce module conserve les familles de sections et les
  * métriques utilisées par l'adaptateur `OMForm` pour choisir ses images.
+ *
+ * ⚠️ Les menus à TUILES (Clan, Classes) ne passent PAS par ici : leur panneau
+ * est dessiné par `RP/ui/server_form.json`, et leur contrat d'index vit dans
+ * `./tiles.ts`. Ne pas confondre les deux : `designForSection("Classes")`
+ * décrit la FICHE d'une voie, pas le menu de choix à trois cartes.
  *
  * Ce module est VOLONTAIREMENT SANS AUCUN IMPORT : c'est le seul endroit du
  * projet où l'on peut vérifier par des tests unitaires l'accord entre les menus

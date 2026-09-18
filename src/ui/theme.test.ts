@@ -7,14 +7,18 @@ import { CARD_SECTIONS, DESIGN_SPECS, PARCHMENT_SECTIONS, designForSection, desi
 const ROOT = join(import.meta.dir, "..", "..");
 
 describe("Native Bedrock UI adapter", () => {
-  it("uses the real CustomForm image components instead of a fake JSON backdrop", () => {
+  it("uses the real CustomForm image components and declares the tile UI layer", () => {
     const defs = JSON.parse(readFileSync(join(ROOT, "RP/ui/_ui_defs.json"), "utf8")) as { ui_defs: string[] };
     const source = readFileSync(join(ROOT, "src/ui/theme.ts"), "utf8");
-    expect(defs.ui_defs).not.toContain("ui/server_form.json");
+    // La couche JSON UI des menus à tuiles doit être déclarée...
+    expect(defs.ui_defs).toContain("ui/server_form.json");
+    // ...mais rien d'autre : pas de curseur ni de HUD détourné (les bugs
+    // tactiles venaient de là, les menus seuls ne doivent pas y toucher).
+    expect(defs.ui_defs).not.toContain("ui/hud_cursor.json");
+    expect(defs.ui_defs).not.toContain("ui/pointer.json");
     expect(source).toContain("form.image");
     expect(source).toContain("om_header_band");
-    expect(source).toContain("om_card");
-    expect(source).toContain("om_sheet_pane");
+    expect(source).toContain("NativeActionForm");
     expect(readFileSync(join(ROOT, "RP/textures/ui/om_header_band.png"))).toBeTruthy();
     expect(readFileSync(join(ROOT, "RP/textures/ui/om_card.png"))).toBeTruthy();
     expect(readFileSync(join(ROOT, "RP/textures/ui/om_sheet_pane.png"))).toBeTruthy();

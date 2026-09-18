@@ -1,3 +1,714 @@
 {
-  "namespace": "server_form"
+  "namespace": "server_form",
+
+  "long_form": {
+    "type": "panel",
+    "size": ["100%", "100%"],
+    "controls": [
+      {
+        "om_classes_form@common_dialogs.main_panel_no_buttons": {
+          "$title_panel": "common_dialogs.standard_title_label",
+          "$title_size": ["100% - 14px", 10],
+          "size": [296, 250],
+          "$text_name": "#title_text",
+          "$title_text_binding_type": "none",
+          "$child_control": "server_form.om_classes_panel",
+          "layer": 2,
+          "bindings": [
+            { "binding_name": "#title_text" },
+            {
+              "binding_type": "view",
+              "source_property_name": "(#title_text = 'NaLandia » Classes')",
+              "target_property_name": "#visible"
+            }
+          ]
+        }
+      },
+      {
+        "om_clan_form@common_dialogs.main_panel_no_buttons": {
+          "$title_panel": "common_dialogs.standard_title_label",
+          "$title_size": ["100% - 14px", 10],
+          "size": [296, 250],
+          "$text_name": "#title_text",
+          "$title_text_binding_type": "none",
+          "$child_control": "server_form.om_clan_panel",
+          "layer": 2,
+          "bindings": [
+            { "binding_name": "#title_text" },
+            {
+              "binding_type": "view",
+              "source_property_name": "(#title_text = 'NaLandia » Mon clan')",
+              "target_property_name": "#visible"
+            }
+          ]
+        }
+      },
+      {
+        "om_default_form@common_dialogs.main_panel_no_buttons": {
+          "$title_panel": "common_dialogs.standard_title_label",
+          "$title_size": ["100% - 14px", 10],
+          "size": [225, 200],
+          "$text_name": "#title_text",
+          "$title_text_binding_type": "none",
+          "$child_control": "server_form.long_form_panel",
+          "layer": 2,
+          "bindings": [
+            { "binding_name": "#title_text" },
+            {
+              "binding_type": "view",
+              "source_property_name": "(((#title_text - 'NaLandia » Classes') - 'NaLandia » Mon clan') = #title_text)",
+              "target_property_name": "#visible"
+            }
+          ]
+        }
+      }
+    ]
+  },
+
+  "om_classes_panel": {
+    "type": "panel",
+    "size": ["100%", "100%"],
+    "controls": [
+      {
+        "om_classes_band": {
+          "type": "image",
+          "texture": "textures/ui/om_header_band",
+          "size": ["100% - 8px", 10],
+          "offset": [4, 2]
+        }
+      },
+      {
+        "om_classes_cards": {
+          "type": "stack_panel",
+          "orientation": "horizontal",
+          "size": ["100%", 146],
+          "offset": [8, 16],
+          "collection_name": "form_buttons",
+          "controls": [
+            {
+              "om_cc0@server_form.om_class_card": {
+                "$tex": "textures/ui/om_class_guerrier",
+                "collection_index": 0
+              }
+            },
+            {
+              "om_cc1@server_form.om_class_card": {
+                "$tex": "textures/ui/om_class_mage",
+                "collection_index": 1,
+                "offset": [4, 0]
+              }
+            },
+            {
+              "om_cc2@server_form.om_class_card": {
+                "$tex": "textures/ui/om_class_archer",
+                "collection_index": 2,
+                "offset": [4, 0]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "om_classes_descs": {
+          "type": "stack_panel",
+          "orientation": "horizontal",
+          "size": ["100%", 62],
+          "offset": [8, 92],
+          "collection_name": "form_buttons",
+          "controls": [
+            {
+              "om_cd0@server_form.om_desc_label": { "collection_index": 4 }
+            },
+            {
+              "om_cd1@server_form.om_desc_label": {
+                "collection_index": 5,
+                "offset": [4, 0]
+              }
+            },
+            {
+              "om_cd2@server_form.om_desc_label": {
+                "collection_index": 6,
+                "offset": [4, 0]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "om_classes_body@server_form.om_body_label": {
+          "size": ["100% - 16px", 36],
+          "offset": [8, 166]
+        }
+      },
+      {
+        "om_classes_back@server_form.om_action_bar": {
+          "collection_index": 3,
+          "offset": [8, 206],
+          "$slot": [272, 22]
+        }
+      }
+    ]
+  },
+
+  "om_clan_panel": {
+    "type": "panel",
+    "size": ["100%", "100%"],
+    "controls": [
+      {
+        "om_clan_band": {
+          "type": "image",
+          "texture": "textures/ui/om_header_band",
+          "size": ["100% - 8px", 10],
+          "offset": [4, 2]
+        }
+      },
+
+      {
+        "om_clan_bank": {
+          "type": "image",
+          "texture": "textures/ui/om_slot_empty",
+          "size": [40, 40],
+          "offset": [8, 16]
+        }
+      },
+      {
+        "om_clan_bank_label": {
+          "type": "label",
+          "text": "Banque",
+          "localize": false,
+          "size": [40, "default"],
+          "offset": [8, 58],
+          "text_alignment": "center",
+          "color": [0.84, 0.71, 0.4],
+          "shadow": true
+        }
+      },
+
+      {
+        "om_clan_flag_frame": {
+          "type": "image",
+          "texture": "textures/ui/om_slot_empty",
+          "size": [56, 40],
+          "offset": [232, 16]
+        }
+      },
+      {
+        "om_clan_flag": {
+          "type": "panel",
+          "size": [48, 32],
+          "offset": [236, 20],
+          "layer": 3,
+          "collection_name": "form_buttons",
+          "controls": [
+            {
+              "om_flag_rouge@server_form.om_flag_image": {
+                "collection_index": 6,
+                "$tex": "textures/ui/om_flag_rouge",
+                "bindings": [
+                  {
+                    "binding_name": "#form_button_text",
+                    "binding_type": "collection",
+                    "binding_collection_name": "form_buttons"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(#form_button_text = 'FLAG:rouge')",
+                    "target_property_name": "#visible"
+                  }
+                ]
+              }
+            },
+            {
+              "om_flag_vert@server_form.om_flag_image": {
+                "collection_index": 6,
+                "$tex": "textures/ui/om_flag_vert",
+                "bindings": [
+                  {
+                    "binding_name": "#form_button_text",
+                    "binding_type": "collection",
+                    "binding_collection_name": "form_buttons"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(#form_button_text = 'FLAG:vert')",
+                    "target_property_name": "#visible"
+                  }
+                ]
+              }
+            },
+            {
+              "om_flag_bleu@server_form.om_flag_image": {
+                "collection_index": 6,
+                "$tex": "textures/ui/om_flag_bleu",
+                "bindings": [
+                  {
+                    "binding_name": "#form_button_text",
+                    "binding_type": "collection",
+                    "binding_collection_name": "form_buttons"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(#form_button_text = 'FLAG:bleu')",
+                    "target_property_name": "#visible"
+                  }
+                ]
+              }
+            },
+            {
+              "om_flag_jaune@server_form.om_flag_image": {
+                "collection_index": 6,
+                "$tex": "textures/ui/om_flag_jaune",
+                "bindings": [
+                  {
+                    "binding_name": "#form_button_text",
+                    "binding_type": "collection",
+                    "binding_collection_name": "form_buttons"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(#form_button_text = 'FLAG:jaune')",
+                    "target_property_name": "#visible"
+                  }
+                ]
+              }
+            },
+            {
+              "om_flag_or@server_form.om_flag_image": {
+                "collection_index": 6,
+                "$tex": "textures/ui/om_flag_or",
+                "bindings": [
+                  {
+                    "binding_name": "#form_button_text",
+                    "binding_type": "collection",
+                    "binding_collection_name": "form_buttons"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(#form_button_text = 'FLAG:or')",
+                    "target_property_name": "#visible"
+                  }
+                ]
+              }
+            },
+            {
+              "om_flag_violet@server_form.om_flag_image": {
+                "collection_index": 6,
+                "$tex": "textures/ui/om_flag_violet",
+                "bindings": [
+                  {
+                    "binding_name": "#form_button_text",
+                    "binding_type": "collection",
+                    "binding_collection_name": "form_buttons"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(#form_button_text = 'FLAG:violet')",
+                    "target_property_name": "#visible"
+                  }
+                ]
+              }
+            },
+            {
+              "om_flag_rose@server_form.om_flag_image": {
+                "collection_index": 6,
+                "$tex": "textures/ui/om_flag_rose",
+                "bindings": [
+                  {
+                    "binding_name": "#form_button_text",
+                    "binding_type": "collection",
+                    "binding_collection_name": "form_buttons"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(#form_button_text = 'FLAG:rose')",
+                    "target_property_name": "#visible"
+                  }
+                ]
+              }
+            },
+            {
+              "om_flag_aqua@server_form.om_flag_image": {
+                "collection_index": 6,
+                "$tex": "textures/ui/om_flag_aqua",
+                "bindings": [
+                  {
+                    "binding_name": "#form_button_text",
+                    "binding_type": "collection",
+                    "binding_collection_name": "form_buttons"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(#form_button_text = 'FLAG:aqua')",
+                    "target_property_name": "#visible"
+                  }
+                ]
+              }
+            },
+            {
+              "om_flag_blanc@server_form.om_flag_image": {
+                "collection_index": 6,
+                "$tex": "textures/ui/om_flag_blanc",
+                "bindings": [
+                  {
+                    "binding_name": "#form_button_text",
+                    "binding_type": "collection",
+                    "binding_collection_name": "form_buttons"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(#form_button_text = 'FLAG:blanc')",
+                    "target_property_name": "#visible"
+                  }
+                ]
+              }
+            },
+            {
+              "om_flag_gris@server_form.om_flag_image": {
+                "collection_index": 6,
+                "$tex": "textures/ui/om_flag_gris",
+                "bindings": [
+                  {
+                    "binding_name": "#form_button_text",
+                    "binding_type": "collection",
+                    "binding_collection_name": "form_buttons"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(#form_button_text = 'FLAG:gris')",
+                    "target_property_name": "#visible"
+                  }
+                ]
+              }
+            },
+            {
+              "om_flag_blason@server_form.om_flag_image": {
+                "collection_index": 6,
+                "$tex": "textures/ui/om_flag_blason",
+                "bindings": [
+                  {
+                    "binding_name": "#form_button_text",
+                    "binding_type": "collection",
+                    "binding_collection_name": "form_buttons"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(#form_button_text = 'FLAG:blason')",
+                    "target_property_name": "#visible"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "om_clan_flag_text": {
+          "type": "panel",
+          "size": [72, 16],
+          "offset": [224, 58],
+          "collection_name": "form_buttons",
+          "controls": [
+            {
+              "om_clan_flag_name": {
+                "type": "label",
+                "text": "#form_button_text",
+                "localize": false,
+                "size": ["100%", "100%"],
+                "collection_index": 7,
+                "text_alignment": "center",
+                "color": [0.9, 0.9, 0.95],
+                "shadow": true,
+                "bindings": [
+                  {
+                    "binding_name": "#form_button_text",
+                    "binding_type": "collection",
+                    "binding_collection_name": "form_buttons"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+
+      {
+        "om_clan_body@server_form.om_body_label": {
+          "size": ["100% - 16px", 34],
+          "offset": [8, 74]
+        }
+      },
+      {
+        "om_clan_row1": {
+          "type": "stack_panel",
+          "orientation": "horizontal",
+          "size": ["100%", 28],
+          "offset": [8, 112],
+          "collection_name": "form_buttons",
+          "controls": [
+            {
+              "om_act_bio@server_form.om_action_bar": {
+                "collection_index": 0,
+                "$slot": [132, 28]
+              }
+            },
+            {
+              "om_act_claim@server_form.om_action_bar": {
+                "collection_index": 1,
+                "$slot": [132, 28],
+                "offset": [8, 0]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "om_clan_row2": {
+          "type": "stack_panel",
+          "orientation": "horizontal",
+          "size": ["100%", 28],
+          "offset": [8, 144],
+          "collection_name": "form_buttons",
+          "controls": [
+            {
+              "om_act_members@server_form.om_action_bar": {
+                "collection_index": 2,
+                "$slot": [132, 28]
+              }
+            },
+            {
+              "om_act_flag@server_form.om_action_bar": {
+                "collection_index": 3,
+                "$slot": [132, 28],
+                "offset": [8, 0]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "om_clan_quit@server_form.om_action_bar": {
+          "collection_index": 4,
+          "offset": [8, 176],
+          "$slot": [272, 26]
+        }
+      },
+      {
+        "om_clan_back@server_form.om_action_bar": {
+          "collection_index": 5,
+          "offset": [8, 204],
+          "$slot": [272, 22]
+        }
+      }
+    ]
+  },
+
+  "om_class_card": {
+    "$tex|default": "textures/ui/om_card",
+    "$slot|default": [88, 146],
+    "type": "panel",
+    "size": "$slot",
+    "controls": [
+      {
+        "om_cc_click": {
+          "type": "button",
+          "size": ["100%", "100%"],
+          "layer": 1,
+          "default_control": "om_cc_off",
+          "hover_control": "om_cc_hover",
+          "pressed_control": "om_cc_press",
+          "sound_name": "random.click",
+          "controls": [
+            {
+              "om_cc_off": {
+                "type": "image",
+                "texture": "$tex",
+                "size": ["100%", "100%"]
+              }
+            },
+            {
+              "om_cc_hover": {
+                "type": "image",
+                "texture": "textures/ui/om_glow_hover",
+                "size": ["100%", "100%"]
+              }
+            },
+            {
+              "om_cc_press": {
+                "type": "image",
+                "texture": "textures/ui/om_glow_press",
+                "size": ["100%", "100%"]
+              }
+            }
+          ],
+          "bindings": [
+            {
+              "binding_type": "collection_details",
+              "binding_collection_name": "form_buttons"
+            }
+          ],
+          "button_mappings": [
+            {
+              "from_button_id": "button.menu_select",
+              "to_button_id": "button.form_button_click",
+              "mapping_type": "pressed",
+              "button_up": true
+            },
+            {
+              "from_button_id": "button.menu_ok",
+              "to_button_id": "button.form_button_click",
+              "mapping_type": "focused"
+            }
+          ]
+        }
+      },
+      {
+        "om_cc_name": {
+          "type": "label",
+          "text": "#form_button_text",
+          "localize": false,
+          "size": ["100% - 8px", "default"],
+          "offset": [4, 12],
+          "layer": 9,
+          "text_alignment": "center",
+          "color": [1, 1, 1],
+          "shadow": true,
+          "bindings": [
+            {
+              "binding_name": "#form_button_text",
+              "binding_type": "collection",
+              "binding_collection_name": "form_buttons"
+            }
+          ]
+        }
+      }
+    ]
+  },
+
+  "om_desc_label": {
+    "$slot|default": [88, 62],
+    "type": "panel",
+    "size": "$slot",
+    "controls": [
+      {
+        "om_dl_text": {
+          "type": "label",
+          "text": "#form_button_text",
+          "localize": false,
+          "size": ["100% - 6px", "100%"],
+          "offset": [3, 0],
+          "layer": 9,
+          "text_alignment": "center",
+          "color": [0.93, 0.93, 0.97],
+          "shadow": true,
+          "bindings": [
+            {
+              "binding_name": "#form_button_text",
+              "binding_type": "collection",
+              "binding_collection_name": "form_buttons"
+            }
+          ]
+        }
+      }
+    ]
+  },
+
+  "om_action_bar": {
+    "$slot|default": [132, 28],
+    "type": "panel",
+    "size": "$slot",
+    "controls": [
+      {
+        "om_ab_click": {
+          "type": "button",
+          "size": ["100%", "100%"],
+          "layer": 1,
+          "default_control": "om_ab_off",
+          "hover_control": "om_ab_hover",
+          "pressed_control": "om_ab_press",
+          "sound_name": "random.click",
+          "controls": [
+            {
+              "om_ab_off": {
+                "type": "image",
+                "texture": "textures/ui/om_clan_tile",
+                "size": ["100%", "100%"]
+              }
+            },
+            {
+              "om_ab_hover": {
+                "type": "image",
+                "texture": "textures/ui/om_clan_tile_hover",
+                "size": ["100%", "100%"]
+              }
+            },
+            {
+              "om_ab_press": {
+                "type": "image",
+                "texture": "textures/ui/om_clan_tile_press",
+                "size": ["100%", "100%"]
+              }
+            }
+          ],
+          "bindings": [
+            {
+              "binding_type": "collection_details",
+              "binding_collection_name": "form_buttons"
+            }
+          ],
+          "button_mappings": [
+            {
+              "from_button_id": "button.menu_select",
+              "to_button_id": "button.form_button_click",
+              "mapping_type": "pressed",
+              "button_up": true
+            },
+            {
+              "from_button_id": "button.menu_ok",
+              "to_button_id": "button.form_button_click",
+              "mapping_type": "focused"
+            }
+          ]
+        }
+      },
+      {
+        "om_ab_text": {
+          "type": "label",
+          "text": "#form_button_text",
+          "localize": false,
+          "size": ["100% - 10px", "default"],
+          "offset": [5, 6],
+          "layer": 9,
+          "color": [0.95, 0.93, 0.87],
+          "shadow": true,
+          "bindings": [
+            {
+              "binding_name": "#form_button_text",
+              "binding_type": "collection",
+              "binding_collection_name": "form_buttons"
+            }
+          ]
+        }
+      }
+    ]
+  },
+
+  "om_flag_image": {
+    "$tex|default": "textures/ui/om_flag_rouge",
+    "type": "image",
+    "texture": "$tex",
+    "size": ["100%", "100%"]
+  },
+
+  "om_body_label": {
+    "$slot|default": ["100% - 16px", 40],
+    "type": "label",
+    "text": "#form_text",
+    "localize": false,
+    "size": "$slot",
+    "color": [0.83, 0.85, 0.91],
+    "shadow": true,
+    "bindings": [
+      { "binding_name": "#form_text" }
+    ]
+  }
 }

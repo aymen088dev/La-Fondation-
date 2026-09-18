@@ -4,6 +4,7 @@ import {
   windowTitle,
   openWindow,
   openWindowRaw,
+  openTileMenu,
   obString,
   obNumber,
 } from "../ui/theme";
@@ -244,7 +245,16 @@ export function showStateInfo(
 // « Mon clan » — options de base
 // ---------------------------------------------------------------------------
 
-/** Menu « Mon clan » : extension, membres, drapeau, quitter/dissoudre. */
+/**
+ * Menu « Mon clan » — MENU À TUILES (v20).
+ *
+ * Composition demandée par le serveur, assurée par
+ * `RP/ui/server_form.json` :
+ *  - en haut à GAUCHE, l'emplacement de la future BANQUE (case vide encadrée) ;
+ *  - en haut à DROITE, le DRAPEAU du clan (bannière de sa couleur) ;
+ *  - au milieu, la BIO et l'identité du clan ;
+ *  - en bas, toutes les actions rangées en barres.
+ */
 export function openMyClanMenu(
   player: Player,
   manager: TerritoryManager,
@@ -264,57 +274,57 @@ export function openMyClanMenu(
   const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
   const rankLabel = isOwner ? "§6Chef" : myRank === "officer" ? "§bOfficier" : "§7Membre";
 
-  void openWindowRaw(player, windowTitle("Mon clan"), (form) => {
-    form.back(() => openStatesMenu(player, manager));
-    form.label(
-      [
-        `${color.code}======================`,
-        `§f§l${data.name}`,
-        `${color.code}======================`,
-      ].join("\n"),
-    );
-    // Composition de la fiche clan : identité en tête, emplacement réservé
-    // à la banque et drapeau visibles avant les actions.
-    form.label(
-      [
-        `§eDrapeau       §r${color.code}${color.id}`,
-        `§eBanque        §8emplacement réservé`,
-        `§eTon rang      §r${rankLabel}`,
-        `§eTerritoire    §f${extentLine(data.chunkKeys.length)}`,
-        `§eMembres       §f${data.members.length + 1} §7(chef inclus)`,
-        ``,
-        `§f${data.description ?? "Un nouvel État prend forme."}`,
-      ].join("\n"),
-    );
-    form.divider();
+  // Le drapeau est transporté vers le JSON UI sous deux formes : un jeton
+  // normalisé (pour choisir la bonne bannière) et son nom lisible.
+  const flagToken = data.color.startsWith("flag:") ? "blason" : data.color;
+  const flagName = data.color.startsWith("flag:")
+    ? `Blason ${data.color.slice(5)}`
+    : (color.id.charAt(0).toUpperCase() + color.id.slice(1));
 
-    form.header("§6§lGestion du clan");
-    form.button(`§eModifier la bio`, () => openClanBioMenu(player, manager, territory));
-    form.button(`§a§lRevendiquer ce chunk`, () => {
+  openTileMenu(player, "Mon clan", (menu) => {
+    // ---- Bandeau central : identité + bio ----
+    menu.body(
+      [
+        `${color.code}§l${data.name}§r`,
+        `§eChef §f${data.owner}   §eRang §r${rankLabel}`,
+        `§eDrapeau §r${color.code}${flagName}   §eTerritoire §f${extentLine(data.chunkKeys.length)}`,
+        `§eMembres §f${data.members.length + 1}   §eBanque §8emplacement réservé`,
+        `§8${data.description ?? "Un nouvel État prend forme."}`,
+      ].join("\n"),
+    );
+
+    // ---- Actions rangées en bas ----
+    menu.action("bio", `§eModifier la bio`, () => openClanBioMenu(player, manager, territory));
+    menu.action("claim", `§aRevendiquer ce chunk`, () => {
       claimHere(player, manager, territory);
     });
-    form.button(`§b§lMembres`, () => openMembersMenu(player, manager, territory));
-    if (isOwner) {
-      form.button(`§6§lModifier le drapeau`, () => openFlagMenu(player, manager, territory));
-    }
-    form.divider();
+    menu.action("members", `§bMembres du clan`, () => openMembersMenu(player, manager, territory));
+    menu.action("flag", isOwner ? `§6Modifier le drapeau` : `§8Drapeau (chef)`, () => {
+      if (isOwner) {
+        openFlagMenu(player, manager, territory);
+        return;
+      }
+      say(player, "§c[Clans] Seul le chef peut changer le drapeau.");
+    });
+    menu.action("quit", isOwner ? `§cDissoudre le clan` : `§cQuitter le clan`, () => {
+      if (isOwner) {
+        openDissolveMenu(player, manager, territory);
+        return;
+      }
+      const ok = manager.leave(territory.id, player.id);
+      say(
+        player,
+        ok
+          ? `§e[Clans] Tu as quitté §f${data.name}§e.`
+          : "§c[Clans] Impossible de quitter le clan.",
+      );
+    });
+    menu.action("back", `§7Retour aux États`, () => openStatesMenu(player, manager));
 
-    if (isOwner) {
-      form.button(`§c§lDissoudre le clan`, () => openDissolveMenu(player, manager, territory));
-    } else {
-      form.button(`§c§lQuitter le clan`, () => {
-        const ok = manager.leave(territory.id, player.id);
-        say(
-          player,
-          ok
-            ? `§e[Clans] Tu as quitté §f${data.name}§e.`
-            : "§c[Clans] Impossible de quitter le clan.",
-        );
-      });
-    }
-  }).catch((error: unknown) =>
-    console.warn(`[Clans] Erreur menu Mon clan : ${error instanceof Error ? error.message : String(error)}`),
-  );
+    // ---- Boutons invisibles : données lues par le JSON UI ----
+    menu.data("flag_id", `FLAG:${flagToken}`);
+    menu.data("flag_name", `${color.code}${flagName}`);
+  });
 }
 
 /** Revendique le chunk où le joueur se trouve (adjacent + dans le carré 3×3). */
