@@ -285,11 +285,9 @@ export function openMyClanMenu(
     // ---- Bandeau central : identité + bio ----
     menu.body(
       [
-        `${color.code}§l${data.name}§r`,
-        `§eChef §f${data.owner}   §eRang §r${rankLabel}`,
-        `§eDrapeau §r${color.code}${flagName}   §eTerritoire §f${extentLine(data.chunkKeys.length)}`,
-        `§eMembres §f${data.members.length + 1}   §eBanque §8emplacement réservé`,
-        `§8${data.description ?? "Un nouvel État prend forme."}`,
+        `${color.code}§l${data.name}§r §7— chef §f${data.owner}   §7rang §r${rankLabel}`,
+        `§eDrapeau §r${color.code}${flagName}   §eTerritoire §f${extentLine(data.chunkKeys.length)}   §eMembres §f${data.members.length + 1}`,
+        `§8Banque : emplacement réservé   §8|   §7${data.description ?? "Un nouvel État prend forme."}`,
       ].join("\n"),
     );
 

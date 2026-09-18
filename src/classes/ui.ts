@@ -166,14 +166,15 @@ export function openClassesMenu(
         classCard(player, classes, info, false, () => openClassesMenu(player, classes, isAdmin, back));
       });
 
+      // Le texte de carte est COURT : la boîte fait 92 x 62 pixels dans le
+      // panneau, et un texte trop long débordait sous la carte. Nom sur la
+      // carte (bouton), description + état ici.
       menu.data(
         `desc_${index}`,
         [
-          `${info.color}§l${info.name}§r`,
-          `${info.description}`,
-          CLASS_TRAITS[info.id].join("\n"),
+          info.description,
           isCurrent
-            ? `§6Voie actuelle  §7niveau §f${classLevel(selection?.xp ?? 0)}`
+            ? `§6Voie actuelle — niveau ${classLevel(selection?.xp ?? 0)}`
             : selection === undefined
               ? `§aDisponible`
               : `§8Choix définitif`,
@@ -190,13 +191,12 @@ export function openClassesMenu(
     menu.body(
       selection === undefined || current === undefined
         ? [
-            "§7Choisis ta §froute§7. Ce choix est §lDÉFINITIF§r§7.",
-            `§8Trois voies, trois façons de jouer — clique une carte pour sa fiche.`,
+            "§7Choisis ta §froute§7 — ce choix est §lDÉFINITIF§r§7.",
+            "§8Clique une carte pour ouvrir sa fiche.",
           ].join("\n")
         : [
-            `§7Ta voie : ${current.color}§l${current.name}§r`,
-            `§7Niveau §f${classLevel(selection.xp)}§7   §8|   §7XP §f${classProgress(selection.xp)}§7/§f${XP_PER_LEVEL}§7   §8|   §7total §f${selection.xp}`,
-            `§8Clique ta carte pour ouvrir la progression.`,
+            `§7Ta voie : ${current.color}§l${current.name}§r §7— niveau §f${classLevel(selection.xp)}`,
+            `§8XP §f${classProgress(selection.xp)}§8/§f${XP_PER_LEVEL}§8 (total §f${selection.xp}§8) — clique ta carte pour la progression.`,
           ].join("\n"),
     );
   });

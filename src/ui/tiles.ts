@@ -23,7 +23,7 @@
 import { sheetTitleFor } from "./sheets";
 
 /** Menus rendus en tuiles (les autres restent en formulaires natifs). */
-export type TileSection = "Classes" | "Mon clan";
+export type TileSection = "Classes" | "Mon clan" | "Menu" | "Administration";
 
 export interface TileMenuLayout {
   actions: readonly string[];
@@ -50,19 +50,45 @@ export const TILE_MENUS: Record<TileSection, TileMenuLayout> = {
     actions: ["bio", "claim", "members", "flag", "quit", "back"],
     data: ["flag_id", "flag_name"],
   },
+  /**
+   * Hub : six sections en colonne à gauche, l'accueil (rôle, classe, clan,
+   * statistiques) dans le panneau de droite. Les sections indisponibles pour
+   * le joueur restent affichées en grisé plutôt que de décaler la colonne.
+   */
+  Menu: {
+    actions: ["states", "infos", "quests", "world", "moderation", "admin", "back"],
+    data: [],
+  },
+  /**
+   * Admin : même géométrie que le hub (demandé « hub et admin similaires »),
+   * donc même nombre de boutons — la dernière entrée est la barre de retour.
+   */
+  Administration: {
+    actions: ["roles", "players", "modules", "db", "classes", "states", "back"],
+    data: [],
+  },
 };
 
 /** Toutes les sections à tuiles. */
-export const TILE_SECTIONS: readonly TileSection[] = ["Classes", "Mon clan"];
+export const TILE_SECTIONS: readonly TileSection[] = ["Classes", "Mon clan", "Menu", "Administration"];
 
 /**
  * Noms des contrôles correspondants dans `RP/ui/server_form.json`. Le test
  * unitaire s'en sert pour retrouver le panneau d'un menu et vérifier qu'il
  * déclare bien tous les index de la collection `form_buttons`.
  */
-export const TILE_PANELS: Record<TileSection, { controller: string; panel: string }> = {
-  Classes: { controller: "om_classes_form", panel: "server_form.om_classes_panel" },
-  "Mon clan": { controller: "om_clan_form", panel: "server_form.om_clan_panel" },
+export const TILE_PANELS: Record<
+  TileSection,
+  { controller: string; panel: string; size: [number, number] }
+> = {
+  Classes: { controller: "om_classes_root", panel: "server_form.om_classes_panel", size: [288, 200] },
+  "Mon clan": { controller: "om_clan_root", panel: "server_form.om_clan_panel", size: [288, 224] },
+  Menu: { controller: "om_hub_root", panel: "server_form.om_console_panel", size: [288, 196] },
+  Administration: {
+    controller: "om_admin_root",
+    panel: "server_form.om_console_panel",
+    size: [288, 196],
+  },
 };
 
 /** Vrai si la section possède un rendu à tuiles. */

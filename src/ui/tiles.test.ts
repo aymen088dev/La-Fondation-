@@ -49,6 +49,20 @@ function controllers(): Record<string, Record<string, unknown>> {
   return found;
 }
 
+/**
+ * Le panneau réellement instancié par un menu, avec sa taille. La racine doit
+ * pointer DIRECTEMENT sur le panneau (aucune variable intermédiaire) : une
+ * indirection cassée laisserait le menu entièrement vide.
+ */
+function panelOf(section: (typeof TILE_SECTIONS)[number]): { panel: string; size: number[] } {
+  const root = controllers()[TILE_PANELS[section].controller];
+  const controls = (root?.["controls"] ?? []) as Record<string, unknown>[];
+  expect(controls.length).toBe(1);
+  const instance = controls[0] as Record<string, Record<string, unknown>>;
+  const name = Object.keys(instance)[0] as string;
+  return { panel: name.split("@")[1] as string, size: instance[name]?.["size"] as number[] };
+}
+
 describe("Menus à tuiles (JSON UI)", () => {
   it("déclare un contrôle et un panneau pour chaque menu à tuiles", () => {
     const declared = controllers();
@@ -56,8 +70,11 @@ describe("Menus à tuiles (JSON UI)", () => {
       const spec = TILE_PANELS[section];
       const controller = declared[spec.controller];
       expect(controller).toBeDefined();
-      // Le contrôle doit basculer le formulaire natif vers notre panneau.
-      expect(controller?.["$child_control"]).toBe(spec.panel);
+      // Le contrôle doit pointer DIRECTEMENT sur notre panneau, sans passer
+      // par le cadre vanilla (aucun main_panel_no_buttons).
+      const actual = panelOf(section);
+      expect(actual.panel).toBe(spec.panel);
+      expect(actual.size).toEqual(spec.size);
       // Et donc lire le titre exact produit par `windowTitle()`.
       const serialized = JSON.stringify(controller);
       expect(serialized).toContain(`(#title_text = '${tileTitleFor(section)}')`);

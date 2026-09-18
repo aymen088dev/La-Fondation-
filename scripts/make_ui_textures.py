@@ -562,6 +562,64 @@ def tile_glow_overlays() -> None:
     write_nineslice("om_glow_press", [6, 6, 6, 6], [16, 16])
 
 
+def tile_screen_textures() -> None:
+    """Plaques des menus à tuiles.
+
+    - `om_plate`  : plaque sombre translucide à filet or — titre, zone de
+      texte et fonds de tuiles. Elle remplace le cadre gris vanilla : le menu
+      n'a plus de fenêtre imposée, juste ce qu'on dessine.
+    - `om_window` : fenêtre complète des menus console (hub + admin, design
+      volontairement commun) — corps sombre, double filet or/argent.
+    """
+    # ---- Plaque 48x48 (nineslice 10) ----
+    pl = 48
+    plate: list[list[tuple[int, int, int, int]]] = []
+    for y in range(pl):
+        row: list[tuple[int, int, int, int]] = []
+        for x in range(pl):
+            edge = min(x, y, pl - 1 - x, pl - 1 - y)
+            if edge == 0:
+                row.append((*INK, 235))
+            elif edge == 1:
+                row.append((*GOLD_DIM, 230))
+            elif edge == 2:
+                row.append((30, 29, 33, 215))
+            else:
+                g = ((x * 3 + y * 5) % 4) - 1
+                row.append((_clamp(15 + g), _clamp(15 + g), _clamp(18 + g), 205))
+        plate.append(row)
+    write_png(RP_ROOT / "textures" / "ui" / "om_plate.png", pl, pl, plate)
+    write_nineslice("om_plate", [10, 10, 10, 10], [48, 48])
+
+    # ---- Fenêtre 96x96 (nineslice 14) ----
+    s = 96
+    win: list[list[tuple[int, int, int, int]]] = []
+    for y in range(s):
+        row: list[tuple[int, int, int, int]] = []
+        for x in range(s):
+            d = ((x - s / 2) ** 2 + (y - s / 2) ** 2) ** 0.5 / (s / 2)
+            base = lerp((26, 25, 29), (14, 13, 16), min(1.0, d))
+            g = ((x * 7 + y * 11) % 5) - 2
+            row.append((_clamp(int(base[0]) + g), _clamp(int(base[1]) + g), _clamp(int(base[2]) + g), 225))
+        win.append(row)
+    for y in range(s):
+        for x in range(s):
+            edge = min(x, y, s - 1 - x, s - 1 - y)
+            if edge == 0:
+                win[y][x] = (*INK, 250)
+            elif edge in (1, 2):
+                win[y][x] = (*lerp(GOLD, GOLD_DIM, (x + y) / (s * 2)), 245)
+            elif edge == 3:
+                win[y][x] = (12, 12, 15, 240)
+            elif edge in (4, 5):
+                win[y][x] = (*lerp(SILVER_DIM, SILVER, (x + y) / (s * 2)), 230)
+            elif edge == 6:
+                win[y][x] = (20, 19, 23, 230)
+    draw_miter(win, s, s, [(2, GOLD_LIGHT), (5, SILVER_BRIGHT)])
+    write_png(RP_ROOT / "textures" / "ui" / "om_window.png", s, s, win)
+    write_nineslice("om_window", [14, 14, 14, 14], [96, 96])
+
+
 def clan_slot_textures() -> None:
     """`om_slot_empty` : emplacement encadré (haut gauche de la fiche clan =
     future banque, et cadre du drapeau). Fond sombre creusé, cadre OR, ombre
@@ -703,6 +761,7 @@ def main() -> None:
     back_arrow()
     actionbar_bg()
     clan_action_tiles()
+    tile_screen_textures()
     tile_glow_overlays()
     clan_slot_textures()
     flag_banners()

@@ -37,14 +37,14 @@ Copie les **deux fichiers JSON** de ce dossier `serveur/` dans le dossier du mon
 
 Contenu actuel :
 
-- `world_behavior_packs.json` → BP `2915bab9-50f2-442e-a17a-4c8e9cd688fb` v2.5.0
-- `world_resource_packs.json` → RP `33ca6e1c-4f30-46ae-8b56-1510382e3f61` v2.5.0
+- `world_behavior_packs.json` → BP `2915bab9-50f2-442e-a17a-4c8e9cd688fb` v2.6.0
+- `world_resource_packs.json` → RP `33ca6e1c-4f30-46ae-8b56-1510382e3f61` v2.6.0
 
 ## ⚠️ Mise à jour des packs (cache Bedrock)
 Bedrock identifie un pack par **uuid + version** : si tu remplaces les fichiers sans incrémenter la version des manifests, le jeu garde **l'ancien pack en cache** (menus visuellement inchangés, textures manquantes).
 
 À chaque modification de RP ou BP :
-1. Incrémente `version` dans `BP/manifest.json` ET `RP/manifest.json` (ex : 2.4.0 → 2.5.0)
+1. Incrémente `version` dans `BP/manifest.json` ET `RP/manifest.json` (ex : 2.5.0 → 2.6.0)
 2. Reporte exactement la même version dans `serveur/world_behavior_packs.json` et `serveur/world_resource_packs.json`
 3. Re-copie `BP/`, `RP/` et les 2 JSON de `serveur/` sur ton serveur
 

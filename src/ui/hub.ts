@@ -1,6 +1,6 @@
 import type { Player } from "@minecraft/server";
 import { world } from "@minecraft/server";
-import { openWindow } from "./theme";
+import { openTileMenu, openWindow } from "./theme";
 import { openStatesMenu, openCreateMenu, openMyClanMenu } from "../territories/ui";
 import type { TerritoryManager } from "../territories/manager";
 import type { PermissionManager } from "../permissions/manager";
@@ -39,15 +39,17 @@ export interface HubDeps {
 }
 
 /**
- * Menu hub central (/sn:menu) — layout SIDEBAR (design HUB/ADMIN conservé).
- * La section « États » porte le système de clans (fondation, extension,
- * membres).
+ * Menu hub central (/sn:menu) — MENU À TUILES « console ».
  *
- * Grâce au JSON UI du RP (server_form.json), les BOUTONS d'un menu
- * ActionForm s'affichent dans la COLONNE DE GAUCHE et le TEXTE (body)
- * dans le grand panneau de droite :
- *  - sidebar : États · Mes infos · Monde (si mines actif) · Modération (modo) · Admin (admin)
- *  - panneau : accueil (bienvenue, ton rôle, stats du monde).
+ * La section « États » porte le système de clans (fondation, extension,
+ * membres). Le panneau est dessiné par `RP/ui/server_form.json` :
+ *  - colonne de gauche : six sections (États, Mes infos, Quêtes, Monde,
+ *    Modération, Admin) ;
+ *  - panneau de droite : l'accueil (bienvenue, rôle, classe, clan, stats) ;
+ *  - barre du bas : fermeture.
+ *
+ * Le hub et l'admin partagent volontairement la MÊME géométrie (fenêtre or,
+ * six tuiles, panneau de droite) : ce sont les deux menus de navigation.
  */
 export function openHubMenu(player: Player, deps: HubDeps): void {
   const { permissions, territories, sanctions, classes, db } = deps;
@@ -65,43 +67,66 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
   const myClass = classes?.classOf(player.name);
   const roleTag = hasRole ? permissions.nameTagFor(player.name) : "§8aucun rôle";
 
-  void openWindow(player, "Menu", (form) => {
+  // Capturés ici pour que les tuiles sachent si la section est disponible.
+  const quests = deps.quests;
+  const mines = deps.mines;
+  const worldReady = mines !== undefined && mines.isUsable();
+
+  openTileMenu(player, "Menu", (menu) => {
     // ---- Panneau de droite : accueil ----
-    form.body(
+    menu.body(
       [
-        `§6§lNaLandia§r`,
-        ``,
-        `§7Bienvenue, §f${player.name}§7 !`,
-        `§7Ton rôle : ${roleTag}§r`,
-        myClass !== undefined ? `§7Ta classe : §d${myClass.classId}` : `§7Ta classe : §8pas encore choisie`,
-        ``,
-        `§7En ligne : §f${online}   §7États : §f${stateCount}   §7Joueurs connus : §f${knownCount}`,
-        ``,
-        `§8Choisis une section à gauche.`,
-        myClan !== undefined
-          ? `§8Ton clan : §f${myClan.data.name}§r`
-          : `§8Astuce : §f/sn:create§8 pour fonder ton clan ici.`,
-      ].join("\n"),
+        `§6§lNaLandia§r  §7— bienvenue, §f${player.name}§7 !`,
+        `§7Rôle : ${roleTag}§r   §7Classe : ${
+          myClass !== undefined ? `§d${myClass.classId}` : "§8non choisie"
+        }§r`,
+        `§7Clan : ${
+          myClan !== undefined ? `§f${myClan.data.name}§r` : "§8aucun"
+        }§r`,
+        `§eEn ligne §f${online}   §eÉtats §f${stateCount}   §eJoueurs connus §f${knownCount}`,
+        myClan === undefined ? `§8Astuce : §f/sn:create§8 pour fonder ton clan ici.` : "",
+      ]
+        .filter((line) => line.length > 0)
+        .join("\n"),
     );
 
-    // ---- Sidebar (colonne de gauche) : section États = système de clans. ----
-    form.button(`§6États`, () => openStatesMenu(player, territories));
-    form.button(`§eMes infos`, () => openMyInfoMenu(player, deps));
-    if (deps.quests !== undefined) {
-      form.button(`§6Quêtes`, () => openQuestMenu(player, deps.quests as QuestManager, classes, deps.jobs));
-    }
-    if (deps.mines !== undefined && deps.mines.isUsable()) {
-      form.button(`§bMonde`, () => openWorldMenu(player, deps.mines as MinesManager, () => openHubMenu(player, deps)));
-    }
+    // ---- Colonne de gauche ----
+    menu.action("states", `§6États`, () => openStatesMenu(player, territories));
+    menu.action("infos", `§eMes infos`, () => openMyInfoMenu(player, deps));
+    menu.action("quests", quests !== undefined ? `§6Quêtes` : `§8Quêtes`, () => {
+      if (quests === undefined) {
+        player.sendMessage("§8[NaLandia] Le module Quêtes n'est pas actif sur ce serveur.");
+        return;
+      }
+      openQuestMenu(player, quests, classes, deps.jobs);
+    });
+    menu.action("world", worldReady ? `§bMonde` : `§8Monde`, () => {
+      if (mines === undefined || !mines.isUsable()) {
+        player.sendMessage("§8[NaLandia] Le module Monde n'est pas actif sur ce serveur.");
+        return;
+      }
+      openWorldMenu(player, mines, () => openHubMenu(player, deps));
+    });
+    menu.action("moderation", isMod ? `§4Modération` : `§8Modération`, () => {
+      if (!isMod) {
+        player.sendMessage("§c[Modération] Réservé à l'équipe.");
+        return;
+      }
+      openSanctionsMenu(player, sanctions, permissions);
+    });
+    menu.action("admin", isAdmin ? `§6Admin` : `§8Admin`, () => {
+      if (!isAdmin) {
+        player.sendMessage("§c[Admin] Il te faut le rôle Admin (ou être op).");
+        return;
+      }
+      openAdminMenu(player, deps);
+    });
 
-    if (isMod) {
-      form.divider();
-      form.button(`§4Modération`, () => openSanctionsMenu(player, sanctions, permissions));
-    }
-    if (isAdmin) {
-      form.button(`§6Admin`, () => openAdminMenu(player, deps));
-    }
-  }).catch((error: unknown) => console.warn(`[Hub] ${error instanceof Error ? error.message : String(error)}`));
+    // ---- Barre du bas ----
+    menu.action("back", `§7Fermer`, () => {
+      /* appuyer sur une tuile ferme déjà le formulaire */
+    });
+  });
 }
 
 /**

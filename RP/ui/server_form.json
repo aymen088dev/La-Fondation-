@@ -6,39 +6,89 @@
     "size": ["100%", "100%"],
     "controls": [
       {
-        "om_classes_form@common_dialogs.main_panel_no_buttons": {
-          "$title_panel": "common_dialogs.standard_title_label",
-          "$title_size": ["100% - 14px", 10],
-          "size": [296, 250],
-          "$text_name": "#title_text",
-          "$title_text_binding_type": "none",
-          "$child_control": "server_form.om_classes_panel",
-          "layer": 2,
+        "om_classes_root": {
+          "type": "panel",
+          "size": ["100%", "100%"],
           "bindings": [
-            { "binding_name": "#title_text" },
             {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Classes')",
               "target_property_name": "#visible"
             }
+          ],
+          "controls": [
+            {
+              "om_classes_center@server_form.om_classes_panel": {
+                "size": [288, 200],
+                "anchor_from": "center",
+                "anchor_to": "center"
+              }
+            }
           ]
         }
       },
       {
-        "om_clan_form@common_dialogs.main_panel_no_buttons": {
-          "$title_panel": "common_dialogs.standard_title_label",
-          "$title_size": ["100% - 14px", 10],
-          "size": [296, 250],
-          "$text_name": "#title_text",
-          "$title_text_binding_type": "none",
-          "$child_control": "server_form.om_clan_panel",
-          "layer": 2,
+        "om_clan_root": {
+          "type": "panel",
+          "size": ["100%", "100%"],
           "bindings": [
-            { "binding_name": "#title_text" },
             {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Mon clan')",
               "target_property_name": "#visible"
+            }
+          ],
+          "controls": [
+            {
+              "om_clan_center@server_form.om_clan_panel": {
+                "size": [288, 224],
+                "anchor_from": "center",
+                "anchor_to": "center"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "om_hub_root": {
+          "type": "panel",
+          "size": ["100%", "100%"],
+          "bindings": [
+            {
+              "binding_type": "view",
+              "source_property_name": "(#title_text = 'NaLandia » Menu')",
+              "target_property_name": "#visible"
+            }
+          ],
+          "controls": [
+            {
+              "om_hub_center@server_form.om_console_panel": {
+                "size": [288, 196],
+                "anchor_from": "center",
+                "anchor_to": "center"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "om_admin_root": {
+          "type": "panel",
+          "size": ["100%", "100%"],
+          "bindings": [
+            {
+              "binding_type": "view",
+              "source_property_name": "(#title_text = 'NaLandia » Administration')",
+              "target_property_name": "#visible"
+            }
+          ],
+          "controls": [
+            {
+              "om_admin_center@server_form.om_console_panel": {
+                "size": [288, 196],
+                "anchor_from": "center",
+                "anchor_to": "center"
+              }
             }
           ]
         }
@@ -56,7 +106,7 @@
             { "binding_name": "#title_text" },
             {
               "binding_type": "view",
-              "source_property_name": "(((#title_text - 'NaLandia » Classes') - 'NaLandia » Mon clan') = #title_text)",
+              "source_property_name": "((((((#title_text - 'NaLandia » Classes') - 'NaLandia » Mon clan') - 'NaLandia » Menu') - 'NaLandia » Administration') = #title_text)",
               "target_property_name": "#visible"
             }
           ]
@@ -70,19 +120,33 @@
     "size": ["100%", "100%"],
     "controls": [
       {
-        "om_classes_band": {
+        "om_classes_title_plate": {
           "type": "image",
-          "texture": "textures/ui/om_header_band",
-          "size": ["100% - 8px", 10],
-          "offset": [4, 2]
+          "texture": "textures/ui/om_plate",
+          "size": ["100%", 16]
+        }
+      },
+      {
+        "om_classes_title": {
+          "type": "label",
+          "text": "#title_text",
+          "localize": false,
+          "size": ["100%", 16],
+          "layer": 2,
+          "text_alignment": "center",
+          "color": [0.93, 0.78, 0.45],
+          "shadow": true,
+          "bindings": [
+            { "binding_name": "#title_text" }
+          ]
         }
       },
       {
         "om_classes_cards": {
           "type": "stack_panel",
           "orientation": "horizontal",
-          "size": ["100%", 146],
-          "offset": [8, 16],
+          "size": ["100%", 128],
+          "offset": [0, 20],
           "collection_name": "form_buttons",
           "controls": [
             {
@@ -95,14 +159,14 @@
               "om_cc1@server_form.om_class_card": {
                 "$tex": "textures/ui/om_class_mage",
                 "collection_index": 1,
-                "offset": [4, 0]
+                "offset": [6, 0]
               }
             },
             {
               "om_cc2@server_form.om_class_card": {
                 "$tex": "textures/ui/om_class_archer",
                 "collection_index": 2,
-                "offset": [4, 0]
+                "offset": [6, 0]
               }
             }
           ]
@@ -112,8 +176,9 @@
         "om_classes_descs": {
           "type": "stack_panel",
           "orientation": "horizontal",
-          "size": ["100%", 62],
-          "offset": [8, 92],
+          "size": ["100%", 66],
+          "offset": [0, 72],
+          "layer": 5,
           "collection_name": "form_buttons",
           "controls": [
             {
@@ -122,29 +187,37 @@
             {
               "om_cd1@server_form.om_desc_label": {
                 "collection_index": 5,
-                "offset": [4, 0]
+                "offset": [6, 0]
               }
             },
             {
               "om_cd2@server_form.om_desc_label": {
                 "collection_index": 6,
-                "offset": [4, 0]
+                "offset": [6, 0]
               }
             }
           ]
         }
       },
       {
+        "om_classes_body_plate": {
+          "type": "image",
+          "texture": "textures/ui/om_plate",
+          "size": ["100%", 26],
+          "offset": [0, 152]
+        }
+      },
+      {
         "om_classes_body@server_form.om_body_label": {
-          "size": ["100% - 16px", 36],
-          "offset": [8, 166]
+          "size": ["100% - 10px", 24],
+          "offset": [5, 153]
         }
       },
       {
         "om_classes_back@server_form.om_action_bar": {
           "collection_index": 3,
-          "offset": [8, 206],
-          "$slot": [272, 22]
+          "offset": [0, 182],
+          "$slot": [288, 16]
         }
       }
     ]
@@ -155,11 +228,25 @@
     "size": ["100%", "100%"],
     "controls": [
       {
-        "om_clan_band": {
+        "om_clan_title_plate": {
           "type": "image",
-          "texture": "textures/ui/om_header_band",
-          "size": ["100% - 8px", 10],
-          "offset": [4, 2]
+          "texture": "textures/ui/om_plate",
+          "size": ["100%", 16]
+        }
+      },
+      {
+        "om_clan_title": {
+          "type": "label",
+          "text": "#title_text",
+          "localize": false,
+          "size": ["100%", 16],
+          "layer": 2,
+          "text_alignment": "center",
+          "color": [0.93, 0.78, 0.45],
+          "shadow": true,
+          "bindings": [
+            { "binding_name": "#title_text" }
+          ]
         }
       },
 
@@ -167,8 +254,8 @@
         "om_clan_bank": {
           "type": "image",
           "texture": "textures/ui/om_slot_empty",
-          "size": [40, 40],
-          "offset": [8, 16]
+          "size": [36, 36],
+          "offset": [4, 20]
         }
       },
       {
@@ -176,11 +263,12 @@
           "type": "label",
           "text": "Banque",
           "localize": false,
-          "size": [40, "default"],
-          "offset": [8, 58],
+          "size": [36, 12],
+          "offset": [4, 58],
           "text_alignment": "center",
           "color": [0.84, 0.71, 0.4],
-          "shadow": true
+          "shadow": true,
+          "font_scale_factor": 0.85
         }
       },
 
@@ -188,15 +276,15 @@
         "om_clan_flag_frame": {
           "type": "image",
           "texture": "textures/ui/om_slot_empty",
-          "size": [56, 40],
-          "offset": [232, 16]
+          "size": [52, 36],
+          "offset": [232, 20]
         }
       },
       {
         "om_clan_flag": {
           "type": "panel",
-          "size": [48, 32],
-          "offset": [236, 20],
+          "size": [44, 28],
+          "offset": [236, 24],
           "layer": 3,
           "collection_name": "form_buttons",
           "controls": [
@@ -404,8 +492,8 @@
       {
         "om_clan_flag_text": {
           "type": "panel",
-          "size": [72, 16],
-          "offset": [224, 58],
+          "size": [80, 12],
+          "offset": [212, 58],
           "collection_name": "form_buttons",
           "controls": [
             {
@@ -413,11 +501,12 @@
                 "type": "label",
                 "text": "#form_button_text",
                 "localize": false,
-                "size": ["100%", "100%"],
+                "size": ["100%", 12],
                 "collection_index": 7,
                 "text_alignment": "center",
                 "color": [0.9, 0.9, 0.95],
                 "shadow": true,
+                "font_scale_factor": 0.85,
                 "bindings": [
                   {
                     "binding_name": "#form_button_text",
@@ -432,29 +521,37 @@
       },
 
       {
+        "om_clan_body_plate": {
+          "type": "image",
+          "texture": "textures/ui/om_plate",
+          "size": ["100%", 42],
+          "offset": [4, 74]
+        }
+      },
+      {
         "om_clan_body@server_form.om_body_label": {
-          "size": ["100% - 16px", 34],
-          "offset": [8, 74]
+          "size": ["100% - 16px", 38],
+          "offset": [8, 76]
         }
       },
       {
         "om_clan_row1": {
           "type": "stack_panel",
           "orientation": "horizontal",
-          "size": ["100%", 28],
-          "offset": [8, 112],
+          "size": ["100%", 26],
+          "offset": [4, 120],
           "collection_name": "form_buttons",
           "controls": [
             {
               "om_act_bio@server_form.om_action_bar": {
                 "collection_index": 0,
-                "$slot": [132, 28]
+                "$slot": [136, 26]
               }
             },
             {
               "om_act_claim@server_form.om_action_bar": {
                 "collection_index": 1,
-                "$slot": [132, 28],
+                "$slot": [136, 26],
                 "offset": [8, 0]
               }
             }
@@ -465,20 +562,20 @@
         "om_clan_row2": {
           "type": "stack_panel",
           "orientation": "horizontal",
-          "size": ["100%", 28],
-          "offset": [8, 144],
+          "size": ["100%", 26],
+          "offset": [4, 150],
           "collection_name": "form_buttons",
           "controls": [
             {
               "om_act_members@server_form.om_action_bar": {
                 "collection_index": 2,
-                "$slot": [132, 28]
+                "$slot": [136, 26]
               }
             },
             {
               "om_act_flag@server_form.om_action_bar": {
                 "collection_index": 3,
-                "$slot": [132, 28],
+                "$slot": [136, 26],
                 "offset": [8, 0]
               }
             }
@@ -488,23 +585,136 @@
       {
         "om_clan_quit@server_form.om_action_bar": {
           "collection_index": 4,
-          "offset": [8, 176],
-          "$slot": [272, 26]
+          "offset": [4, 180],
+          "$slot": [280, 24]
         }
       },
       {
         "om_clan_back@server_form.om_action_bar": {
           "collection_index": 5,
-          "offset": [8, 204],
-          "$slot": [272, 22]
+          "offset": [4, 208],
+          "$slot": [280, 16]
+        }
+      }
+    ]
+  },
+
+  "om_console_panel": {
+    "type": "panel",
+    "size": ["100%", "100%"],
+    "controls": [
+      {
+        "om_console_window": {
+          "type": "image",
+          "texture": "textures/ui/om_window",
+          "size": ["100%", "100%"]
+        }
+      },
+      {
+        "om_console_band": {
+          "type": "image",
+          "texture": "textures/ui/om_header_band",
+          "size": ["100% - 12px", 18],
+          "offset": [6, 6],
+          "layer": 2
+        }
+      },
+      {
+        "om_console_title": {
+          "type": "label",
+          "text": "#title_text",
+          "localize": false,
+          "size": ["100% - 12px", 18],
+          "offset": [6, 6],
+          "layer": 3,
+          "text_alignment": "center",
+          "color": [0.94, 0.8, 0.47],
+          "shadow": true,
+          "bindings": [
+            { "binding_name": "#title_text" }
+          ]
+        }
+      },
+      {
+        "om_console_tiles": {
+          "type": "stack_panel",
+          "orientation": "vertical",
+          "size": [118, 20],
+          "offset": [6, 30],
+          "collection_name": "form_buttons",
+          "controls": [
+            {
+              "om_con_b0@server_form.om_action_bar": {
+                "collection_index": 0,
+                "$slot": [118, 20]
+              }
+            },
+            {
+              "om_con_b1@server_form.om_action_bar": {
+                "collection_index": 1,
+                "$slot": [118, 20],
+                "offset": [0, 3]
+              }
+            },
+            {
+              "om_con_b2@server_form.om_action_bar": {
+                "collection_index": 2,
+                "$slot": [118, 20],
+                "offset": [0, 3]
+              }
+            },
+            {
+              "om_con_b3@server_form.om_action_bar": {
+                "collection_index": 3,
+                "$slot": [118, 20],
+                "offset": [0, 3]
+              }
+            },
+            {
+              "om_con_b4@server_form.om_action_bar": {
+                "collection_index": 4,
+                "$slot": [118, 20],
+                "offset": [0, 3]
+              }
+            },
+            {
+              "om_con_b5@server_form.om_action_bar": {
+                "collection_index": 5,
+                "$slot": [118, 20],
+                "offset": [0, 3]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "om_console_body_plate": {
+          "type": "image",
+          "texture": "textures/ui/om_plate",
+          "size": ["100% - 138px", 135],
+          "offset": [132, 30]
+        }
+      },
+      {
+        "om_console_body@server_form.om_body_label": {
+          "size": ["100% - 146px", 129],
+          "offset": [136, 33],
+          "text_alignment": "left"
+        }
+      },
+      {
+        "om_console_back@server_form.om_action_bar": {
+          "collection_index": 6,
+          "offset": [6, 170],
+          "$slot": [276, 20]
         }
       }
     ]
   },
 
   "om_class_card": {
-    "$tex|default": "textures/ui/om_card",
-    "$slot|default": [88, 146],
+    "$tex|default": "textures/ui/om_class_guerrier",
+    "$slot|default": [92, 128],
     "type": "panel",
     "size": "$slot",
     "controls": [
@@ -566,8 +776,8 @@
           "type": "label",
           "text": "#form_button_text",
           "localize": false,
-          "size": ["100% - 8px", "default"],
-          "offset": [4, 12],
+          "size": ["100% - 12px", 30],
+          "offset": [6, 12],
           "layer": 9,
           "text_alignment": "center",
           "color": [1, 1, 1],
@@ -585,7 +795,7 @@
   },
 
   "om_desc_label": {
-    "$slot|default": [88, 62],
+    "$slot|default": [92, 66],
     "type": "panel",
     "size": "$slot",
     "controls": [
@@ -594,12 +804,13 @@
           "type": "label",
           "text": "#form_button_text",
           "localize": false,
-          "size": ["100% - 6px", "100%"],
-          "offset": [3, 0],
+          "size": ["100% - 10px", 62],
+          "offset": [5, 2],
           "layer": 9,
           "text_alignment": "center",
-          "color": [0.93, 0.93, 0.97],
+          "color": [0.9, 0.9, 0.94],
           "shadow": true,
+          "font_scale_factor": 0.8,
           "bindings": [
             {
               "binding_name": "#form_button_text",
@@ -613,7 +824,7 @@
   },
 
   "om_action_bar": {
-    "$slot|default": [132, 28],
+    "$slot|default": [280, 18],
     "type": "panel",
     "size": "$slot",
     "controls": [
@@ -675,11 +886,13 @@
           "type": "label",
           "text": "#form_button_text",
           "localize": false,
-          "size": ["100% - 10px", "default"],
-          "offset": [5, 6],
+          "size": ["100% - 12px", 18],
+          "offset": [6, 0],
           "layer": 9,
+          "text_alignment": "center",
           "color": [0.95, 0.93, 0.87],
           "shadow": true,
+          "font_scale_factor": 0.85,
           "bindings": [
             {
               "binding_name": "#form_button_text",
@@ -700,13 +913,15 @@
   },
 
   "om_body_label": {
-    "$slot|default": ["100% - 16px", 40],
+    "$slot|default": ["100% - 10px", 24],
     "type": "label",
     "text": "#form_text",
     "localize": false,
     "size": "$slot",
-    "color": [0.83, 0.85, 0.91],
+    "color": [0.85, 0.87, 0.93],
     "shadow": true,
+    "text_alignment": "center",
+    "font_scale_factor": 0.8,
     "bindings": [
       { "binding_name": "#form_text" }
     ]

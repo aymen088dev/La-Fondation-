@@ -4,7 +4,7 @@
 
 > **NaLandia** (anciennement « OpenMontage ») : l'add-on de serveur avec territoires/États, clans, rôles, modération, classes, métiers et une dimension minière dédiée — avec des menus robustes basés sur les formulaires officiels Bedrock.
 
-**Packs actuels : 2.5.0** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
+**Packs actuels : 2.6.0** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
 
 ## C'est quoi ce repo ?
 
@@ -55,7 +55,10 @@ Persistée dans le monde via les Dynamic Properties Bedrock :
 
 **1. Formulaires natifs (`CustomForm`)** — champs texte, curseurs, listes déroulantes et fiches de lecture. C'est le moteur par défaut : tactile, manette et clavier natifs, aucun framework communautaire.
 
-**2. Menus à tuiles (`ActionFormData` + JSON UI)** — le script envoie un formulaire à boutons NUMÉROTÉS, et `RP/ui/server_form.json` remplace le rendu `long_form` par un panneau dessiné à la main : cartes de classes de la couleur de la voie, fiche clan (banque en haut à gauche, drapeau en haut à droite, bio au centre, actions en bas).
+**2. Menus à tuiles (`ActionFormData` + JSON UI)** — le script envoie un formulaire à boutons NUMÉROTÉS, et `RP/ui/server_form.json` remplace le rendu `long_form` par un panneau dessiné à la main, SANS le cadre gris vanilla :
+   - **Classes** : trois cartes verticales, une par voie, de la couleur de la classe ;
+   - **Mon clan** : banque en haut à gauche, drapeau en haut à droite, bio au centre, actions en bas ;
+   - **Menu (hub) et Administration** : même fenêtre or, six tuiles en colonne à gauche et état dans le panneau de droite.
 
 L'ordre des boutons est un contrat partagé (`src/ui/tiles.ts` ↔ `RP/ui/server_form.json`) vérifié par les tests : un index qui se décale, une texture manquante ou un titre mal filtré fait échouer la suite de tests.
 
@@ -63,6 +66,7 @@ L'ordre des boutons est un contrat partagé (`src/ui/tiles.ts` ↔ `RP/ui/server
 - **Fiches** : panneau et texture de contenu pour Clan, Mon clan, Membres, Drapeau et Mes infos.
 - **Gestion** : bandeau de gestion pour le hub, l'administration et les outils de modération.
 - Les tuiles sont de vrais boutons natifs (`button.form_button_click`) dessinés par l'image du pack : le tactile, la manette et le clavier continuent de fonctionner normalement.
+- Chaque texte porte une BOÎTE de taille fixe (`size` explicite) : une étiquette Bedrock centre son texte verticalement dans sa boîte, donc une boîte en `"default"` laissait le texte flotter et déborder.
 - Les callbacks ferment explicitement l'écran avant chaque navigation afin d'éviter les menus fantômes ou réapparitions.
 - `RP/ui/hud_screen.json` reste dédié à l'actionbar et aux titres ; `RP/ui/server_form.json` ne touche QUE les formulaires à tuiles (repérés par leur titre exact) et laisse passer tous les autres. Aucun curseur, aucun HUD de saisie, aucune texture de pointeur n'est injectée.
 

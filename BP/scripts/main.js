@@ -4305,6 +4305,23 @@ var TILE_MENUS = {
   "Mon clan": {
     actions: ["bio", "claim", "members", "flag", "quit", "back"],
     data: ["flag_id", "flag_name"]
+  },
+  /**
+   * Hub : six sections en colonne à gauche, l'accueil (rôle, classe, clan,
+   * statistiques) dans le panneau de droite. Les sections indisponibles pour
+   * le joueur restent affichées en grisé plutôt que de décaler la colonne.
+   */
+  Menu: {
+    actions: ["states", "infos", "quests", "world", "moderation", "admin", "back"],
+    data: []
+  },
+  /**
+   * Admin : même géométrie que le hub (demandé « hub et admin similaires »),
+   * donc même nombre de boutons — la dernière entrée est la barre de retour.
+   */
+  Administration: {
+    actions: ["roles", "players", "modules", "db", "classes", "states", "back"],
+    data: []
   }
 };
 function tileTitleFor(section) {
@@ -4975,11 +4992,9 @@ function openMyClanMenu(player, manager, territory) {
   openTileMenu(player, "Mon clan", (menu) => {
     menu.body(
       [
-        `${color.code}§l${data.name}§r`,
-        `§eChef §f${data.owner}   §eRang §r${rankLabel}`,
-        `§eDrapeau §r${color.code}${flagName}   §eTerritoire §f${extentLine(data.chunkKeys.length)}`,
-        `§eMembres §f${data.members.length + 1}   §eBanque §8emplacement réservé`,
-        `§8${data.description ?? "Un nouvel État prend forme."}`
+        `${color.code}§l${data.name}§r §7— chef §f${data.owner}   §7rang §r${rankLabel}`,
+        `§eDrapeau §r${color.code}${flagName}   §eTerritoire §f${extentLine(data.chunkKeys.length)}   §eMembres §f${data.members.length + 1}`,
+        `§8Banque : emplacement réservé   §8|   §7${data.description ?? "Un nouvel État prend forme."}`
       ].join("\n")
     );
     menu.action("bio", `§eModifier la bio`, () => openClanBioMenu(player, manager, territory));
@@ -7578,10 +7593,8 @@ function openClassesMenu(player, classes2, isAdmin = false, back) {
       menu.data(
         `desc_${index}`,
         [
-          `${info.color}§l${info.name}§r`,
-          `${info.description}`,
-          CLASS_TRAITS[info.id].join("\n"),
-          isCurrent ? `§6Voie actuelle  §7niveau §f${classLevel(selection?.xp ?? 0)}` : selection === void 0 ? `§aDisponible` : `§8Choix définitif`
+          info.description,
+          isCurrent ? `§6Voie actuelle — niveau ${classLevel(selection?.xp ?? 0)}` : selection === void 0 ? `§aDisponible` : `§8Choix définitif`
         ].join("\n")
       );
     });
@@ -7590,12 +7603,11 @@ function openClassesMenu(player, classes2, isAdmin = false, back) {
     });
     menu.body(
       selection === void 0 || current === void 0 ? [
-        "§7Choisis ta §froute§7. Ce choix est §lDÉFINITIF§r§7.",
-        `§8Trois voies, trois façons de jouer — clique une carte pour sa fiche.`
+        "§7Choisis ta §froute§7 — ce choix est §lDÉFINITIF§r§7.",
+        "§8Clique une carte pour ouvrir sa fiche."
       ].join("\n") : [
-        `§7Ta voie : ${current.color}§l${current.name}§r`,
-        `§7Niveau §f${classLevel(selection.xp)}§7   §8|   §7XP §f${classProgress(selection.xp)}§7/§f${XP_PER_LEVEL}§7   §8|   §7total §f${selection.xp}`,
-        `§8Clique ta carte pour ouvrir la progression.`
+        `§7Ta voie : ${current.color}§l${current.name}§r §7— niveau §f${classLevel(selection.xp)}`,
+        `§8XP §f${classProgress(selection.xp)}§8/§f${XP_PER_LEVEL}§8 (total §f${selection.xp}§8) — clique ta carte pour la progression.`
       ].join("\n")
     );
   });
@@ -7860,32 +7872,35 @@ function openAdminMenu(player, deps) {
   const roleCount = permissions2.allRoles().length;
   const stateCount = territories2.all().length;
   const moduleCount = modules2.enabledCount();
-  void openWindow(player, "Administration", (form) => {
-    form.body(
+  openTileMenu(player, "Administration", (menu) => {
+    menu.body(
       [
         `§6§lPanneau d'administration§r`,
-        ``,
-        `§eEn ligne : §f${online}`,
-        `§eRôles : §f${roleCount}   §eÉtats : §f${stateCount}`,
-        `§eModules actifs : §f${moduleCount}`,
-        stats !== void 0 ? `§eBase de données : §f${stats.documents} documents§7 (${stats.bytes} octets, ${stats.dirty ? "§eà sauvegarder§7" : "§aà jour§7"})` : `§eBase de données : §8index indisponible`,
-        ``,
-        `§8Choisis une section à gauche.`
+        `§eEn ligne §f${online}   §eRôles §f${roleCount}   §eÉtats §f${stateCount}`,
+        `§eModules actifs §f${moduleCount}`,
+        stats !== void 0 ? `§eBase de données §f${stats.documents} documents §7(${stats.bytes} octets, ${stats.dirty ? "§eà sauvegarder§7" : "§aà jour§7"})` : `§eBase de données §8index indisponible`
       ].join("\n")
     );
-    form.header(`§6§lGestion`);
-    form.button(`§6Rôles`, () => openRolesMenu(player, permissions2));
-    form.button(`§bJoueurs`, () => openPlayersMenu(player, permissions2, db2));
-    form.button(`§dModules`, () => openModulesMenu(player, modules2, territories2));
-    if (db2 !== void 0) {
-      form.button(`§aBase de données`, () => {
-        void openDbMenu(db2, player);
-      });
-    }
-    if (classes2 !== void 0) {
-      form.button(`§dClasses (reset admin)`, () => openClassesMenu(player, classes2, true));
-    }
-  }).catch((error) => console.warn(`[Admin] ${error instanceof Error ? error.message : String(error)}`));
+    menu.action("roles", `§6Rôles`, () => openRolesMenu(player, permissions2));
+    menu.action("players", `§bJoueurs`, () => openPlayersMenu(player, permissions2, db2));
+    menu.action("modules", `§dModules`, () => openModulesMenu(player, modules2, territories2));
+    menu.action("db", db2 !== void 0 ? `§aBase de données` : `§8Base de données`, () => {
+      if (db2 === void 0) {
+        player.sendMessage("§8[Admin] Aucune base de données branchée sur ce serveur.");
+        return;
+      }
+      void openDbMenu(db2, player);
+    });
+    menu.action("classes", classes2 !== void 0 ? `§dClasses (reset)` : `§8Classes`, () => {
+      if (classes2 === void 0) {
+        player.sendMessage("§8[Admin] Le module Classes n'est pas actif.");
+        return;
+      }
+      openClassesMenu(player, classes2, true, () => openAdminMenu(player, deps));
+    });
+    menu.action("states", `§6États`, () => openStatesMenu(player, territories2));
+    menu.action("back", `§7Retour au menu`, () => openHubMenu(player, deps));
+  });
 }
 
 // src/quests/manager.ts
@@ -8101,37 +8116,52 @@ function openHubMenu(player, deps) {
   const myClan = territories2.findByMemberId(player.id) ?? territories2.findByOwner(player.name);
   const myClass = classes2?.classOf(player.name);
   const roleTag = hasRole ? permissions2.nameTagFor(player.name) : "§8aucun rôle";
-  void openWindow(player, "Menu", (form) => {
-    form.body(
+  const quests2 = deps.quests;
+  const mines2 = deps.mines;
+  const worldReady2 = mines2 !== void 0 && mines2.isUsable();
+  openTileMenu(player, "Menu", (menu) => {
+    menu.body(
       [
-        `§6§lNaLandia§r`,
-        ``,
-        `§7Bienvenue, §f${player.name}§7 !`,
-        `§7Ton rôle : ${roleTag}§r`,
-        myClass !== void 0 ? `§7Ta classe : §d${myClass.classId}` : `§7Ta classe : §8pas encore choisie`,
-        ``,
-        `§7En ligne : §f${online}   §7États : §f${stateCount}   §7Joueurs connus : §f${knownCount}`,
-        ``,
-        `§8Choisis une section à gauche.`,
-        myClan !== void 0 ? `§8Ton clan : §f${myClan.data.name}§r` : `§8Astuce : §f/sn:create§8 pour fonder ton clan ici.`
-      ].join("\n")
+        `§6§lNaLandia§r  §7— bienvenue, §f${player.name}§7 !`,
+        `§7Rôle : ${roleTag}§r   §7Classe : ${myClass !== void 0 ? `§d${myClass.classId}` : "§8non choisie"}§r`,
+        `§7Clan : ${myClan !== void 0 ? `§f${myClan.data.name}§r` : "§8aucun"}§r`,
+        `§eEn ligne §f${online}   §eÉtats §f${stateCount}   §eJoueurs connus §f${knownCount}`,
+        myClan === void 0 ? `§8Astuce : §f/sn:create§8 pour fonder ton clan ici.` : ""
+      ].filter((line) => line.length > 0).join("\n")
     );
-    form.button(`§6États`, () => openStatesMenu(player, territories2));
-    form.button(`§eMes infos`, () => openMyInfoMenu(player, deps));
-    if (deps.quests !== void 0) {
-      form.button(`§6Quêtes`, () => openQuestMenu(player, deps.quests, classes2, deps.jobs));
-    }
-    if (deps.mines !== void 0 && deps.mines.isUsable()) {
-      form.button(`§bMonde`, () => openWorldMenu(player, deps.mines, () => openHubMenu(player, deps)));
-    }
-    if (isMod) {
-      form.divider();
-      form.button(`§4Modération`, () => openSanctionsMenu(player, sanctions2, permissions2));
-    }
-    if (isAdmin) {
-      form.button(`§6Admin`, () => openAdminMenu(player, deps));
-    }
-  }).catch((error) => console.warn(`[Hub] ${error instanceof Error ? error.message : String(error)}`));
+    menu.action("states", `§6États`, () => openStatesMenu(player, territories2));
+    menu.action("infos", `§eMes infos`, () => openMyInfoMenu(player, deps));
+    menu.action("quests", quests2 !== void 0 ? `§6Quêtes` : `§8Quêtes`, () => {
+      if (quests2 === void 0) {
+        player.sendMessage("§8[NaLandia] Le module Quêtes n'est pas actif sur ce serveur.");
+        return;
+      }
+      openQuestMenu(player, quests2, classes2, deps.jobs);
+    });
+    menu.action("world", worldReady2 ? `§bMonde` : `§8Monde`, () => {
+      if (mines2 === void 0 || !mines2.isUsable()) {
+        player.sendMessage("§8[NaLandia] Le module Monde n'est pas actif sur ce serveur.");
+        return;
+      }
+      openWorldMenu(player, mines2, () => openHubMenu(player, deps));
+    });
+    menu.action("moderation", isMod ? `§4Modération` : `§8Modération`, () => {
+      if (!isMod) {
+        player.sendMessage("§c[Modération] Réservé à l'équipe.");
+        return;
+      }
+      openSanctionsMenu(player, sanctions2, permissions2);
+    });
+    menu.action("admin", isAdmin ? `§6Admin` : `§8Admin`, () => {
+      if (!isAdmin) {
+        player.sendMessage("§c[Admin] Il te faut le rôle Admin (ou être op).");
+        return;
+      }
+      openAdminMenu(player, deps);
+    });
+    menu.action("back", `§7Fermer`, () => {
+    });
+  });
 }
 function openMyInfoMenu(player, deps) {
   const { permissions: permissions2, territories: territories2, classes: classes2, jobs: jobs2, db: db2 } = deps;
