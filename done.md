@@ -1,7 +1,30 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v19.5 — REDESIGN TOTAL DES MENUS DE CONTENU (deux mises en page distinctes : colonne de tuiles vs bandeau + grandes cartes)**.
+> Dernière mise à jour : **v20 — REPART DE ZÉRO DES MENUS SUR UN MOTEUR JSX (@bedrock-core/ui) : la mise en page est désormais choisie par le SCRIPT, pas devinée par le JSON UI**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v20 — Menus repartis de zéro sur `@bedrock-core/ui` (sept. 2026)
+
+**La demande** : « repartir de zéro sur TOUS les menus », avec le repo `bedrock-core/ui` comme référence, parce que les menus continuaient de se ressembler malgré les tentatives précédentes.
+
+- [x] **Cause racine enfin traitée à la source** : Bedrock n'expose **qu'un seul écran** (`long_form`) pour TOUS les menus à boutons. Les versions précédentes tentaient de deviner la famille du menu en comparant son **titre** dans le JSON UI puis de la router vers deux mises en page — d'où l'impression tenace que « rien ne change », et une limite dure à deux silhouettes très proches. Avec `@bedrock-core/ui`, **l'arbre JSX du script est sérialisé dans la chaîne du formulaire** et un **render pack** le décode : la mise en page appartient enfin au script.
+- [x] **Nouveau moteur `src/ui/theme.tsx`** : l'API publique (`OMForm` + `openWindow`/`openWindowRaw` + observables) est **conservée à l'identique**, donc les 15 menus du projet n'ont pas eu à être réécrits — seul le moteur change de backend (vanilla `ActionFormData`/`ModalFormData` bruts → arbre JSX). Le `<Form>` natif remplace le `ModalFormData` pour les menus à champs (champs texte, sliders, dropdowns, toggles).
+- [x] **TROIS familles visuelles réellement distinctes** (plus une quatrième pour les formulaires), choisies par notre code via `designForSection` (`src/ui/sheets.ts`) :
+  - **`console`** (hub, admin, DB, modération, rôles, joueurs, modules) — barre de titre or + **tuiles fines** (22 px), fond cuir orné ;
+  - **`cards`** (Classes, Métiers, Le Monde, Mines, États) — **grand bandeau doré** + **grandes cartes** (36 px, texte 1,3×, titre 1,6×), fond **vert émeraude** ;
+  - **`parchment`** (Clan, Mon clan, Membres, Membre, Inviter, Drapeau, Créer/Dissoudre un clan, Mes infos) — bandeau doré + panneau de texte, fond **bleu nuit**, **tuiles Ore UI propres** ;
+  - **`fields`** — formulaires à champs, panneau bleu nuit + champs natifs.
+- [x] **Flèche retour = vraie pastille-flèche blanche en haut à gauche du bandeau** (22 px, état survol) — plus jamais un bouton de la liste. Dans un formulaire à champs, le retour devient un bouton « ← Retour » du formulaire : **un arbre modal refuse les boutons classiques**, et le build lève sinon « a modal tree may contain only Form.* controls ».
+- [x] **Render pack fusionné dans notre Resource Pack** (`RP/ui/core-ui/**`, `textures/ui/{pointer,unstyled,ore-styled,bedrock_core}`) : **un seul pack à activer**, comme avant. L'ancien JSON UI maison (`om_base`, `om_sheets`, `om_forms`, `server_form`) est **supprimé** — deux définitions concurrentes du même écran casseraient tout.
+- [x] **`_ui_defs.json` réécrit** : il déclare le décodeur (`ui/server_form.json` + `core-ui/**`) **et** notre `hud_screen.json` (actionbar/titres conservée).
+- [x] **Toolchain** : `tsconfig.json` passe en `"jsx": "react-jsx"` + `jsxImportSource: "@bedrock-core/ui"` et inclut `src/**/*.tsx` ; esbuild compile le JSX sans configuration supplémentaire.
+- [x] **Nineslice déclaré** pour nos cadres/cartes (`RP/textures/ui/om_*.json`) : sans ce fichier jumeau, une bordure or est **étirée** au lieu d'être une bordure — les valeurs reprennent celles de l'ancien JSON UI (10 px boutons/cartes, 8 px panneaux, 12 px fonds, 8/6 px bandeau).
+- [x] **Tests réécrits (76/76)** : `src/ui/theme.test.ts` ne teste plus une chaîne de titres JSON UI mais le **nouveau contrat** — render pack présent et déclaré au bon emplacement (protocole `bcuiv0008`), `_ui_defs.json` == fichiers sur disque, **plus aucun fichier UI maison concurrent**, toolchain JSX configurée, dépendance déclarée, **familles disjointes et habillages réellement différents** (fonds, tuiles et métriques distincts), **chaque texture citée existe**, et les **nineslice sont cohérents**. Le test a d'ailleurs attrapé une vraie erreur pendant le chantier (deux familles partageaient la même tuile).
+- [x] Packs **2.0.0** (BP, RP, serveur) — bump obligatoire pour invalider le cache Bedrock. Build + typecheck OK.
+
+> ⚠️ **Non vérifiable hors du jeu** : l'affichage réel (ressenti des trois silhouettes, tailles, débordements) doit être constaté en jeu. Si tout s'affiche **sans habillage**, le Resource Pack n'est pas activé (ou reste en cache).
 
 ---
 

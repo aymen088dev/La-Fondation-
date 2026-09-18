@@ -5,6 +5,7 @@
     "": {
       "name": "openmontage-bp-scripts",
       "dependencies": {
+        "@bedrock-core/ui": "0.11.0",
         "@bedrock-oss/bedrock-boost": "^2.2.0",
       },
       "devDependencies": {
@@ -18,6 +19,26 @@
     },
   },
   "packages": {
+    "@bedrock-core/config": ["@bedrock-core/config@0.2.0", "", { "peerDependencies": { "@bedrock-core/guides": "*", "@bedrock-core/i18n": "*", "@bedrock-core/navigation": "*", "@bedrock-core/ore-styled": "*", "@bedrock-core/server-runtime": "*", "@bedrock-core/ui-runtime": "*", "@minecraft/server": "*" } }, "sha512-+u+K/ym6Xo4m/ZhpX4OjnH9hdghoCIugU4H6k9l6YL4wx6k7632xtO1Cz0v+ifDxdWX1D5hA8Or9FWMXiwEqLA=="],
+
+    "@bedrock-core/flexbox": ["@bedrock-core/flexbox@1.0.0", "", {}, "sha512-bApzysaHRApWv0iw+DKbPAvctTq9+QvMrCIJQNsh1EQ0uPzaj/H5dUKmKR2ECrAhbn/y4+EAwxl9zmq+f5UmYw=="],
+
+    "@bedrock-core/guides": ["@bedrock-core/guides@0.1.0", "", { "peerDependencies": { "@bedrock-core/navigation": "*", "@bedrock-core/ore-styled": "*", "@bedrock-core/ui-runtime": "*" } }, "sha512-e1phbTz3LyacEe7O9G4NSYEewvdyZ4CNFedxSNad1KqS2f5qCgC0iecXOAhuEki3dGMh1yTVv3xiQ+yldyYIPQ=="],
+
+    "@bedrock-core/i18n": ["@bedrock-core/i18n@0.1.0", "", { "peerDependencies": { "@minecraft/server": ">=2.8.0" } }, "sha512-DmK+7mQfa6NgTZ+99x222M6cIAv+V5NOTQJIhzYmx3DlJxQwAhfgCKfOQCva6e6x+JbXnJtLA73WFR5HcuJVDQ=="],
+
+    "@bedrock-core/navigation": ["@bedrock-core/navigation@0.9.3", "", { "peerDependencies": { "@bedrock-core/ui-runtime": "*" } }, "sha512-JATOks0K5K7EJZ45r7V5PxMnPDCs1kZYkzoi/jVbEjeKzbLVm7KaRHqv/GHNUbN4f/f08mVaKP+YEctBkaiXVQ=="],
+
+    "@bedrock-core/ore-styled": ["@bedrock-core/ore-styled@0.10.0", "", { "dependencies": { "@bedrock-core/i18n": "0.1.0" }, "peerDependencies": { "@bedrock-core/ui-runtime": "*" } }, "sha512-Hkp5d/mD04LZUOd1zOLBwFbgj9Jxm3OWVvAIyOzC5NzrpTdQPZv/VreKfuPh/B5z8cBXsBe2LV8PPWdG7Z6ceA=="],
+
+    "@bedrock-core/server-runtime": ["@bedrock-core/server-runtime@0.1.0", "", { "dependencies": { "@bedrock-core/i18n": "^0.1.0", "@bedrock-core/sync": "^0.1.0" }, "peerDependencies": { "@minecraft/server": ">=2.8.0" } }, "sha512-AoaTkUhD6Wp5NnD/Tdl73b3Zxsf5qaOyva61d+DGM11GG+VAXv2i7UfWV4jS1xQshh6QQToBsqfDoule1jy0bg=="],
+
+    "@bedrock-core/sync": ["@bedrock-core/sync@0.1.0", "", { "peerDependencies": { "@minecraft/server": ">=2.8.0" } }, "sha512-rZfNarG6UW+0srHYYb7HQx5P6kFClA4Lptm4OsbGCs2WH7cJjVIIgaCpknrjIB0/auRM+NmvJETgem3DXzNcyQ=="],
+
+    "@bedrock-core/ui": ["@bedrock-core/ui@0.11.0", "", { "dependencies": { "@bedrock-core/config": "0.2.0", "@bedrock-core/flexbox": "1.0.0", "@bedrock-core/guides": "0.1.0", "@bedrock-core/i18n": "0.1.0", "@bedrock-core/navigation": "0.9.3", "@bedrock-core/ore-styled": "0.10.0", "@bedrock-core/ui-runtime": "0.10.2" }, "peerDependencies": { "@minecraft/server": "*", "@minecraft/server-ui": "*" } }, "sha512-JU0qPT7bna8UsvFmn2Xfb8PU8al8M1HLmYP/jFVhD3pfDoMaZpurIrdzwvMZFGyDsg/GV+yjzTbSZI6aE8R6WQ=="],
+
+    "@bedrock-core/ui-runtime": ["@bedrock-core/ui-runtime@0.10.2", "", { "dependencies": { "@bedrock-core/flexbox": "1.0.0", "@bedrock-core/i18n": "0.1.0" }, "peerDependencies": { "@minecraft/server": "*", "@minecraft/server-ui": "*" } }, "sha512-AKGJ89/RMzhVLYO2tHRGUa+YygCa96BprCfvJOsepTSvmeGfu3XXRCXIrnEClcPZqM0m3CW/UNClGyM/JnjY/w=="],
+
     "@bedrock-oss/bedrock-boost": ["@bedrock-oss/bedrock-boost@2.2.0", "", { "dependencies": { "@minecraft/common": "latest", "@minecraft/server": "latest" } }, "sha512-h3eaVcr9LgGBd0/zeXOKEEjvAo68UXKxwnAgIxGTL2lYkK/5WtNWMtBu1fUG8+kF+zkD3PNM0R74CDnHmeLkVw=="],
 
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.25.12", "", { "os": "aix", "cpu": "ppc64" }, "sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA=="],
