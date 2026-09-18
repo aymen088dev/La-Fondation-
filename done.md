@@ -1,7 +1,17 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v19.3 — MENUS ENFIN DIFFÉRENCIÉS (variante « FICHES » émeraude) + FLÈCHE RETOUR EN VRAIE ICÔNE + CADRE ÉLARGI**.
+> Dernière mise à jour : **v19.4 — FIX « TOUS LES MENUS CASSÉS » (libellés de boutons vidés) : discriminant du bouton retour par l'ICÔNE, structure vanilla exacte**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v19.4 — Fix menus cassés (libellés vides) + flèche par icône (sept. 2026)
+- [x] **BUG CRITIQUE v19.3 (tuiles de boutons vides dans TOUS les menus) — cause racine trouvée dans la source vanilla** : j'avais renommé le binding du libellé (`binding_name_override: "#om_label"` sur `#form_button_text`) pour détecter le bouton retour. Or **un `binding_name_override` CONSOMME le nom du binding** : `$button_text: "#form_button_text"` ne résolvait plus rien → libellés vides partout, et l'effet secondaire faisait basculer les mauvaises entrées en flèche. **Le vanilla ne renomme JAMAIS ce binding** (vérifié dans `ui/server_form.json` officiel).
+- [x] **Discriminant du bouton retour = l'ICÔNE**, structure vanilla exacte : `dynamic_button` expose maintenant deux emplacements par entrée — `back_slot` (visible si `#form_button_texture` est renseigné, garde officielle `(not ((#texture = '') or (#texture = 'loading')))`) et `button_slot` (son complément exact). Le bouton retour étant le SEUL à recevoir une icône (`om_btn_back`), il est le seul rendu en **pastille-flèche sans tuile** ; tous les autres restent des tuiles pleine largeur avec leur texte. Les bindings d'icône vivent sur des **panneaux enveloppes** (comme le `panel_name` vanilla), donc hors du scope des boutons : aucun risque pour le libellé.
+- [x] **Garde-fou de test ajouté** : le test refuse désormais tout `binding_name_override` sur `#form_button_text` dans `server_form.json` (analyse récursive des bindings, pas une simple recherche de texte) et exige exactement deux bindings d'icône (`#form_button_texture` → `#texture`). → ce bug précis ne peut plus revenir.
+- [x] **`om_button_icon` supprimé** : devenu inutile (et risqué) maintenant que la pastille retour est un emplacement à part.
+- [x] **Confirmé visuellement en jeu** : la variante « FICHES » s'applique bien (cadre **émeraude** à double filet or/argent + panneaux à liseré doré) sur `/sn:monde`, donc le routage par titre fonctionne ; les menus hub/admin gardent leur cuir à cadre or.
+- [x] Packs **1.9.4** (BP, RP, serveur) — bump obligatoire pour invalider le cache Bedrock. Build + typecheck + **70/70 tests**.
 
 ---
 

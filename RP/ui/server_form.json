@@ -1,7 +1,7 @@
 {
   "namespace": "server_form",
 
-  "_comment": "MENUS À BOUTONS (ActionForm — /sn:menu, hub, admin, États, Mines…) — reskin NaLandia v19.3. Fichier à l'emplacement vanilla (ui/server_form.json = écrasement), SPLIT en plusieurs fichiers : le socle (boutons, panneaux, fonds, flèche retour) vit dans ui/om_base.json (namespace om_base) et les FORMULAIRES à champs dans ui/om_forms.json ; les variantes « FICHES » (Classes, États, Clans, Monde, Mines, Métiers, Mes infos) vivent dans ui/om_sheets.json. Ce fichier porte la variante « MENUS » : cuir sombre à cadre or, titre or, tuiles charbon à surbrillance dorée, sidebar à gauche / body à droite — sauf si le titre du formulaire appartient à la famille « fiches », auquel cas om_sheets remplace le fond et les panneaux (le JSON UI n'a que le titre pour identifier un menu : Bedrock partage un seul écran long_form entre tous les menus à boutons). v19.3 : cadre élargi 420x240 et fenêtres de contenu rentrées de 8 px (plus aucun texte collé au filet argent), et bouton retour transformé en ICÔNE flèche en haut à gauche (marqueur moteur : label « §r » + icône om_btn_back) — plus jamais une flèche ressemblant aux autres boutons de la liste.",
+  "_comment": "MENUS À BOUTONS (ActionForm — /sn:menu, hub, admin, États, Mines…) — reskin NaLandia v19.3. Fichier à l'emplacement vanilla (ui/server_form.json = écrasement), SPLIT en plusieurs fichiers : le socle (boutons, panneaux, fonds, flèche retour) vit dans ui/om_base.json (namespace om_base) et les FORMULAIRES à champs dans ui/om_forms.json ; les variantes « FICHES » (Classes, États, Clans, Monde, Mines, Métiers, Mes infos) vivent dans ui/om_sheets.json. Ce fichier porte la variante « MENUS » : cuir sombre à cadre or, titre or, tuiles charbon à surbrillance dorée, sidebar à gauche / body à droite — sauf si le titre du formulaire appartient à la famille « fiches », auquel cas om_sheets remplace le fond et les panneaux (le JSON UI n'a que le titre pour identifier un menu : Bedrock partage un seul écran long_form entre tous les menus à boutons). v19.4 : cadre élargi 420x240 et fenêtres de contenu rentrées de 8 px (plus aucun texte collé au filet argent), et bouton retour transformé en ICÔNE flèche en haut à gauche. DISCRIMINANT = L'ICÔNE, structure vanille exacte : dynamic_button a deux emplacements (back_slot / button_slot) qui testent #form_button_texture (bindé en #texture, comme le fait le vanilla pour son panneau d'icône) — l'entrée dont l'icône est la flèche retour (le seul bouton à en recevoir une) devient une pastille-flèche, TOUTES les autres restent des tuiles pleine largeur avec leur texte. Les deux conditions sont EXACTEMENT complémentaires (l'une est la négation de l'autre) : quelle que soit la forme du chemin d'icône renvoyé par le moteur, une ligne n'est jamais vide. ⚠️ NE JAMAIS mettre binding_name_override sur #form_button_text : le nom du binding est alors consommé et $button_text ne trouve plus rien → TOUS les libellés de boutons deviennent vides (bug v19.3, corrigé ici).",
 
   "third_party_server_screen@common.base_screen": {
     "$screen_content": "server_form.main_screen_content",
@@ -161,76 +161,96 @@
     "anchor_to": "top_left",
     "controls": [
       {
-        "back_button@om_base.om_text_button": {
-          "$pressed_button_name": "button.form_button_click",
-          "$button_image": "common.empty_panel",
-          "$button_text": "§r",
-          "$button_text_binding_type": "collection",
-          "$button_text_grid_collection_name": "form_buttons",
-          "$button_text_max_size": ["100%", 20],
+        "back_slot": {
+          "type": "panel",
+          "size": ["100%", 32],
           "anchor_from": "top_left",
           "anchor_to": "top_left",
-          "size": ["100%", 32],
-          "controls": [
-            {
-              "arrow@om_base.om_back_arrow": {
-                "anchor_from": "left_middle",
-                "anchor_to": "left_middle",
-                "offset": [6, 0]
-              }
-            }
-          ],
           "bindings": [
             {
               "binding_type": "collection_details",
               "binding_collection_name": "form_buttons"
             },
             {
-              "binding_name": "#form_button_text",
+              "binding_name": "#form_button_texture",
+              "binding_name_override": "#texture",
               "binding_type": "collection",
-              "binding_collection_name": "form_buttons",
-              "binding_name_override": "#om_label"
+              "binding_collection_name": "form_buttons"
             },
             {
-              "source_property_name": "(#om_label = '§r')",
+              "source_property_name": "((#texture = 'textures/ui/om_btn_back') or (#texture = 'textures/ui/om_btn_back.png'))",
               "target_property_name": "#visible"
+            }
+          ],
+          "controls": [
+            {
+              "back_button@om_base.om_text_button": {
+                "$pressed_button_name": "button.form_button_click",
+                "$button_image": "common.empty_panel",
+                "$button_text": "§r",
+                "anchor_from": "top_left",
+                "anchor_to": "top_left",
+                "size": ["100%", 32],
+                "bindings": [
+                  {
+                    "binding_type": "collection_details",
+                    "binding_collection_name": "form_buttons"
+                  }
+                ],
+                "controls": [
+                  {
+                    "arrow@om_base.om_back_arrow": {
+                      "anchor_from": "left_middle",
+                      "anchor_to": "left_middle",
+                      "offset": [6, 0]
+                    }
+                  }
+                ]
+              }
             }
           ]
         }
       },
       {
-        "form_button@om_base.om_text_button": {
-          "$pressed_button_name": "button.form_button_click",
+        "button_slot": {
+          "type": "panel",
+          "size": ["100%", 32],
           "anchor_from": "top_left",
           "anchor_to": "top_left",
-          "size": ["100%", 32],
-          "$button_text": "#form_button_text",
-          "$button_text_binding_type": "collection",
-          "$button_text_grid_collection_name": "form_buttons",
-          "$button_text_max_size": ["100%", 20],
-          "controls": [
-            {
-              "button_icon@om_base.om_button_icon": {
-                "anchor_from": "left_middle",
-                "anchor_to": "left_middle",
-                "offset": [6, 0]
-              }
-            }
-          ],
           "bindings": [
             {
               "binding_type": "collection_details",
               "binding_collection_name": "form_buttons"
             },
             {
-              "binding_name": "#form_button_text",
+              "binding_name": "#form_button_texture",
+              "binding_name_override": "#texture",
               "binding_type": "collection",
-              "binding_collection_name": "form_buttons",
-              "binding_name_override": "#om_label"
+              "binding_collection_name": "form_buttons"
             },
             {
-              "source_property_name": "(not (#om_label = '§r'))",
+              "source_property_name": "(not ((#texture = 'textures/ui/om_btn_back') or (#texture = 'textures/ui/om_btn_back.png')))",
               "target_property_name": "#visible"
+            }
+          ],
+          "controls": [
+            {
+              "form_button@om_base.om_text_button": {
+                "$pressed_button_name": "button.form_button_click",
+                "anchor_from": "top_left",
+                "anchor_to": "top_left",
+                "size": ["100%", 32],
+                "$button_text": "#form_button_text",
+                "$button_text_binding_type": "collection",
+                "$button_text_grid_collection_name": "form_buttons",
+                "$button_text_max_size": ["100%", 20],
+                "bindings": [
+                  {
+                    "binding_type": "collection_details",
+                    "binding_collection_name": "form_buttons"
+                  }
+                ]
+              }
             }
           ]
         }

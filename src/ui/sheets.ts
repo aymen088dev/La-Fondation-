@@ -25,15 +25,24 @@
  */
 
 /**
- * Label marqueur du bouton retour : un code de formatage SEUL, donc invisible
- * à l'écran, que le JSON UI lit pour transformer cette entrée de liste en
- * icône flèche en haut à gauche au lieu d'une tuile large.
- * ⚠️ Doit rester identique à la comparaison `#om_label = '§r'` dans
- * RP/ui/server_form.json (vérifié par le test).
+ * Label (invisible) du bouton retour : un code de formatage SEUL, donc aucun
+ * texte affiché — la pastille-flèche parle d'elle-même.
+ *
+ * Le bouton retour est en fait reconnu par le JSON UI grâce à son **icône**
+ * (BACK_ARROW_ICON) : c'est le seul discriminant fiable d'une entrée de
+ * collection (RP/ui/server_form.json, `dynamic_button` → `back_slot` gated sur
+ * `#form_button_texture`). Le libellé, lui, ne doit surtout PAS servir à la
+ * détection : le comparer obligeait à renommer le binding `#form_button_text`,
+ * ce qui vidait TOUS les libellés de boutons (bug v19.3).
  */
 export const BUTTON_BACK_MARKER = "§r";
 
-/** Texture de la flèche retour (RP/textures/ui/om_btn_back.png). */
+/**
+ * Texture de la flèche retour (RP/textures/ui/om_btn_back.png).
+ * C'est ELLE qui identifie l'entrée retour dans le JSON UI : toute entrée de
+ * menu qui porte une icône est rendue en pastille-flèche, les autres en tuile
+ * de bouton pleine largeur. Aucun autre bouton ne doit recevoir d'icône.
+ */
 export const BACK_ARROW_ICON = "textures/ui/om_btn_back";
 
 /**

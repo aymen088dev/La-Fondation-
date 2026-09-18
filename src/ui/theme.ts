@@ -349,10 +349,11 @@ export class OMForm {
      * dans le label écrase le rendu du label (bouton vide). On aplatit
      * donc tout label en UNE ligne (retours → espace-insécable « — »).
      * v17.1 : icônes retirées des boutons (« ça fait brouillon »).
-     * v19.3 : le 4e paramètre est de nouveau transmis au formulaire, mais
-     * SEUL le bouton retour en porte une (BACK_ARROW_ICON) — c'est un
-     * filet de sécurité : si le JSON UI ne reconnaissait pas le marqueur,
-     * la flèche s'afficherait quand même via l'icône native.
+     * v19.4 : le 4e paramètre est de nouveau transmis au formulaire, mais
+     * SEUL le bouton retour en porte une (BACK_ARROW_ICON) : c'est CE choix
+     * d'icône que le JSON UI utilise pour rendre l'entrée en pastille-flèche
+     * au lieu d'une tuile large. Ne jamais mettre d'icône sur un autre
+     * bouton, il perdrait sa tuile.
      */
     const flat = plain(label).replace(/\s*\n\s*/g, "  —  ").trim();
     const wrapped = (): void => {
@@ -478,9 +479,12 @@ export class OMForm {
    * la gauche, posée en HAUT À GAUCHE du menu. À placer en PREMIER élément
    * (c'est la première entrée de la liste, donc la première tuile) :
    *
-   * - le label est le marqueur invisible BUTTON_BACK_MARKER, que le JSON UI
-   *   reconnaît pour désactiver la tuile large et n'afficher que l'icône ;
-   * - l'icône BACK_ARROW_ICON est passée au formulaire en filet de sécurité.
+   * - l'ICÔNE BACK_ARROW_ICON est le discriminant : le JSON UI rend toute
+   *   entrée qui porte une icône en pastille-flèche (tuile désactivée) et les
+   *   autres en tuile pleine largeur — aucun autre bouton ne doit recevoir
+   *   d'icône ;
+   * - le label est le marqueur invisible BUTTON_BACK_MARKER, pour que la
+   *   pastille n'affiche aucun texte.
    *
    * Ce n'est donc PAS un bouton comme les autres : pas de cadre plein
    * largeur, mais une pastille 26×26 à liseré doré (surbrillance au survol).

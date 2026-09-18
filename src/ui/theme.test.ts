@@ -47,6 +47,34 @@ function readUi(name: string): string {
 }
 
 /**
+ * Tous les objets « binding » d'un fichier UI, à plat. Permet de vérifier une
+ * règle sur l'ensemble du fichier (ex : aucun renommage du binding de libellé)
+ * au lieu d'une simple recherche de texte, qui raterait une variante.
+ */
+function allBindings(file: string): Record<string, unknown>[] {
+  const found: Record<string, unknown>[] = [];
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item);
+      return;
+    }
+    if (node === null || typeof node !== "object") return;
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      if (key === "bindings" && Array.isArray(value)) {
+        for (const binding of value) {
+          if (binding !== null && typeof binding === "object") {
+            found.push(binding as Record<string, unknown>);
+          }
+        }
+      }
+      walk(value);
+    }
+  };
+  walk(JSON.parse(readUi(file)));
+  return found;
+}
+
+/**
  * Noms de contrôles définis par un fichier UI. En JSON UI la clé porte
  * l'héritage (« om_scroll_pane@common.scrolling_panel ») : on ne garde que la
  * partie avant le @, c'est le nom référençable depuis les autres fichiers.
@@ -169,21 +197,43 @@ describe("Style par famille de menu (titre = canal de style)", () => {
 });
 
 describe("Bouton retour en icône", () => {
-  it("le marqueur du moteur est celui comparé par le JSON UI", () => {
-    const text = readUi("server_form.json");
-    expect(text).toContain(`(#om_label = '${BUTTON_BACK_MARKER}')`);
-    expect(text).toContain(`(not (#om_label = '${BUTTON_BACK_MARKER}'))`);
+  it("le binding du libellé n'est JAMAIS renommé (régression v19.3)", () => {
+    // ⚠️ C'est CE bug qui vidait tous les libellés de boutons : un
+    // binding_name_override sur #form_button_text consomme le nom, donc
+    // `$button_text: "#form_button_text"` ne résout plus rien → tuiles vides,
+    // « menus cassés partout ». Le vanilla ne le fait jamais non plus.
+    const offenders = allBindings("server_form.json").filter(
+      (binding) => binding.binding_name === "#form_button_text" && "binding_name_override" in binding,
+    );
+    expect(offenders).toEqual([]);
+    expect(readUi("server_form.json")).toContain('"$button_text": "#form_button_text"');
   });
 
-  it("la branche retour est une pastille à icône, sans tuile de bouton", () => {
+  it("le discriminant du bouton retour est l'ICÔNE, comme dans le vanilla", () => {
+    const text = readUi("server_form.json");
+    // Deux emplacements par entrée : pastille-flèche (icône) ou tuile (pas d'icône).
+    expect(text).toContain('"back_slot"');
+    expect(text).toContain('"button_slot"');
+    // Le chemin de la flèche vient du moteur : les deux conditions doivent
+    // être EXACTEMENT complémentaires, sinon des lignes deviennent vides.
+    const arrow = `(#texture = '${BACK_ARROW_ICON}') or (#texture = '${BACK_ARROW_ICON}.png')`;
+    expect(text).toContain(`(${arrow})`);
+    expect(text).toContain(`(not (${arrow}))`);
+    const iconBindings = allBindings("server_form.json").filter(
+      (binding) =>
+        binding.binding_name === "#form_button_texture" && binding.binding_name_override === "#texture",
+    );
+    // Un binding d'icône par emplacement : c'est la source du discriminant.
+    expect(iconBindings.length).toBe(2);
+  });
+
+  it("la pastille retour est une icône sans tuile de bouton", () => {
     const text = readUi("server_form.json");
     expect(text).toContain("om_base.om_back_arrow");
     // Tuile désactivée : sinon la flèche ressemblerait aux autres boutons.
     expect(text).toContain('"$button_image": "common.empty_panel"');
-    // Filet de sécurité : l'icône native réaffiche la flèche si le marqueur
-    // n'était pas reconnu (et elle ne s'affiche que pour NOTRE texture).
-    expect(text).toContain("om_base.om_button_icon");
-    expect(readUi("om_base.json")).toContain(`(#om_icon = '${BACK_ARROW_ICON}')`);
+    // Le libellé du retour est le marqueur invisible, jamais du texte visible.
+    expect(text).toContain(`"$button_text": "${BUTTON_BACK_MARKER}"`);
   });
 
   it("l'icône du moteur existe dans le pack", () => {

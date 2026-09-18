@@ -1,7 +1,7 @@
 {
   "namespace": "om_base",
 
-  "_comment": "Socle partagé du reskin NaLandia (v19.3) : boutons 3 états, panneaux déroulants, fonds, flèche retour. om_scroll_pane : la fenêtre de contenu est rentrée de 8 px sur les côtés et de 7 px en haut/bas pour que les TEXTES ne touchent JAMAIS le filet argent du cadre (bug signalé : « le texte touche le cadre »). om_back_arrow : ICÔNE de retour (flèche blanche vers la gauche) posée en haut à gauche du menu — ce n'est PAS une tuile large comme les autres boutons mais une pastille 26x26 à liseré doré, allumée au survol ; elle est enfant du bouton marqueur (label « §r », tuile désactivée) pour conserver le clic natif du formulaire. om_button_icon : filet de sécurité — si le marqueur n'était pas reconnu, l'icône transmise par le moteur (et uniquement FORMAT identique, donc jamais de texture manquante) réafficherait la flèche dans la tuile. SPLIT par TYPE d'écran, déclaré dans _ui_defs.json : ui/om_base.json (ce socle, namespace om_base), ui/server_form.json (menus à boutons, écrasement du vanilla, namespace server_form), ui/om_sheets.json (variante « FICHES » des menus de contenu, namespace om_sheets) et ui/om_forms.json (formulaires à champs, namespace om_forms) héritent de ses contrôles via om_base.*. Chaque famille a son fond : cuir sombre à cadre or (menus hub/admin), vert émeraude à double filet or/argent (fiches : Classes, États, Clans, Monde, Mines, Métiers, Mes infos), bleu nuit à filet argent (« cartes ») pour les formulaires.",
+  "_comment": "Socle partagé du reskin NaLandia (v19.3) : boutons 3 états, panneaux déroulants, fonds, flèche retour. om_scroll_pane : la fenêtre de contenu est rentrée de 8 px sur les côtés et de 7 px en haut/bas pour que les TEXTES ne touchent JAMAIS le filet argent du cadre (bug signalé : « le texte touche le cadre »). om_back_arrow : ICÔNE de retour (flèche blanche vers la gauche) posée en haut à gauche du menu — ce n'est PAS une tuile large comme les autres boutons mais une pastille 26x26 à liseré doré, allumée au survol ; elle est enfant du bouton marqueur (label « §r », tuile désactivée) pour conserver le clic natif du formulaire. Le bouton retour est identifié par son ICÔNE (#form_button_texture), seul discriminant fiable des bindings de collection (server_form.dynamic_button : back_slot / button_slot). SPLIT par TYPE d'écran, déclaré dans _ui_defs.json : ui/om_base.json (ce socle, namespace om_base), ui/server_form.json (menus à boutons, écrasement du vanilla, namespace server_form), ui/om_sheets.json (variante « FICHES » des menus de contenu, namespace om_sheets) et ui/om_forms.json (formulaires à champs, namespace om_forms) héritent de ses contrôles via om_base.*. Chaque famille a son fond : cuir sombre à cadre or (menus hub/admin), vert émeraude à double filet or/argent (fiches : Classes, États, Clans, Monde, Mines, Métiers, Mes infos), bleu nuit à filet argent (« cartes ») pour les formulaires.",
 
   "om_btn_image": {
     "type": "image",
@@ -68,25 +68,6 @@
     "texture": "textures/ui/om_btn_back_hover",
     "size": ["100%", "100%"],
     "layer": 2
-  },
-
-  "om_button_icon": {
-    "type": "image",
-    "texture": "textures/ui/om_btn_back",
-    "size": [18, 18],
-    "layer": 3,
-    "bindings": [
-      {
-        "binding_name": "#form_button_texture",
-        "binding_type": "collection",
-        "binding_collection_name": "form_buttons",
-        "binding_name_override": "#om_icon"
-      },
-      {
-        "source_property_name": "(#om_icon = 'textures/ui/om_btn_back')",
-        "target_property_name": "#visible"
-      }
-    ]
   },
 
   "om_back_arrow": {

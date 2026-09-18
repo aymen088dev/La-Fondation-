@@ -4,7 +4,7 @@
 
 > **NaLandia** (anciennement « OpenMontage ») : l'add-on de serveur avec territoires/États, clans, rôles, modération, classes, métiers et une dimension minière dédiée — le tout dans une UI noir & or/argent avec surbrillance au survol.
 
-**Packs actuels : 1.9.3** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
+**Packs actuels : 1.9.4** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
 
 ## C'est quoi ce repo ?
 
@@ -122,7 +122,7 @@ bun run typecheck   # vérifier les types
 bun run textures    # régénérer les textures du Resource Pack
 ```
 
-**Tests : 69 tests unitaires** (DB + migrations, territoires, permissions, modération, classes, générateur de mine, contrat JSON UI ↔ moteur).
+**Tests : 70 tests unitaires** (DB + migrations, territoires, permissions, modération, classes, générateur de mine, contrat JSON UI ↔ moteur).
 
 ## Installer l'add-on en jeu
 
