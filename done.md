@@ -1,7 +1,19 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v19.4 — FIX « TOUS LES MENUS CASSÉS » (libellés de boutons vidés) : discriminant du bouton retour par l'ICÔNE, structure vanilla exacte**.
+> Dernière mise à jour : **v19.5 — REDESIGN TOTAL DES MENUS DE CONTENU (deux mises en page distinctes : colonne de tuiles vs bandeau + grandes cartes)**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v19.5 — Deux mises en page radicalement différentes (sept. 2026)
+- [x] **Demande « changement total par rapport à /sn:menu et admin » traitée pour de bon** : les menus de contenu ne partagent plus NI la géométrie NI les tuiles des menus hub/admin. Deux mises en page complètes, choisies par le titre du formulaire (seul canal lisible : Bedrock partage un unique écran pour tous les menus à boutons) :
+  - **`console_layout`** (hub, admin, modération, rôles, joueurs, DB, modules + sous-menus) : inchangé — **colonne de tuiles fines (32 px) à gauche** + grand panneau de texte à droite, panneaux argentés, fond cuir à cadre or ;
+  - **`sheet_layout`** (Classes, fiche de voie, Ma voie, Confirmer, États, fiche de clan, Mon clan, Membres, fiche de membre, Inviter, Drapeau, Dissoudre/Créer un clan, Le Monde, Mines, Métiers, Mes infos) : silhouette **inversée** — **BANDEAU DE TEXTE EN HAUT** (panneau doré pleine largeur) puis **GRANDES CARTES EMPILÉES EN BAS** (42 px, cadre or + **barre d'accent dorée** sur le bord gauche, texte plus grand), fond **vert émeraude à double filet or/argent**.
+- [x] **Trois textures de cartes dédiées** (`om_card` / `om_card_hover` / `om_card_press`) : dalles vert charbon à cadre or, marge de 2 px entre les cartes, barre d'accent de 4 px, **surbrillance dorée marquée au survol** — rien à voir avec les tuiles fines. Contrôle d'entrée dédié : `om_card_button` (héritage de `om_text_button`, mêmes 3 états).
+- [x] **Contrôle d'entrée séparé par famille** : `dynamic_button` (tuile fine, colonne latérale) et `dynamic_card` (grande carte, liste verticale). Le bouton retour suit la famille : pastille-flèche 26 px dans la colonne, 30 px dans le bandeau de cartes — discriminant par **ICÔNE** dans les deux cas (le libellé `#form_button_text` n'est jamais renommé).
+- [x] **Répartition pensée pour 3 cartes visibles** : bandeau de texte 38 % (défilable) + bandeau de cartes 62 % (défilable) — les catalogues de 3 voies tiennent à l'écran.
+- [x] **Tests** : **71/71** — la chaîne de titres est vérifiée dans ses **3 copies** (fond + les deux mises en page), les deux mises en page et leurs contrôles d'entrée sont assertés, les textures de cartes aussi, plus la garde anti-régression sur le binding du libellé.
+- [x] Packs **1.9.5** (BP, RP, serveur) — bump obligatoire pour invalider le cache Bedrock. Build + typecheck OK.
 
 ---
 

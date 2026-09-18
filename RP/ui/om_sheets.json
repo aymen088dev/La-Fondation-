@@ -1,7 +1,7 @@
 {
   "namespace": "om_sheets",
 
-  "_comment": "FAMILLE « FICHES » (Classes, États/Clans, Le Monde, Mines, Métiers, Mes infos) — reskin NaLandia v19.3. POURQUOI CE FICHIER : Bedrock n'expose qu'UN écran par TYPE de formulaire (long_form pour tous les menus à boutons), donc le JSON UI ne peut pas savoir quel menu est ouvert… sauf par son TITRE, qui est le seul canal que le script contrôle et que le JSON UI peut comparer. Ici : deux sélecteurs (fond du grand cadre + panneau déroulant) qui basculent sur la variante VERT ÉMERAUDE à double filet OR/ARGENT (om_sheet_bg.png / om_sheet_pane.png) quand le titre du formulaire figure dans la liste ci-dessous, et laissent la variante CUIR sombre à cadre or (om_base) pour tous les autres menus (hub, admin, modération, rôles, joueurs, base de données, modules…). Les deux sélecteurs portent leur binding #om_sheet eux-mêmes (un niveau au-dessus de leurs enfants) : rien ne dépend de la propagation des bindings à travers le template vanilla. Chaque sélecteur affiche la variante émeraude quand #om_sheet est vrai, la variante classique sinon. ⚠️ La liste des titres doit rester SYNCHRONE avec SHEET_SECTIONS de src/ui/theme.ts : le test src/ui/theme.test.ts le vérifie (sinon les fiches retomberaient sur le fond des menus classiques, ce qui était exactement le bug signalé « tous les menus se ressemblent »).",
+  "_comment": "FAMILLE « FICHES » (Classes, États/Clans, Le Monde, Mines, Métiers, Mes infos) — reskin NaLandia v19.5. POURQUOI CE FICHIER : Bedrock n'expose qu'UN écran par TYPE de formulaire (long_form pour tous les menus à boutons), donc le JSON UI ne peut pas savoir quel menu est ouvert… sauf par son TITRE, seul canal que le script contrôle et que le JSON UI peut comparer. Ce fichier porte le FOND et les PANNEAUX de la famille « fiches » (vert émeraude à double filet or/argent, panneau à liseré doré) ; la MISE EN PAGE complète (bandeau de texte en haut + grandes cartes empilées en bas) et la chaîne de titres vivent dans ui/server_form.json (sheet_layout / dynamic_card). Chaque sélecteur porte SA propre copie de la chaîne de titres : rien ne dépend de la propagation des bindings à travers le template vanilla. « form_background » affiche donc la variante émeraude quand #om_sheet est vrai, et la variante CUIR à cadre or (om_base) pour tous les autres menus (hub, admin, modération, rôles, joueurs, base de données, modules…). ⚠️ La liste des titres doit rester SYNCHRONE avec SHEET_SECTIONS de src/ui/sheets.ts : le test src/ui/theme.test.ts le vérifie (sinon les fiches retomberaient sur le style des menus classiques, ce qui était exactement le bug signalé « tous les menus se ressemblent »).",
 
   "sheet_background": {
     "type": "image",
@@ -44,44 +44,6 @@
       },
       {
         "sheet_background@om_sheets.sheet_background": {
-          "bindings": [
-            {
-              "source_property_name": "#om_sheet",
-              "target_property_name": "#visible"
-            }
-          ]
-        }
-      }
-    ]
-  },
-
-  "pane_selector": {
-    "type": "panel",
-    "size": ["100%", "100%"],
-    "layer": 1,
-    "bindings": [
-      {
-        "binding_name": "#title_text",
-        "binding_name_override": "#om_title"
-      },
-      {
-        "source_property_name": "((#om_title = 'NaLandia » Classes') or (#om_title = 'NaLandia » Classe') or (#om_title = 'NaLandia » Ma voie') or (#om_title = 'NaLandia » Confirmer') or (#om_title = 'NaLandia » États') or (#om_title = 'NaLandia » Clan') or (#om_title = 'NaLandia » Mon clan') or (#om_title = 'NaLandia » Membres du clan') or (#om_title = 'NaLandia » Membre') or (#om_title = 'NaLandia » Inviter') or (#om_title = 'NaLandia » Drapeau') or (#om_title = 'NaLandia » Dissoudre le clan') or (#om_title = 'NaLandia » Créer un clan') or (#om_title = 'NaLandia » Le Monde') or (#om_title = 'NaLandia » Mines') or (#om_title = 'NaLandia » Métiers') or (#om_title = 'NaLandia » Mes infos'))",
-        "target_property_name": "#om_sheet"
-      }
-    ],
-    "controls": [
-      {
-        "console_pane@om_base.om_pane_image": {
-          "bindings": [
-            {
-              "source_property_name": "(not #om_sheet)",
-              "target_property_name": "#visible"
-            }
-          ]
-        }
-      },
-      {
-        "sheet_pane@om_sheets.sheet_pane_image": {
           "bindings": [
             {
               "source_property_name": "#om_sheet",

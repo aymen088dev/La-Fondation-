@@ -4,7 +4,7 @@
 
 > **NaLandia** (anciennement « OpenMontage ») : l'add-on de serveur avec territoires/États, clans, rôles, modération, classes, métiers et une dimension minière dédiée — le tout dans une UI noir & or/argent avec surbrillance au survol.
 
-**Packs actuels : 1.9.4** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
+**Packs actuels : 1.9.5** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
 
 ## C'est quoi ce repo ?
 
@@ -52,7 +52,10 @@ Persistée dans le monde via les Dynamic Properties Bedrock :
 
 ### 🎨 UI — Resource Pack (JSON UI)
 - **Plusieurs fichiers UI** : `ui/om_base.json` (socle : boutons 3 états, panneaux, flèche retour), `ui/server_form.json` (menus à boutons), `ui/om_sheets.json` (**famille « fiches »**), `ui/om_forms.json` (formulaires à champs), `ui/hud_screen.json` (actionbar/titres)
-- **Deux familles de style** : les menus de contenu (Classes, États/Clans, Le Monde, Mines, Métiers, Mes infos) ont un **grand cadre vert émeraude à double filet or/argent** et des panneaux à liseré doré ; les menus hub/admin/modération/joueurs/DB gardent le **cuir sombre à cadre or** et leurs panneaux argentés ; les formulaires ont un cadre **bleu nuit** (variante « cartes »)
+- **Deux mises en page complètement différentes** (choisies par le titre du formulaire, seul canal lisible côté JSON UI — Bedrock ne partage qu'un seul écran pour tous les menus à boutons) :
+  - **menus hub/admin et sous-menus** : colonne de **tuiles fines** à gauche + grand panneau de texte à droite, panneaux argentés, fond cuir à cadre or ;
+  - **menus de contenu** (Classes, États/Clans, Le Monde, Mines, Métiers, Mes infos) : **bandeau de texte en haut** puis **grandes cartes dorées empilées** en bas (barre d'accent dorée, texte plus grand, surbrillance marquée), fond **vert émeraude à double filet or/argent** — un look et une silhouette sans rapport avec les menus du hub ;
+  - **formulaires à champs** (/sn:create, sanctions…) : grand cadre **bleu nuit** (variante « cartes »)
 - **Flèche retour en vraie icône** blanche en haut à gauche (pastille à liseré doré, surbrillance au survol) au lieu d'un bouton de liste
 - Textures générées par script : `bun run textures` (aucune dépendance externe, PNG écrits par la stdlib Python)
 
@@ -122,7 +125,7 @@ bun run typecheck   # vérifier les types
 bun run textures    # régénérer les textures du Resource Pack
 ```
 
-**Tests : 70 tests unitaires** (DB + migrations, territoires, permissions, modération, classes, générateur de mine, contrat JSON UI ↔ moteur).
+**Tests : 71 tests unitaires** (DB + migrations, territoires, permissions, modération, classes, générateur de mine, contrat JSON UI ↔ moteur).
 
 ## Installer l'add-on en jeu
 

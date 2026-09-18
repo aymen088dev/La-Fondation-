@@ -159,19 +159,41 @@ describe("Fichiers JSON UI du Resource Pack", () => {
 });
 
 describe("Style par famille de menu (titre = canal de style)", () => {
-  it("le JSON UI reconnaît EXACTEMENT les sections de SHEET_SECTIONS", () => {
-    const text = readUi("om_sheets.json");
-    const found = matchedTitles(text);
-    expect(found.length).toBeGreaterThan(0);
-    expect(new Set(found)).toEqual(new Set(SHEET_SECTIONS.map(sheetTitleFor)));
+  it("CHAQUE copie de la chaîne de titres est complète et identique", () => {
+    const expected = new Set(SHEET_SECTIONS.map(sheetTitleFor));
+    const all = uiFiles().flatMap((name) => matchedTitles(readUi(name)));
+    // 3 sélecteurs : le fond du cadre + les deux mises en page (console et fiches).
+    // Si un menu est oublié dans UNE des copies, cette famille retombe sur
+    // l'autre mise en page — c'était le bug « les menus n'ont pas changé ».
+    expect(all.length).toBe(SHEET_SECTIONS.length * 3);
+    for (let i = 0; i < all.length; i += SHEET_SECTIONS.length) {
+      expect(new Set(all.slice(i, i + SHEET_SECTIONS.length))).toEqual(expected);
+    }
   });
 
-  it("les DEUX sélecteurs (fond + panneau) portent la liste complète", () => {
-    const text = readUi("om_sheets.json");
-    const chains = [...text.matchAll(/#om_title = 'NaLandia » [^']*'/g)];
-    // 2 sélecteurs × la liste complète : si un menu est oublié dans l'un des
-    // deux, la comparaison de titres n'est plus fiable et le style saute.
-    expect(chains.length).toBe(SHEET_SECTIONS.length * 2);
+  it("les deux familles ont des mises en page réellement différentes", () => {
+    const text = readUi("server_form.json");
+    // Console (hub/admin et sous-menus) : colonne de tuiles fines + texte à droite.
+    expect(text).toContain('"console_layout"');
+    expect(text).toContain('"sidebar@server_form.sidebar_column"');
+    // Fiches : bandeau de texte EN HAUT puis GRANDES CARTES empilées en bas.
+    expect(text).toContain('"sheet_layout"');
+    expect(text).toContain('"sheet_body_scroll@om_base.om_scroll_pane"');
+    expect(text).toContain('"sheet_cards_scroll@om_base.om_scroll_pane"');
+    expect(text).toContain('"sheet_cards_panel"');
+    // Deux contrôles d'entrée distincts : tuile fine vs grande carte.
+    expect(text).toContain('"button": "server_form.dynamic_button"');
+    expect(text).toContain('"button": "server_form.dynamic_card"');
+    expect(text).toContain('$scrolling_content": "server_form.sheet_cards_panel"');
+  });
+
+  it("la variante « fiches » a ses propres textures de cartes", () => {
+    const base = readUi("om_base.json");
+    for (const texture of ["om_card", "om_card_hover", "om_card_press", "om_sheet_bg", "om_sheet_pane"]) {
+      expect(existsSync(join(RP_ROOT, "textures", "ui", `${texture}.png`))).toBe(true);
+    }
+    expect(base).toContain('"om_card_button@om_base.om_text_button"');
+    expect(base).toContain("textures/ui/om_card");
   });
 
   it("aucun doublon et titres produits conformes au format des fenêtres", () => {
@@ -185,14 +207,15 @@ describe("Style par famille de menu (titre = canal de style)", () => {
   it("le fond et les panneaux des deux familles sont bien distincts", () => {
     const sheets = readUi("om_sheets.json");
     const base = readUi("om_base.json");
-    // Famille « fiches » : émeraude à double filet or/argent, panneau à liseré or.
+    const forms = readUi("server_form.json");
+    // Famille « fiches » : émeraude à double filet or/argent, panneaux à liseré or.
     expect(sheets).toContain("textures/ui/om_sheet_bg");
     expect(sheets).toContain("textures/ui/om_sheet_pane");
-    // Famille « menus » (hub/admin) : cuir orné + panneau argenté, inchangés.
+    expect(forms).toContain('"$scroll_background_image_control": "om_sheets.sheet_pane_image"');
+    // Famille « menus » (hub/admin) : cuir orné + panneau argenté par défaut.
+    expect(sheets).toContain("om_base.om_ornate_background");
     expect(base).toContain("textures/ui/om_ornate_bg");
     expect(base).toContain("textures/ui/om_content_bg");
-    expect(sheets).toContain("om_base.om_ornate_background");
-    expect(sheets).toContain("om_base.om_pane_image");
   });
 });
 
@@ -223,8 +246,9 @@ describe("Bouton retour en icône", () => {
       (binding) =>
         binding.binding_name === "#form_button_texture" && binding.binding_name_override === "#texture",
     );
-    // Un binding d'icône par emplacement : c'est la source du discriminant.
-    expect(iconBindings.length).toBe(2);
+    // Un binding d'icône par emplacement, dans les DEUX contrôles d'entrée :
+    // dynamic_button (tuile fine) et dynamic_card (grande carte).
+    expect(iconBindings.length).toBe(4);
   });
 
   it("la pastille retour est une icône sans tuile de bouton", () => {

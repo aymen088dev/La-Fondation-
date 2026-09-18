@@ -1,7 +1,7 @@
 {
   "namespace": "server_form",
 
-  "_comment": "MENUS À BOUTONS (ActionForm — /sn:menu, hub, admin, États, Mines…) — reskin NaLandia v19.3. Fichier à l'emplacement vanilla (ui/server_form.json = écrasement), SPLIT en plusieurs fichiers : le socle (boutons, panneaux, fonds, flèche retour) vit dans ui/om_base.json (namespace om_base) et les FORMULAIRES à champs dans ui/om_forms.json ; les variantes « FICHES » (Classes, États, Clans, Monde, Mines, Métiers, Mes infos) vivent dans ui/om_sheets.json. Ce fichier porte la variante « MENUS » : cuir sombre à cadre or, titre or, tuiles charbon à surbrillance dorée, sidebar à gauche / body à droite — sauf si le titre du formulaire appartient à la famille « fiches », auquel cas om_sheets remplace le fond et les panneaux (le JSON UI n'a que le titre pour identifier un menu : Bedrock partage un seul écran long_form entre tous les menus à boutons). v19.4 : cadre élargi 420x240 et fenêtres de contenu rentrées de 8 px (plus aucun texte collé au filet argent), et bouton retour transformé en ICÔNE flèche en haut à gauche. DISCRIMINANT = L'ICÔNE, structure vanille exacte : dynamic_button a deux emplacements (back_slot / button_slot) qui testent #form_button_texture (bindé en #texture, comme le fait le vanilla pour son panneau d'icône) — l'entrée dont l'icône est la flèche retour (le seul bouton à en recevoir une) devient une pastille-flèche, TOUTES les autres restent des tuiles pleine largeur avec leur texte. Les deux conditions sont EXACTEMENT complémentaires (l'une est la négation de l'autre) : quelle que soit la forme du chemin d'icône renvoyé par le moteur, une ligne n'est jamais vide. ⚠️ NE JAMAIS mettre binding_name_override sur #form_button_text : le nom du binding est alors consommé et $button_text ne trouve plus rien → TOUS les libellés de boutons deviennent vides (bug v19.3, corrigé ici).",
+  "_comment": "MENUS À BOUTONS (ActionForm — /sn:menu, hub, admin, Classes, États, Clans, Monde, Mines, Métiers…) — reskin NaLandia v19.5. Fichier à l'emplacement vanilla (ui/server_form.json = écrasement), SPLIT en plusieurs fichiers : socle dans ui/om_base.json, variante « fiches » (textures + chaîne de titres) dans ui/om_sheets.json, formulaires à champs dans ui/om_forms.json. DEUX MISES EN PAGE COMPLÈTEMENT DIFFÉRENTES, choisies par le TITRE du formulaire (seul canal lisible : Bedrock partage cet unique écran long_form entre TOUS les menus à boutons) : (1) console_layout = menus hub/admin et leurs sous-menus → colonne de tuiles fines à gauche (32 px) + grand panneau de texte à droite, panneaux argentés, fond cuir ; (2) sheet_layout = menus de contenu Classes/États/Clans/Monde/Mines/Métiers/Mes infos → silhouette inversée : BANDEAU DE TEXTE EN HAUT (panneau doré pleine largeur) puis GRANDES CARTES EMPILÉES (44 px, cadre or + barre d'accent dorée) en bas, fond vert émeraude à double filet. Les deux mises en page ne partagent NI la géométrie NI le contrôle d'entrée (dynamic_button vs dynamic_card). ⚠️ NE JAMAIS renommer le binding #form_button_text (binding_name_override) : le nom est consommé et $button_text ne résout plus rien → tous les libellés deviennent vides (bug v19.3, corrigé en v19.4). Le bouton retour est identifié par son ICÔNE (#form_button_texture), comme le fait le vanilla.",
 
   "third_party_server_screen@common.base_screen": {
     "$screen_content": "server_form.main_screen_content",
@@ -51,13 +51,81 @@
     "anchor_to": "top_left",
     "controls": [
       {
-        "columns": {
-          "type": "stack_panel",
+        "console_layout": {
+          "type": "panel",
           "size": ["100%", "100%"],
-          "orientation": "horizontal",
+          "anchor_from": "top_left",
+          "anchor_to": "top_left",
+          "bindings": [
+            {
+              "binding_name": "#title_text",
+              "binding_name_override": "#om_title"
+            },
+            {
+              "source_property_name": "((#om_title = 'NaLandia » Classes') or (#om_title = 'NaLandia » Classe') or (#om_title = 'NaLandia » Ma voie') or (#om_title = 'NaLandia » Confirmer') or (#om_title = 'NaLandia » États') or (#om_title = 'NaLandia » Clan') or (#om_title = 'NaLandia » Mon clan') or (#om_title = 'NaLandia » Membres du clan') or (#om_title = 'NaLandia » Membre') or (#om_title = 'NaLandia » Inviter') or (#om_title = 'NaLandia » Drapeau') or (#om_title = 'NaLandia » Dissoudre le clan') or (#om_title = 'NaLandia » Créer un clan') or (#om_title = 'NaLandia » Le Monde') or (#om_title = 'NaLandia » Mines') or (#om_title = 'NaLandia » Métiers') or (#om_title = 'NaLandia » Mes infos'))",
+              "target_property_name": "#om_sheet"
+            },
+            {
+              "source_property_name": "(not #om_sheet)",
+              "target_property_name": "#visible"
+            }
+          ],
           "controls": [
-            { "sidebar@server_form.sidebar_column": {} },
-            { "body@server_form.body_column": {} }
+            {
+              "columns": {
+                "type": "stack_panel",
+                "size": ["100%", "100%"],
+                "orientation": "horizontal",
+                "controls": [
+                  { "sidebar@server_form.sidebar_column": {} },
+                  { "body@server_form.body_column": {} }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "sheet_layout": {
+          "type": "panel",
+          "size": ["100%", "100%"],
+          "anchor_from": "top_left",
+          "anchor_to": "top_left",
+          "bindings": [
+            {
+              "binding_name": "#title_text",
+              "binding_name_override": "#om_title"
+            },
+            {
+              "source_property_name": "((#om_title = 'NaLandia » Classes') or (#om_title = 'NaLandia » Classe') or (#om_title = 'NaLandia » Ma voie') or (#om_title = 'NaLandia » Confirmer') or (#om_title = 'NaLandia » États') or (#om_title = 'NaLandia » Clan') or (#om_title = 'NaLandia » Mon clan') or (#om_title = 'NaLandia » Membres du clan') or (#om_title = 'NaLandia » Membre') or (#om_title = 'NaLandia » Inviter') or (#om_title = 'NaLandia » Drapeau') or (#om_title = 'NaLandia » Dissoudre le clan') or (#om_title = 'NaLandia » Créer un clan') or (#om_title = 'NaLandia » Le Monde') or (#om_title = 'NaLandia » Mines') or (#om_title = 'NaLandia » Métiers') or (#om_title = 'NaLandia » Mes infos'))",
+              "target_property_name": "#om_sheet"
+            },
+            {
+              "source_property_name": "#om_sheet",
+              "target_property_name": "#visible"
+            }
+          ],
+          "controls": [
+            {
+              "sheet_body_scroll@om_base.om_scroll_pane": {
+                "anchor_from": "top_left",
+                "anchor_to": "top_left",
+                "size": ["100% - 12px", "38% - 9px"],
+                "offset": [6, 6],
+                "$scroll_background_image_control": "om_sheets.sheet_pane_image",
+                "$scrolling_content": "server_form.body_content"
+              }
+            },
+            {
+              "sheet_cards_scroll@om_base.om_scroll_pane": {
+                "anchor_from": "top_left",
+                "anchor_to": "top_left",
+                "size": ["100% - 12px", "62% - 9px"],
+                "offset": [6, "38% + 3px"],
+                "$scroll_background_image_control": "om_sheets.sheet_pane_image",
+                "$scrolling_content": "server_form.sheet_cards_panel"
+              }
+            }
           ]
         }
       }
@@ -76,7 +144,6 @@
           "anchor_from": "top_left",
           "size": ["100% - 12px", "100% - 12px"],
           "offset": [6, 6],
-          "$scroll_background_image_control": "om_sheets.pane_selector",
           "$scrolling_content": "server_form.sidebar_buttons_panel"
         }
       }
@@ -108,6 +175,31 @@
     ]
   },
 
+  "sheet_cards_panel": {
+    "type": "stack_panel",
+    "size": ["100%", "100%c"],
+    "offset": [2, 0],
+    "orientation": "vertical",
+    "anchor_from": "top_middle",
+    "anchor_to": "top_middle",
+    "factory": {
+      "name": "buttons",
+      "control_ids": {
+        "button": "server_form.dynamic_card",
+        "label": "@server_form.dynamic_label",
+        "header": "@server_form.dynamic_header",
+        "divider": "@settings_common.option_group_section_divider"
+      }
+    },
+    "collection_name": "form_buttons",
+    "bindings": [
+      {
+        "binding_name": "#form_button_contents",
+        "binding_name_override": "#collection_length"
+      }
+    ]
+  },
+
   "body_column": {
     "type": "panel",
     "size": ["fill", "100%"],
@@ -120,7 +212,6 @@
           "anchor_from": "top_left",
           "size": ["100% - 12px", "100% - 12px"],
           "offset": [6, 6],
-          "$scroll_background_image_control": "om_sheets.pane_selector",
           "$scrolling_content": "server_form.body_content"
         }
       }
@@ -244,6 +335,112 @@
                 "$button_text_binding_type": "collection",
                 "$button_text_grid_collection_name": "form_buttons",
                 "$button_text_max_size": ["100%", 20],
+                "bindings": [
+                  {
+                    "binding_type": "collection_details",
+                    "binding_collection_name": "form_buttons"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+
+  "dynamic_card": {
+    "type": "panel",
+    "size": ["100%", 42],
+    "anchor_from": "top_left",
+    "anchor_to": "top_left",
+    "controls": [
+      {
+        "card_back_slot": {
+          "type": "panel",
+          "size": ["100%", 42],
+          "anchor_from": "top_left",
+          "anchor_to": "top_left",
+          "bindings": [
+            {
+              "binding_type": "collection_details",
+              "binding_collection_name": "form_buttons"
+            },
+            {
+              "binding_name": "#form_button_texture",
+              "binding_name_override": "#texture",
+              "binding_type": "collection",
+              "binding_collection_name": "form_buttons"
+            },
+            {
+              "source_property_name": "((#texture = 'textures/ui/om_btn_back') or (#texture = 'textures/ui/om_btn_back.png'))",
+              "target_property_name": "#visible"
+            }
+          ],
+          "controls": [
+            {
+              "card_back_button@om_base.om_text_button": {
+                "$pressed_button_name": "button.form_button_click",
+                "$button_image": "common.empty_panel",
+                "$button_text": "§r",
+                "anchor_from": "top_left",
+                "anchor_to": "top_left",
+                "size": ["100%", 42],
+                "bindings": [
+                  {
+                    "binding_type": "collection_details",
+                    "binding_collection_name": "form_buttons"
+                  }
+                ],
+                "controls": [
+                  {
+                    "arrow@om_base.om_back_arrow": {
+                      "size": [30, 30],
+                      "anchor_from": "left_middle",
+                      "anchor_to": "left_middle",
+                      "offset": [10, 0]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "card_slot": {
+          "type": "panel",
+          "size": ["100%", 42],
+          "anchor_from": "top_left",
+          "anchor_to": "top_left",
+          "bindings": [
+            {
+              "binding_type": "collection_details",
+              "binding_collection_name": "form_buttons"
+            },
+            {
+              "binding_name": "#form_button_texture",
+              "binding_name_override": "#texture",
+              "binding_type": "collection",
+              "binding_collection_name": "form_buttons"
+            },
+            {
+              "source_property_name": "(not ((#texture = 'textures/ui/om_btn_back') or (#texture = 'textures/ui/om_btn_back.png')))",
+              "target_property_name": "#visible"
+            }
+          ],
+          "controls": [
+            {
+              "card@om_base.om_card_button": {
+                "$pressed_button_name": "button.form_button_click",
+                "anchor_from": "top_left",
+                "anchor_to": "top_left",
+                "size": ["100%", 42],
+                "$button_text": "#form_button_text",
+                "$button_text_binding_type": "collection",
+                "$button_text_grid_collection_name": "form_buttons",
+                "$button_text_max_size": ["100% - 30px", 24],
+                "$button_font_size": "large",
                 "bindings": [
                   {
                     "binding_type": "collection_details",

@@ -19,6 +19,7 @@ Sortie :
   RP/textures/ui/om_sheet_pane.png    panneau interne des fiches (filet or)
   RP/textures/ui/om_header_band.png   bandeau de section (filet or/argent)
   RP/textures/ui/om_btn*.png          tuiles-boutons 3 états (surbrillance or)
+  RP/textures/ui/om_card*.png         GRANDES CARTES 3 états de la variante « fiches »
   RP/textures/ui/om_btn_back*.png     flèche retour (icône 26px, 2 états)
   RP/pack_icon.png
 
@@ -136,6 +137,63 @@ def button_tiles() -> None:
 # ---------------------------------------------------------------------------
 # Panneaux principaux — grand cadre orné (fioritures) + panneau interne
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# GRANDES CARTES de la variante « fiches » — silhouette différente des tuiles
+# ---------------------------------------------------------------------------
+def card_tiles() -> None:
+    """3 états pour les cartes des menus de contenu (Classes, États, Clans,
+    Monde, Mines, Métiers, Mes infos) : grandes dalles pleine largeur, marge
+    transparente de 2 px (les cartes sont donc espacées), cadre OR et BARRE
+    D'ACCENT dorée de 4 px le long du bord gauche. Rien à voir avec les tuiles
+    fines des menus hub/admin : c'est la géométrie ET la texture qui changent.
+
+    Tuiles 48x48, nineslice 10 : la barre d'accent (x 5..8) et le cadre sont
+    entièrement dans les tranches fixes, donc nets quelle que soit la largeur."""
+    tw = th = 48
+    fill = (26, 36, 31)          # vert charbon (fond de carte)
+
+    def card(base: tuple[int, int, int], frame: tuple[int, int, int],
+             accent: tuple[int, int, int], glow: tuple[int, int, int] | None,
+             grain_mod: int) -> list[list[tuple[int, int, int, int]]]:
+        px: list[list[tuple[int, int, int, int]]] = [[(0, 0, 0, 0)] * tw for _ in range(th)]
+        for y in range(th):
+            for x in range(tw):
+                edge = min(x, y, tw - 1 - x, th - 1 - y)
+                if edge <= 1:
+                    continue                                   # marge transparente
+                if edge in (2, 3):
+                    px[y][x] = (*frame, 255)                   # cadre
+                elif edge == 4:
+                    px[y][x] = (*lerp(base, SILVER_DIM, 0.35), 255)  # filet interne
+                else:
+                    g = ((x * 7 + y * 11) % grain_mod) - grain_mod // 2
+                    px[y][x] = (max(0, base[0] + g), max(0, base[1] + g), max(0, base[2] + g), 255)
+        # Halo doré (survol) : cœur éclairci + liseré lumineux intérieur.
+        if glow is not None:
+            for y in range(5, th - 5):
+                for x in range(10, tw - 5):
+                    dx = (x - tw * 0.55) / (tw / 2)
+                    dy = (y - th / 2) / (th / 2)
+                    t = max(0.0, 1.0 - (dx * dx + dy * dy) * 2.2)
+                    if t > 0:
+                        px[y][x] = (*lerp(px[y][x][:3], glow, t * 0.40), 255)
+            for i in range(5, th - 5):
+                px[i][5] = (*lerp(px[i][5][:3], glow, 0.35), 255)
+                px[i][tw - 6] = (*lerp(px[i][tw - 6][:3], glow, 0.30), 255)
+        # Barre d'accent verticale (bord gauche) — marqueur visuel des cartes.
+        for y in range(5, th - 5):
+            for x in range(6, 10):
+                px[y][x] = (*accent, 255)
+        return px
+
+    write_png(RP_ROOT / "textures" / "ui" / "om_card.png", tw, th,
+              card(fill, GOLD_DIM, GOLD, None, 4))
+    write_png(RP_ROOT / "textures" / "ui" / "om_card_hover.png", tw, th,
+              card((38, 52, 45), GOLD_LIGHT, GOLD_LIGHT, GOLD_LIGHT, 3))
+    write_png(RP_ROOT / "textures" / "ui" / "om_card_press.png", tw, th,
+              card((18, 26, 22), GOLD, GOLD_LIGHT, None, 3))
+
+
 def draw_miter(
     px: list[list[tuple[int, int, int, int]]],
     w: int,
@@ -409,6 +467,7 @@ def pack_icon() -> None:
 def main() -> None:
     print("Génération des textures UI (Resource Pack NaLandia)...")
     button_tiles()
+    card_tiles()
     ornate_textures()
     back_arrow()
     actionbar_bg()
