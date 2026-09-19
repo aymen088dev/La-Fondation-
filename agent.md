@@ -49,11 +49,19 @@ actuelle est :
    - `custom_form@...` : `$custom_background` (1 variable, en place) ;
    - `dynamic_button` : textures des 3 états (setdefault) ;
    - widgets `om_*` : ajoutés (jamais de remplacement de vanilla) ;
-   - `long_form@...` : `controls` = routing OM **+ repli vanilla masqué**.
+   - `long_form@...` : devient un **WRAPPEUR** `panel` 100 %×100 % dont les
+     `controls` = un écran par menu OM (visible si `#title_text` matche) +
+     le repli vanilla masqué. La définition vanilla est copiée INTACTE dans
+     la branche de repli — jamais mutée en place (les contrôles d'un enfant
+     s'additionnent à ceux du parent : muter le vanilla = double rendu).
 3. **Repli vanilla** — `om_default_form@...` (copie profonde intacte du
    vanilla) est visible UNIQUEMENT si aucun titre OM ne matche (binding
    généré `(!(#title_text = 'X')) && ...`). Les formulaires des autres
    add-ons gardent leur rendu natif.
+3.5. **Binding de titre = 2 bindings** : `{binding_name: "#title_text"}`
+   (collecte, OBLIGATOIRE) PUIS la condition `view`. Sans la collecte, la
+   propriété n'est pas résolue dans la portée et la visibilité ne s'évalue
+   jamais (menus invisibles). Pattern vérifié dans les packs de production.
 4. **Validation stricte** — le pipeline échoue (exit 1) si : duplicate
    `X`/`X@parent`, référence `server_form.X` non résolue, texture `om_*`
    absente sur disque.
@@ -88,6 +96,14 @@ bun run build                          # bundle esbuild -> BP/scripts/main.js
 6. **Pas de framework tiers** (`@bedrock-core/ui`, etc.) : API officielle
    uniquement. L'expérience a montré que les wrappers tiers divergent des
    versions réelles du jeu.
+7. **Pas de propriétés inventées en JSON UI.** `button_up` (dans un
+   `button_mappings`) n'existe pas : le contrôle entier est rejeté à l'écran
+   (boutons morts, labels orphelins). Ne JAMAIS ajouter une clé absente du
+   vanilla ; les mappings canoniques sont `menu_select`/pressed +
+   `menu_ok`/focused vers `button.form_button_click` (cf. `common.button`).
+8. **Les boutons custom = type `button` canonique** (default/hover/pressed
+   + `button_mappings` ci-dessus + `collection_details`). Toute autre
+   construction (panneau cliquable, etc.) casse tactile/manette.
 
 ---
 

@@ -29,23 +29,11 @@
     ]
   },
   "long_form@common_dialogs.main_panel_no_buttons": {
-    "$title_panel": "common_dialogs.standard_title_label",
-    "$title_size": [
-      "100% - 15px",
-      10
-    ],
-    "$title_max_size": [
-      "100% - 15px",
-      10
-    ],
+    "type": "panel",
     "size": [
-      225,
-      200
+      "100%",
+      "100%"
     ],
-    "$text_name": "#title_text",
-    "$title_text_binding_type": "none",
-    "$child_control": "server_form.long_form_panel",
-    "layer": 2,
     "controls": [
       {
         "om_root_classes": {
@@ -55,6 +43,9 @@
             "100%"
           ],
           "bindings": [
+            {
+              "binding_name": "#title_text"
+            },
             {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Classes')",
@@ -84,6 +75,9 @@
           ],
           "bindings": [
             {
+              "binding_name": "#title_text"
+            },
+            {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Mon clan')",
               "target_property_name": "#visible"
@@ -111,6 +105,9 @@
             "100%"
           ],
           "bindings": [
+            {
+              "binding_name": "#title_text"
+            },
             {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Menu')",
@@ -140,6 +137,9 @@
           ],
           "bindings": [
             {
+              "binding_name": "#title_text"
+            },
+            {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Administration')",
               "target_property_name": "#visible"
@@ -167,6 +167,9 @@
             "100%"
           ],
           "bindings": [
+            {
+              "binding_name": "#title_text"
+            },
             {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Nations')",
@@ -196,6 +199,9 @@
           ],
           "bindings": [
             {
+              "binding_name": "#title_text"
+            },
+            {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Mes infos')",
               "target_property_name": "#visible"
@@ -223,6 +229,9 @@
             "100%"
           ],
           "bindings": [
+            {
+              "binding_name": "#title_text"
+            },
             {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Le Monde')",
@@ -252,6 +261,9 @@
           ],
           "bindings": [
             {
+              "binding_name": "#title_text"
+            },
+            {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Mines')",
               "target_property_name": "#visible"
@@ -279,6 +291,9 @@
             "100%"
           ],
           "bindings": [
+            {
+              "binding_name": "#title_text"
+            },
             {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Moderation')",
@@ -308,6 +323,9 @@
           ],
           "bindings": [
             {
+              "binding_name": "#title_text"
+            },
+            {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Bans')",
               "target_property_name": "#visible"
@@ -335,6 +353,9 @@
             "100%"
           ],
           "bindings": [
+            {
+              "binding_name": "#title_text"
+            },
             {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Mutes')",
@@ -364,6 +385,9 @@
           ],
           "bindings": [
             {
+              "binding_name": "#title_text"
+            },
+            {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Roles')",
               "target_property_name": "#visible"
@@ -391,6 +415,9 @@
             "100%"
           ],
           "bindings": [
+            {
+              "binding_name": "#title_text"
+            },
             {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Joueurs')",
@@ -420,6 +447,9 @@
           ],
           "bindings": [
             {
+              "binding_name": "#title_text"
+            },
+            {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Membres')",
               "target_property_name": "#visible"
@@ -447,6 +477,9 @@
             "100%"
           ],
           "bindings": [
+            {
+              "binding_name": "#title_text"
+            },
             {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Membre')",
@@ -476,6 +509,9 @@
           ],
           "bindings": [
             {
+              "binding_name": "#title_text"
+            },
+            {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Modules')",
               "target_property_name": "#visible"
@@ -503,6 +539,9 @@
             "100%"
           ],
           "bindings": [
+            {
+              "binding_name": "#title_text"
+            },
             {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Metiers')",
@@ -532,6 +571,9 @@
           ],
           "bindings": [
             {
+              "binding_name": "#title_text"
+            },
+            {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Quetes')",
               "target_property_name": "#visible"
@@ -559,6 +601,9 @@
             "100%"
           ],
           "bindings": [
+            {
+              "binding_name": "#title_text"
+            },
             {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Drapeau')",
@@ -588,6 +633,9 @@
           ],
           "bindings": [
             {
+              "binding_name": "#title_text"
+            },
+            {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Dissoudre')",
               "target_property_name": "#visible"
@@ -615,6 +663,9 @@
             "100%"
           ],
           "bindings": [
+            {
+              "binding_name": "#title_text"
+            },
             {
               "binding_type": "view",
               "source_property_name": "(#title_text = 'NaLandia » Base de donnees')",
@@ -655,6 +706,9 @@
           "$child_control": "server_form.long_form_panel",
           "layer": 2,
           "bindings": [
+            {
+              "binding_name": "#title_text"
+            },
             {
               "binding_type": "view",
               "source_property_name": "(!(#title_text = 'NaLandia » Classes')) && (!(#title_text = 'NaLandia » Mon clan')) && (!(#title_text = 'NaLandia » Menu')) && (!(#title_text = 'NaLandia » Administration')) && (!(#title_text = 'NaLandia » Nations')) && (!(#title_text = 'NaLandia » Mes infos')) && (!(#title_text = 'NaLandia » Le Monde')) && (!(#title_text = 'NaLandia » Mines')) && (!(#title_text = 'NaLandia » Moderation')) && (!(#title_text = 'NaLandia » Bans')) && (!(#title_text = 'NaLandia » Mutes')) && (!(#title_text = 'NaLandia » Roles')) && (!(#title_text = 'NaLandia » Joueurs')) && (!(#title_text = 'NaLandia » Membres')) && (!(#title_text = 'NaLandia » Membre')) && (!(#title_text = 'NaLandia » Modules')) && (!(#title_text = 'NaLandia » Metiers')) && (!(#title_text = 'NaLandia » Quetes')) && (!(#title_text = 'NaLandia » Drapeau')) && (!(#title_text = 'NaLandia » Dissoudre')) && (!(#title_text = 'NaLandia » Base de donnees'))",
@@ -1410,8 +1464,7 @@
             {
               "from_button_id": "button.menu_select",
               "to_button_id": "button.form_button_click",
-              "mapping_type": "pressed",
-              "button_up": true
+              "mapping_type": "pressed"
             },
             {
               "from_button_id": "button.menu_ok",

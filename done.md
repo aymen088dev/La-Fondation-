@@ -1,7 +1,24 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v2.8.0 — UI reconstruite de zéro : pipeline JSON UI généré (style EasyUIBuilder, modifications ciblées sur base vanilla) + contrat unique tiles.ts + agent.md (méthode documentée)**.
+> Dernière mise à jour : **v2.8.1 — routage « wrappeur » (pattern des packs pro) : repli vanilla masqué correctement + suppression de la propriété invalide `button_up` (boutons morts / labels orphelins)**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v2.8.1 — Double rendu et boutons morts : les deux dernières causes, réparées (sept. 2026)
+
+**Symptômes (capture joueur)** : `[UI][error] Unknown property [button_up]` sur `om_list_tile/om_lt_click` · cartes « Guerrier » éparpillées (labels sans bouton) · dialogue gris vanilla qui se dessine sous nos panneaux.
+
+### Cause 1 — `button_up` n'existe pas
+Un `button_mappings` ne connaît que `from_button_id`, `to_button_id`, `mapping_type` (+ `ignore`). `button_up: true` était inventé → le contrôle `om_lt_click` ENTIER était rejeté (erreur au log) : plus de zone cliquable, seuls les labels restaient. Corrigé : mapping canonique vanilla (`menu_select`/pressed + `menu_ok`/focused → `button.form_button_click`), copié de `common.button` (ui_common.json officiel).
+
+### Cause 2 — le repli vanilla ne se masquait pas (double rendu)
+Deux sous-causes, toutes deux réparées :
+1. **Muter le vanilla en place = fusion** : en JSON UI, les contrôles d'un enfant s'additionnent à ceux du parent. Ajouter nos panneaux dans `long_form@...` laissait son contenu original (dialogue gris) actif. Désormais `long_form` est un **wrappeur** `panel` neuf à deux branches EXCLUSIVES : nos écrans (visibles si le titre matche) + la copie vanilla intacte (visible si AUCUN titre ne matche) — pattern exact des packs de production.
+2. **Collecte manquante** : une condition `view` sur `#title_text` doit être précédée de `{binding_name: "#title_text"}` (collecte) sans quoi la propriété n'est pas résolue dans la portée. Ajouté sur TOUTES les branches (nos écrans + repli).
+
+### Vérifié
+Typecheck OK · 81/81 tests (test de routage renforcé : wrappeur sans variable vanilla, repli masqué, collecte présente) · JSON régénéré (51 définitions) · packs **2.8.1**.
 
 ---
 

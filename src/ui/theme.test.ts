@@ -62,23 +62,39 @@ describe("Pipeline UI — server_form.json généré", () => {
     expect(cf["$child_control"]).toBe("server_form.custom_form_panel");
   });
 
-  it("route long_form vers les panneaux OM et garde un repli vanilla", () => {
+  it("route long_form via un wrappeur à deux branches (OM + repli vanilla)", () => {
     const lf = form["long_form@common_dialogs.main_panel_no_buttons"] as {
+      type: string;
       controls: Array<Record<string, unknown>>;
     };
+    // Le wrappeur ne doit PAS contenir les variables du template vanilla
+    // (sinon son contenu se dessinerait sous nos écrans : double rendu).
+    expect(lf.type).toBe("panel");
+    expect(lf.controls).toBeDefined();
     const names = lf.controls.map((c) => Object.keys(c)[0]);
     expect(names).toContain("om_root_classes");
     expect(names).toContain("om_root_menu");
     expect(names).toContain("om_root_base_de_donnees");
     const fallback = (
       lf.controls.find((c) => "om_default_form@common_dialogs.main_panel_no_buttons" in c) as
-        | { "om_default_form@common_dialogs.main_panel_no_buttons": { bindings: Array<{ source_property_name: string }> } }
+        | {
+            "om_default_form@common_dialogs.main_panel_no_buttons": {
+              bindings: Array<{ source_property_name?: string; binding_name?: string }>;
+            };
+          }
         | undefined
     )?.["om_default_form@common_dialogs.main_panel_no_buttons"];
     // Le repli vanilla est masqué quand un menu OM matche (sinon il se
     // dessine SOUS notre panneau : artefacts « en bas des menus »).
     expect(fallback).toBeDefined();
-    expect(fallback?.bindings[0]?.source_property_name).toContain("!");
+    const sources = fallback?.bindings.map((b) => b.source_property_name ?? "").join(" ");
+    expect(sources).toContain("!");
+    // Chaque branche collecte #title_text (résolution obligatoire).
+    for (const b of fallback?.bindings ?? []) {
+      if (b.binding_name === undefined && b.source_property_name === undefined) {
+        throw new Error("binding sans nom ni source dans le repli");
+      }
+    }
   });
 
   it("conserve les références résolubles", () => {

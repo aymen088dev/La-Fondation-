@@ -179,7 +179,6 @@ def widget_list_tile() -> dict:
                             "from_button_id": "button.menu_select",
                             "to_button_id": "button.form_button_click",
                             "mapping_type": "pressed",
-                            "button_up": True,
                         },
                         {
                             "from_button_id": "button.menu_ok",
@@ -331,17 +330,24 @@ def widget_menu_panel() -> dict:
 
 
 def title_equal_binding(title: str) -> list[dict]:
+    """Collecter #title_text PUIS tester l'égalité.
+
+    La collecte (`{"binding_name": "#title_text"}`) est OBLIGATOIRE : sans
+    elle la propriété n'est pas résolue dans la même portée et la condition
+    `view` ne s'évalue jamais (pattern des générateurs pro, copié du).
+    """
     return [
+        {"binding_name": "#title_text"},
         {
             "binding_type": "view",
             "source_property_name": f"(#title_text = '{title}')",
             "target_property_name": "#visible",
-        }
+        },
     ]
 
 
 def fallback_visible_binding(all_titles: list[str]) -> list[dict]:
-    """Le repli vanilla n'est visible QUE si AUCUN menu OM ne matche.
+    """La branche vanilla n'est visible QUE si AUCUN menu OM ne matche.
 
     S'il restait toujours visible, le formulaire vanilla se dessinait SOUS
     notre panneau (artefacts « en bas des menus » des captures). L'expression
@@ -349,11 +355,12 @@ def fallback_visible_binding(all_titles: list[str]) -> list[dict]:
     """
     conditions = " && ".join(f"(!(#title_text = '{t}'))" for t in all_titles)
     return [
+        {"binding_name": "#title_text"},
         {
             "binding_type": "view",
             "source_property_name": conditions,
             "target_property_name": "#visible",
-        }
+        },
     ]
 
 
@@ -608,10 +615,18 @@ def build(vanilla: dict, contract: dict) -> dict:
     d["om_flag_image"] = widget_flag_image()
     d["om_menu_panel"] = widget_menu_panel()
 
-    # 4. long_form : notre routing REMPLACE la définition vanilla en place,
-    #    et une copie PROFONDE intacte devient le repli (aucun match OM).
+    # 4. ROUTING « WRAPPEUR » (pattern des générateurs pros) : `long_form`
+    #    devient un panneau neuf contenant DEUX branches exclusives :
+    #      - la branche VANILLA INTACTE (copie de la définition), visible
+    #        uniquement si AUCUN titre OM ne matche (repli) ;
+    #      - un écran par menu OM, visible si son titre matche.
+    #    On ne mute PLUS la définition vanilla en place : en JSON UI, les
+    #    contrôles d'un enfant S'ADDITIONNENT à ceux du parent — ajouter nos
+    #    panneaux dans la définition vanilla faisait cohabiter son propre
+    #    contenu (dialogue gris) et nos panneaux (double rendu des captures).
     lf_key = "long_form@common_dialogs.main_panel_no_buttons"
-    roots: list[dict] = []
+    vanilla_lf = copy.deepcopy(d[lf_key])
+    screens: list[dict] = []
 
     # Panneaux indexés
     indexed_sizes: dict[str, tuple[int, int]] = {
@@ -626,7 +641,7 @@ def build(vanilla: dict, contract: dict) -> dict:
     for title, layout in tile_menus["indexed"].items():
         panel = f"om_panel_{_slug(title)}"
         d[panel] = indexed_panel(title, layout)
-        roots.append(root_panel(f"om_root_{_slug(title)}", f"NaLandia » {title}", f"server_form.{panel}", indexed_sizes[title]))
+        screens.append(root_panel(f"om_root_{_slug(title)}", f"NaLandia » {title}", f"server_form.{panel}", indexed_sizes[title]))
 
     # Menus à liste (un root par thème, tous sur om_menu_panel)
     for title in tile_menus["generic"]:
@@ -634,20 +649,21 @@ def build(vanilla: dict, contract: dict) -> dict:
         frame = f"textures/ui/om_menu_{theme}_bg"
         d[f"om_panel_{_slug(title)}"] = dict(d["om_menu_panel"])
         d[f"om_panel_{_slug(title)}"]["$frame"] = frame
-        roots.append(root_panel(f"om_root_{_slug(title)}", f"NaLandia » {title}", f"server_form.om_panel_{_slug(title)}", (330, 236)))
+        screens.append(root_panel(f"om_root_{_slug(title)}", f"NaLandia » {title}", f"server_form.om_panel_{_slug(title)}", (330, 236)))
 
     # Repli : copie PROFONDE et intacte de la définition vanilla — les
     # formulaires des autres add-ons et les titres inconnus gardent leur
-    # rendu natif, sans jamais voir notre namespace. Masqué quand un menu
-    # OM matche (sinon le vanilla se dessine SOUS notre panneau).
-    fallback = copy.deepcopy(d[lf_key])
+    # rendu natif. Masqué dès qu'un menu OM matche.
+    fallback = vanilla_lf
     all_titles = [f"NaLandia » {t}" for t in [*tile_menus["indexed"], *tile_menus["generic"]]]
     fallback["bindings"] = fallback_visible_binding(all_titles)
-    roots.append({"om_default_form@common_dialogs.main_panel_no_buttons": fallback})
+    screens.append({"om_default_form@common_dialogs.main_panel_no_buttons": fallback})
 
-    routed = dict(d[lf_key])
-    routed["controls"] = roots
-    d[lf_key] = routed
+    d[lf_key] = {
+        "type": "panel",
+        "size": ["100%", "100%"],
+        "controls": screens,
+    }
     return d
 
 
