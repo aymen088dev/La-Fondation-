@@ -3,7 +3,7 @@
 > **NaLandia** — serveur Minecraft Bedrock (add-on : BP scripts + RP).
 > Stack : **TypeScript JSX → esbuild → `BP/scripts/main.js`** ; UI rendue par
 > le framework **`@bedrock-core/ui`** (v0.11) + son **render pack CoreUI**
-> vendu dans `RP/ui/core-ui/`. Formulaires à champs : API native
+> vendu dans le RP (`RP/ui/core-ui/` + `RP/ui/server_form.json`). Formulaires à champs : API native
 > `@minecraft/server-ui` (CustomForm). Textures du thème : `scripts/make_ui_textures.py`.
 
 ---
@@ -16,7 +16,11 @@ src/ui/kit.tsx     ← KIT VISUEL : Window, TitleBar, TileButton, SidebarLayout,
 src/ui/theme.tsx   ← MOTEUR : openTileMenu (builder menu.action/body → JSX
                      → render()) + OMForm (formulaires natifs) + Observables
 src/ui/labels.ts   ← helpers purs : pageSlice, fitLabel, wrapLabel
-RP/ui/core-ui/     ← RENDER PACK (vendu, NE PAS ÉDITER) : décode le protocole
+RP/ui/server_form.json ← ROUTING du render pack (vendu, NE PAS ÉDITER).
+                    Doit rester À LA RACINE de ui/ et en TÊTE de _ui_defs.json :
+                    c'est le seul chemin que le jeu lit pour remplacer le
+                    formulaire serveur vanilla. S'il disparaît, le jeu affiche
+                    la charge utile brute `bcuiv…` au lieu de décoder l'écran.
                      du framework en JSON UI. Version = release du package.
 ```
 
@@ -34,9 +38,11 @@ RP/ui/core-ui/     ← RENDER PACK (vendu, NE PAS ÉDITER) : décode le protocol
 
 ## 2. La méthode (les 6 règles immuables)
 
-1. **Ne JAMAIS éditer `RP/ui/core-ui/`** — c'est le render pack officiel du
-   framework. Sa version (BP/manifest.json `761ecd37-…`) DOIT matcher la
-   release du package npm (`@bedrock-core/ui@x.y.z` → pack `[1, x, y]`).
+1. **Ne JAMAIS éditer `RP/ui/core-ui/` ni `RP/ui/server_form.json`** — c'est le
+   render pack officiel du framework, vendu tel quel dans notre RP (aucune
+   dépendance pack séparée : son UUID `761ecd37-…` ne doit JAMAIS revenir dans
+   les dependencies du BP). Mise à jour = remplacer les fichiers par ceux de la
+   release npm (`@bedrock-core/ui@x.y.z`).
 2. **Ne JAMAIS réécrire un écran en JSON UI maison** — le routage par titre
    (`#title_text = '…'`) et le contrat d'index ont causé toutes les régressions
    historiques (duplicates, doubles rendus, replis visibles). Un écran, c'est
@@ -82,7 +88,7 @@ Garder `openWindowRaw(player, "Titre", (form) => { form.textField(…); … })`.
 
 | Symptôme | Cause probable | Fix |
 |---|---|---|
-| Écran vide/noir | render pack absent ou version ≠ package | vérifier `RP/ui/core-ui/` + dépendance BP |
+| Écran vide/noir ou texte `bcuiv0008s:scrolls…` affiché brut | `server_form.json` absent de `ui/` ou absent de `_ui_defs.json` | vérifier `RP/ui/server_form.json` + ligne 1 de `_ui_defs.json` + dépendance BP → RP à jour |
 | Pas de style (boutons gris « unstyled ») | textures core-ui déplacées | `RP/textures/ui/ore-styled/`, `pointer.png` |
 | Menu ne s'ouvre pas après un autre | enchaînement trop rapide | le délai `runTimeout(…, 1)` du moteur gère ; vérifier qu'on ne render pas deux fois |
 | Input texte cassé | champ recodé en JSX | revenir à `OMForm.textField` |

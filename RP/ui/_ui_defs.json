@@ -1,5 +1,6 @@
 {
   "ui_defs": [
+    "ui/server_form.json",
     "ui/hud_screen.json",
     "ui/core-ui/animations/screen_events.json",
     "ui/core-ui/common/control.json",

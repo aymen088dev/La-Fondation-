@@ -53,18 +53,31 @@ describe("Moteur UI (@bedrock-core/ui)", () => {
     for (const def of uiDefs.ui_defs) {
       expect(existsSync(join(ROOT, "RP", def))).toBe(true);
     }
-    // Le fichier de routing du render pack doit référencer son protocole.
-    const routing = readFileSync(join(ROOT, "RP/ui/core-ui/server_form.json"), "utf8");
+    // Le fichier de routing du render pack vit à la racine ui/ (SEUL chemin
+    // lu par le jeu pour remplacer le formulaire serveur vanilla) et doit
+    // être déclaré en TÊTE de _ui_defs (pattern officiel du pack).
+    expect(uiDefs.ui_defs[0]).toBe("ui/server_form.json");
+    const routing = readFileSync(join(ROOT, "RP/ui/server_form.json"), "utf8");
     expect(routing).toContain("bcuiv");
   });
 
-  it("garde la dépendance render pack dans le behavior pack", () => {
+  it("répare le câblage BP → RP (pack CoreUI vendu, pas de dépendance fantôme)", () => {
     const manifest = JSON.parse(readFileSync(join(ROOT, "BP/manifest.json"), "utf8")) as {
-      dependencies: Array<{ uuid?: string; version: number[] }>;
+      header: { uuid: string };
+      dependencies: Array<{ uuid?: string; version: number[] | string }>;
     };
-    const coreUi = manifest.dependencies.find((d) => d.uuid === "761ecd37-ad1c-4a64-862a-d6cc38767426");
-    expect(coreUi).toBeDefined();
-    expect(coreUi?.version).toEqual([1, 11, 0]);
+    const rpDep = manifest.dependencies.find(
+      (d) => d.uuid === "33ca6e1c-4f30-46ae-8b56-1510382e3f61",
+    );
+    // La seule dépendance pack est NOTRE RP (le render pack est vendu dedans) —
+    // et sa version doit être à jour, sinon le lien est refusé en jeu.
+    expect(rpDep).toBeDefined();
+    expect(rpDep?.version).not.toEqual("");
+    expect(Array.isArray(rpDep?.version)).toBe(true);
+    // L'UUID CoreUI séparé ne doit plus exister (pack vendu dans le RP).
+    expect(
+      manifest.dependencies.find((d) => d.uuid === "761ecd37-ad1c-4a64-862a-d6cc38767426"),
+    ).toBeUndefined();
   });
 
   it("garde les utilitaires de libellés", () => {
