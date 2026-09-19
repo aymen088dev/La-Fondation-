@@ -1,7 +1,25 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v3.0.3 — Correctif critique « menus qui ne s'ouvrent plus » : esbuild compilait les .tsx de node_modules (ore-styled) avec React.createElement → `ReferenceError: React is not defined` au premier rendu. `jsx: "automatic"` imposé dans build.mjs ; un test interdit désormais tout React.createElement dans le bundle.** — Migration complète vers le framework JSX `@bedrock-core/ui` : menus rendus en flexbox avec scroll natif, plus aucun JSON UI maison**.
+> Dernière mise à jour : **v3.0.4 — Retraite complète des réponses des commandes `/sn:*` : préfixes et couleurs homogènes, erreurs renvoyées en Failure, bug de statut `/sn:invite` corrigé, mutations de DB différées dans `system.run`.** — v3.0.3 : correctif critique « menus qui ne s'ouvrent plus » (`jsx: "automatic"` imposé dans build.mjs).
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v3.0.4 — Réponses des commandes `/sn:*` retraitées (sept. 2026)
+
+**La demande** : « Regarde sur les réponses des commandes, retraite tout ça. » Audit complet des trois fichiers de commandes (`src/territories/commands.ts`, `src/permissions/commands.ts`, `src/moderation/commands.ts`) et uniformisation.
+
+- [x] **BUG `/sn:invite` corrigé** : la variable `sent` était positionnée DANS `system.run` (tick suivant) mais lue AVANT son exécution — le statut renvoyé au jeu était toujours `Success` même quand l'invitation échouait. Le message au joueur (qui détaille l'erreur) fait désormais foi.
+- [x] **Préfixes et couleurs homogènes** : chaque réponse au joueur porte son préfixe de module (`[Clans]`, `[Mines]`, `[DB]`, `[Modération]`…) avec une couleur cohérente (§a succès, §c erreur, §e info). Fini les réponses brutes sans préfixe (« Réservé aux joueurs. », « Le module États est désactivé. ») mélangées aux réponses préfixées.
+- [x] **Erreurs = statut Failure** : tous les refus de garde (non-joueur, module désactivé, module indisponible) renvoient maintenant un Failure avec message — Bedrock les affiche en rouge, comme les vraies erreurs de commande.
+- [x] **`/sn:info` et `/sn:setflag` vérifient désormais le module « États »** (comme les autres commandes de clan) au lieu d'agir module désactivé.
+- [x] **`/sn:db menu` réservé aux joueurs** : la source est vérifiée avant d'ouvrir le menu (l'ancien code castait la source en Player sans vérifier — crash potentiel si la commande partait de la console).
+- [x] **Mutations de DB différées** : `/sn:setflag` écrivait dans la DB directement dans le callback de commande (contexte où l'accès aux dynamic properties est restreint) ; toutes les mutations (`setflag`, invite, leave, promote/demote, ckick, claim/unclaim) lèvent `db.markDirty()` dans le `system.run` — plus aucune perte de persistance possible.
+- [x] **Usage de `/sn:db` colorisé** : messages d'aide (`Usage :`, liste des actions) préfixés `[DB]` et mis en forme.
+- [x] Modération : déjà propre (préfixes `[Modération]` systématiques) — seulement les gardes factorisées conservées.
+
+### ✔️ Vérifié
+Typecheck OK · **70/70 tests** · bundle recompilé (465 ko) · packs **3.0.4** (BP, RP, `serveur/*.json`).
 
 ---
 

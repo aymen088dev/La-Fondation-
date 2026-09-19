@@ -129,7 +129,7 @@ export function registerAdminCommands(ctx: AdminContext): void {
 
         system.run(() => {
           if (ctx.classes === undefined) {
-            player.sendMessage("§c[Classes] Module indisponible.");
+            player.sendMessage("§c[Classes]§r Module indisponible.");
             return;
           }
           const isAdmin = canUseAdminPanel(player, ctx.permissions);
@@ -153,7 +153,7 @@ export function registerAdminCommands(ctx: AdminContext): void {
           return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
         }
         system.run(() => {
-          if (ctx.quests === undefined) player.sendMessage("§c[Quêtes] Module indisponible.");
+          if (ctx.quests === undefined) player.sendMessage("§c[Quêtes]§r Module indisponible.");
           else openQuestMenu(player, ctx.quests, ctx.classes, ctx.jobs);
         });
         return { status: CustomCommandStatus.Success };
@@ -176,7 +176,7 @@ export function registerAdminCommands(ctx: AdminContext): void {
 
         system.run(() => {
           if (ctx.jobs === undefined) {
-            player.sendMessage("§c[Métiers] Module indisponible.");
+            player.sendMessage("§c[Métiers]§r Module indisponible.");
             return;
           }
           openJobsMenu(player, ctx.jobs);

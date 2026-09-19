@@ -14,7 +14,16 @@ import { openWorldMenu } from "../mines/ui";
 /**
  * Enregistre les commandes custom /sn:create, /sn:info, /sn:db etc.
  * À appeler dans system.beforeEvents.startup (early execution).
+ *
+ * Convention de réponses (v3.0.4) : TOUT message au joueur est préfixé
+ * `[Clans]` / `[Mines]` / `[DB]` et coloré ; toute erreur renvoie un statut
+ * Failure (Bedrock affiche alors le message en rouge). Les mutations de DB
+ * sont TOUJOURS différées dans system.run : l'accès aux dynamic properties
+ * est restreint pendant le contexte d'exécution de la commande.
  */
+
+const NOT_PLAYER = "Réservé aux joueurs.";
+const CLANS_DISABLED = "Le module États est désactivé.";
 export function registerCommands(
   manager: TerritoryManager,
   db?: JsonDatabase,
@@ -42,11 +51,11 @@ export function registerCommands(
       (origin: CustomCommandOrigin) => {
         const player = origin.sourceEntity as Player | undefined;
         if (player === undefined || player.typeId !== "minecraft:player") {
-          return { status: CustomCommandStatus.Failure, message: "Seuls les joueurs peuvent utiliser cette commande." };
+          return { status: CustomCommandStatus.Failure, message: NOT_PLAYER };
         }
 
         if (!enabled()) {
-          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+          return { status: CustomCommandStatus.Failure, message: CLANS_DISABLED };
         }
         if (!allowed(player, "territories.create")) {
           return { status: CustomCommandStatus.Failure, message: "§c[Clans] Tu n'as pas la permission de fonder un clan." };
@@ -68,7 +77,10 @@ export function registerCommands(
       (origin: CustomCommandOrigin) => {
         const player = origin.sourceEntity as Player | undefined;
         if (player === undefined || player.typeId !== "minecraft:player") {
-          return { status: CustomCommandStatus.Failure, message: "Seuls les joueurs peuvent utiliser cette commande." };
+          return { status: CustomCommandStatus.Failure, message: NOT_PLAYER };
+        }
+        if (!enabled()) {
+          return { status: CustomCommandStatus.Failure, message: CLANS_DISABLED };
         }
 
         system.run(() => openStatesMenu(player, manager));
@@ -98,7 +110,7 @@ export function registerCommands(
           const territory =
             manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
           if (territory === undefined) {
-            player.sendMessage("§e[Clans] Tu n'as pas de clan. Fonde-le avec §f/sn:create§e.");
+            player.sendMessage("§e[Clans]§r Tu n'as pas de clan. Fonde-le avec §f/sn:create§e.");
             return;
           }
           // Note : la vérification chef/officier est faite par le manager.
@@ -115,6 +127,7 @@ export function registerCommands(
               ? `§a[Clans] Chunk revendiqué pour §f${territory.data.name}§a !`
               : `§c[Clans] ${result.reason ?? "Revendication impossible."}`,
           );
+          if (result.ok) db?.markDirty();
         });
         return { status: CustomCommandStatus.Success };
       },
@@ -140,7 +153,7 @@ export function registerCommands(
         system.run(() => {
           const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
           if (territory === undefined) {
-            player.sendMessage("§e[Clans] Tu n'as pas de clan. Fonde-le avec §f/sn:create§e.");
+            player.sendMessage("§e[Clans]§r Tu n'as pas de clan. Fonde-le avec §f/sn:create§e.");
             return;
           }
           openMyClanMenu(player, manager, territory);
@@ -160,16 +173,16 @@ export function registerCommands(
       (origin: CustomCommandOrigin) => {
         const player = origin.sourceEntity as Player | undefined;
         if (player === undefined || player.typeId !== "minecraft:player") {
-          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+          return { status: CustomCommandStatus.Failure, message: NOT_PLAYER };
         }
         if (!enabled()) {
-          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+          return { status: CustomCommandStatus.Failure, message: CLANS_DISABLED };
         }
 
         system.run(() => {
           const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
           if (territory === undefined) {
-            player.sendMessage("§e[Clans] Tu n'as pas de clan.");
+            player.sendMessage("§e[Clans]§r Tu n'as pas de clan.");
             return;
           }
           const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
@@ -185,6 +198,7 @@ export function registerCommands(
               ? `§a[Clans] Chunk libéré. §7${territory.data.chunkKeys.length} chunk(s) restant(s).`
               : `§c[Clans] ${result.reason ?? "Action impossible."}`,
           );
+          if (result.ok) db?.markDirty();
         });
         return { status: CustomCommandStatus.Success };
       },
@@ -202,17 +216,20 @@ export function registerCommands(
       (origin: CustomCommandOrigin, joueur: string) => {
         const player = origin.sourceEntity as Player | undefined;
         if (player === undefined || player.typeId !== "minecraft:player") {
-          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+          return { status: CustomCommandStatus.Failure, message: NOT_PLAYER };
         }
         if (!enabled()) {
-          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+          return { status: CustomCommandStatus.Failure, message: CLANS_DISABLED };
         }
 
-        let sent: CustomCommandStatus = CustomCommandStatus.Success;
+        // BUG corrigé (v3.0.4) : `sent` était lu AVANT que system.run ne
+        // s'exécute → le statut était toujours Success même en échec. Les
+        // messages au joueur font désormais foi (ils détaillent l'erreur),
+        // la commande renvoie Success dès que le flux a été planifié.
         system.run(() => {
           const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
           if (territory === undefined) {
-            player.sendMessage("§e[Clans] Tu n'as pas de clan : fonde-le avec §f/sn:create§e.");
+            player.sendMessage("§e[Clans]§r Tu n'as pas de clan : fonde-le avec §f/sn:create§e.");
             return;
           }
           const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
@@ -230,14 +247,14 @@ export function registerCommands(
           }
           const result = manager.addMember(territory.id, target.id, target.name);
           if (result.ok) {
+            db?.markDirty();
             player.sendMessage(`§a[Clans] ${target.name} a rejoint §f${territory.data.name}§a !`);
             target.sendMessage(`§a[Clans] Tu as rejoint le clan §f${territory.data.name}§a !`);
           } else {
             player.sendMessage(`§c[Clans] ${result.error ?? "Invitation impossible."}`);
-            sent = CustomCommandStatus.Failure;
           }
         });
-        return { status: sent };
+        return { status: CustomCommandStatus.Success };
       },
     );
 
@@ -252,24 +269,25 @@ export function registerCommands(
       (origin: CustomCommandOrigin) => {
         const player = origin.sourceEntity as Player | undefined;
         if (player === undefined || player.typeId !== "minecraft:player") {
-          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+          return { status: CustomCommandStatus.Failure, message: NOT_PLAYER };
         }
         if (!enabled()) {
-          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+          return { status: CustomCommandStatus.Failure, message: CLANS_DISABLED };
         }
 
         system.run(() => {
           const territory = manager.findByMemberId(player.id);
           if (territory === undefined) {
-            player.sendMessage("§e[Clans] Tu n'es membre d'aucun clan.");
+            player.sendMessage("§e[Clans]§r Tu n'es membre d'aucun clan.");
             return;
           }
           const ok = manager.leave(territory.id, player.id);
           player.sendMessage(
             ok
-              ? `§e[Clans] Tu as quitté §f${territory.data.name}§e.`
+              ? `§e[Clans]§r Tu as quitté §f${territory.data.name}§e.`
               : "§c[Clans] Impossible de quitter le clan (le chef doit le dissoudre : /sn:disband).",
           );
+          if (ok) db?.markDirty();
         });
         return { status: CustomCommandStatus.Success };
       },
@@ -288,17 +306,17 @@ export function registerCommands(
         (origin: CustomCommandOrigin, membre: string) => {
           const player = origin.sourceEntity as Player | undefined;
           if (player === undefined || player.typeId !== "minecraft:player") {
-            return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+            return { status: CustomCommandStatus.Failure, message: NOT_PLAYER };
           }
           if (!enabled()) {
-            return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+            return { status: CustomCommandStatus.Failure, message: CLANS_DISABLED };
           }
 
           system.run(() => {
             const territory = manager.findByOwner(player.name) ??
               manager.findByMemberId(player.id);
             if (territory === undefined) {
-              player.sendMessage("§e[Clans] Tu n'as pas de clan.");
+              player.sendMessage("§e[Clans]§r Tu n'as pas de clan.");
               return;
             }
             const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
@@ -321,6 +339,7 @@ export function registerCommands(
                   : `§a[Clans] ${member.name} est redevenu §7membre§a.`
                 : `§c[Clans] ${result.error ?? "Action impossible."}`,
             );
+            if (result.ok) db?.markDirty();
           });
           return { status: CustomCommandStatus.Success };
         },
@@ -342,16 +361,16 @@ export function registerCommands(
       (origin: CustomCommandOrigin, membre: string) => {
         const player = origin.sourceEntity as Player | undefined;
         if (player === undefined || player.typeId !== "minecraft:player") {
-          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+          return { status: CustomCommandStatus.Failure, message: NOT_PLAYER };
         }
         if (!enabled()) {
-          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+          return { status: CustomCommandStatus.Failure, message: CLANS_DISABLED };
         }
 
         system.run(() => {
           const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
           if (territory === undefined) {
-            player.sendMessage("§e[Clans] Tu n'as pas de clan.");
+            player.sendMessage("§e[Clans]§r Tu n'as pas de clan.");
             return;
           }
           const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
@@ -373,6 +392,7 @@ export function registerCommands(
               ? `§a[Clans] ${member.name} a été exclu du clan.`
               : `§c[Clans] ${result.error ?? "Action impossible."}`,
           );
+          if (result.ok) db?.markDirty();
         });
         return { status: CustomCommandStatus.Success };
       },
@@ -389,16 +409,16 @@ export function registerCommands(
       (origin: CustomCommandOrigin) => {
         const player = origin.sourceEntity as Player | undefined;
         if (player === undefined || player.typeId !== "minecraft:player") {
-          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+          return { status: CustomCommandStatus.Failure, message: NOT_PLAYER };
         }
         if (!enabled()) {
-          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+          return { status: CustomCommandStatus.Failure, message: CLANS_DISABLED };
         }
 
         system.run(() => {
           const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
           if (territory === undefined) {
-            player.sendMessage("§e[Clans] Tu n'as pas de clan.");
+            player.sendMessage("§e[Clans]§r Tu n'as pas de clan.");
             return;
           }
           const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
@@ -424,16 +444,16 @@ export function registerCommands(
       (origin: CustomCommandOrigin) => {
         const player = origin.sourceEntity as Player | undefined;
         if (player === undefined || player.typeId !== "minecraft:player") {
-          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+          return { status: CustomCommandStatus.Failure, message: NOT_PLAYER };
         }
         if (!enabled()) {
-          return { status: CustomCommandStatus.Failure, message: "Le module États est désactivé." };
+          return { status: CustomCommandStatus.Failure, message: CLANS_DISABLED };
         }
 
         system.run(() => {
           const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
           if (territory === undefined) {
-            player.sendMessage("§e[Clans] Tu n'as pas de clan.");
+            player.sendMessage("§e[Clans]§r Tu n'as pas de clan.");
             return;
           }
           const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
@@ -459,32 +479,40 @@ export function registerCommands(
       (origin: CustomCommandOrigin, couleur: string) => {
         const player = origin.sourceEntity as Player | undefined;
         if (player === undefined || player.typeId !== "minecraft:player") {
-          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+          return { status: CustomCommandStatus.Failure, message: NOT_PLAYER };
+        }
+        if (!enabled()) {
+          return { status: CustomCommandStatus.Failure, message: CLANS_DISABLED };
         }
 
         const territory = manager.findByMemberId(player.id) ?? manager.findByOwner(player.name);
         if (territory === undefined) {
-          return { status: CustomCommandStatus.Failure, message: "Tu ne fais partie d'aucun clan (/sn:create)." };
+          return { status: CustomCommandStatus.Failure, message: "§e[Clans]§r Tu ne fais partie d'aucun clan (/sn:create)." };
         }
 
         const isOwner = territory.data.ownerId === player.id || territory.data.owner === player.name;
         if (!isOwner) {
-          return { status: CustomCommandStatus.Failure, message: "Seul le chef du clan peut changer le drapeau (/sn:clan)." };
+          return { status: CustomCommandStatus.Failure, message: "§c[Clans] Seul le chef peut changer le drapeau (/sn:clan)." };
         }
 
         const color = TERRITORY_COLORS.find((candidate) => candidate.id === couleur.toLowerCase());
         if (color === undefined) {
           return {
             status: CustomCommandStatus.Failure,
-            message: `Couleur inconnue. Disponibles : ${TERRITORY_COLORS.map((candidate) => candidate.id).join(", ")}`,
+            message: `§c[Clans] Couleur inconnue. Disponibles : §f${TERRITORY_COLORS.map((candidate) => candidate.id).join(", ")}§c.`,
           };
         }
 
-        territory.data.color = color.id;
-        territory.updatedAt = Date.now();
-        db?.markDirty();
-        manager.save();
-        return { status: CustomCommandStatus.Success, message: `Drapeau changé : ${color.code}${color.id}` };
+        // Différé dans un tick : l'écriture de dynamic properties est restreinte
+        // pendant le contexte d'exécution de la commande (v3.0.4).
+        system.run(() => {
+          territory.data.color = color.id;
+          territory.updatedAt = Date.now();
+          db?.markDirty();
+          manager.save();
+          player.sendMessage(`§a[Clans] Drapeau changé : ${color.code}${color.id}§a.`);
+        });
+        return { status: CustomCommandStatus.Success };
       },
     );
 
@@ -501,10 +529,10 @@ export function registerCommands(
       (origin: CustomCommandOrigin) => {
         const player = origin.sourceEntity as Player | undefined;
         if (player === undefined || player.typeId !== "minecraft:player") {
-          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+          return { status: CustomCommandStatus.Failure, message: NOT_PLAYER };
         }
         if (mines === undefined) {
-          return { status: CustomCommandStatus.Failure, message: "Mines indisponibles." };
+          return { status: CustomCommandStatus.Failure, message: "§c[Mines] Module indisponible." };
         }
 
         system.run(() => {
@@ -526,10 +554,10 @@ export function registerCommands(
       (origin: CustomCommandOrigin) => {
         const player = origin.sourceEntity as Player | undefined;
         if (player === undefined || player.typeId !== "minecraft:player") {
-          return { status: CustomCommandStatus.Failure, message: "Réservé aux joueurs." };
+          return { status: CustomCommandStatus.Failure, message: NOT_PLAYER };
         }
         if (mines === undefined) {
-          return { status: CustomCommandStatus.Failure, message: "Mines indisponibles." };
+          return { status: CustomCommandStatus.Failure, message: "§c[Mines] Module indisponible." };
         }
 
         system.run(() => openWorldMenu(player, mines));
@@ -552,14 +580,19 @@ export function registerCommands(
       },
       (_origin: CustomCommandOrigin, action: string, arg1?: string, arg2?: string) => {
         if (db === undefined) {
-          return { status: CustomCommandStatus.Failure, message: "DB indisponible." };
+          return { status: CustomCommandStatus.Failure, message: "§c[DB] Indisponible." };
         }
 
         switch (action) {
           case "menu": {
+            // Le menu DB affiche des formulaires : réserve aux joueurs.
+            const source = _origin.sourceEntity as Player | undefined;
+            if (source === undefined || source.typeId !== "minecraft:player") {
+              return { status: CustomCommandStatus.Failure, message: "§c[DB] Réservé aux joueurs." };
+            }
             if (db.loaded) {
               system.run(() => {
-                void openDbMenu(db, _origin.sourceEntity as Player).catch((error: unknown) =>
+                void openDbMenu(db, source).catch((error: unknown) =>
                   console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`),
                 );
               });
@@ -583,7 +616,7 @@ export function registerCommands(
           }
           case "list": {
             if (arg1 === undefined) {
-              return { status: CustomCommandStatus.Failure, message: "Usage : /sn:db list <collection>" };
+              return { status: CustomCommandStatus.Failure, message: "§c[DB] Usage : /sn:db list <collection>" };
             }
             const docs = db.find(arg1);
             if (docs.length === 0) {
@@ -599,7 +632,7 @@ export function registerCommands(
           }
           case "show": {
             if (arg1 === undefined || arg2 === undefined) {
-              return { status: CustomCommandStatus.Failure, message: "Usage : /sn:db show <collection> <id>" };
+              return { status: CustomCommandStatus.Failure, message: "§c[DB] Usage : /sn:db show <collection> <id>" };
             }
             const doc = db.findOne(arg1, arg2);
             if (doc === undefined) {
@@ -618,7 +651,7 @@ export function registerCommands(
           default:
             return {
               status: CustomCommandStatus.Failure,
-              message: "Actions : menu, stats, list <collection>, show <collection> <id>, save",
+              message: "§c[DB] Actions : §fmenu, stats, list <collection>, show <collection> <id>, save§c.",
             };
         }
       },
