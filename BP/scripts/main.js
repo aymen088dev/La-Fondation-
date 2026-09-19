@@ -4336,12 +4336,43 @@ var TILE_MENUS = {
     actions: ["classe", "jobs", "clan", "states", "quests", "gifts", "back"],
     data: []
   },
-  /** Le Monde : les deux destinations + les repères, puis la fermeture. */
+  /**
+   * Le Monde : deux GRANDES cartes (monde normal / mine) puis les repères et
+   * les outils rangés SOUS les cartes, et la fermeture en bas.
+   */
   "Le Monde": {
     actions: ["overworld", "mines", "ores", "where", "help", "close", "back"],
     data: []
-  }
+  },
+  /* ------------------------------------------------------------------------
+   * Menus à LISTE GÉNÉRIQUE : contrat VIDE, volontairement. Le panneau est une
+   * factory : il rend une tuile par bouton envoyé, dans l'ordre, et l'index de
+   * sélection EST l'index d'envoi. Rien à synchroniser ici, donc rien à casser.
+   * ---------------------------------------------------------------------- */
+  Mines: { actions: [], data: [] },
+  Moderation: { actions: [], data: [] },
+  Bans: { actions: [], data: [] },
+  Mutes: { actions: [], data: [] },
+  Roles: { actions: [], data: [] },
+  Joueurs: { actions: [], data: [] },
+  Membres: { actions: [], data: [] },
+  Membre: { actions: [], data: [] },
+  Modules: { actions: [], data: [] },
+  Metiers: { actions: [], data: [] },
+  Quetes: { actions: [], data: [] },
+  Drapeau: { actions: [], data: [] },
+  Dissoudre: { actions: [], data: [] },
+  "Base de donnees": { actions: [], data: [] }
 };
+function pageSlice(items, page, perPage) {
+  const pageCount = Math.max(1, Math.ceil(items.length / Math.max(1, perPage)));
+  const current = Math.min(Math.max(0, Math.trunc(page)), pageCount - 1);
+  return {
+    items: items.slice(current * perPage, current * perPage + perPage),
+    page: current,
+    pageCount
+  };
+}
 function tileTitleFor(section) {
   return sheetTitleFor(section);
 }
@@ -4525,7 +4556,7 @@ var OMForm = class {
   slider(label, observable, min, max, options) {
     const value = new NativeObservableNumber(observable.getData());
     value.subscribe((next) => observable.setData(next));
-    this.elements.push({ kind: "field", add: (form) => form.slider(label, value, min, max, { step: options?.step ?? 1 }) });
+    this.elements.push({ kind: "field", add: (form) => form.slider(label, value, min, max, options?.step === void 0 ? void 0 : { step: options.step }) });
     return this;
   }
   dropdown(label, observable, items) {
@@ -4650,11 +4681,14 @@ function openWindowRaw(player, title, build) {
 }
 function openTileMenu(player, section, build) {
   const actions = /* @__PURE__ */ new Map();
+  const ordered = [];
   const data = /* @__PURE__ */ new Map();
   let bodyText = "";
   const builder = {
     action(key, label, onClick) {
-      actions.set(key, { label, onClick });
+      const entry = { label, onClick };
+      actions.set(key, entry);
+      ordered.push(entry);
       return builder;
     },
     data(key, text) {
@@ -4673,20 +4707,25 @@ function openTileMenu(player, section, build) {
     logMod.warn(`Construction du menu « ${section} » : ${message}`);
     return;
   }
-  scheduleTileForm(player, section, actions, data, bodyText, 0);
+  scheduleTileForm(player, section, actions, ordered, data, bodyText, 0);
 }
-function scheduleTileForm(player, section, actions, data, bodyText, attempt) {
+function scheduleTileForm(player, section, actions, ordered, data, bodyText, attempt) {
   system7.runTimeout(() => {
-    void presentTileForm(player, section, actions, data, bodyText, attempt);
+    void presentTileForm(player, section, actions, ordered, data, bodyText, attempt);
   }, attempt === 0 ? 1 : 10);
 }
-async function presentTileForm(player, section, actions, data, bodyText, attempt) {
+async function presentTileForm(player, section, actions, ordered, data, bodyText, attempt) {
   const layout = TILE_MENUS[section];
+  const sequential = layout.actions.length === 0;
   const form = new NativeActionForm();
   form.title(tileTitleFor(section));
   if (bodyText.trim().length > 0) form.body(bodyText);
-  for (const key2 of layout.actions) {
-    form.button(actions.get(key2)?.label ?? "§8—");
+  if (sequential) {
+    for (const entry of ordered) form.button(fitLabel(entry.label, 32));
+  } else {
+    for (const key2 of layout.actions) {
+      form.button(actions.get(key2)?.label ?? "§8—");
+    }
   }
   for (const key2 of layout.data) {
     form.button(data.get(key2) ?? " ");
@@ -4695,14 +4734,14 @@ async function presentTileForm(player, section, actions, data, bodyText, attempt
   try {
     const response = await form.show(player);
     if (response.selection === void 0 && response.cancelationReason === FormCancelationReason.UserBusy && attempt < 3) {
-      scheduleTileForm(player, section, actions, data, bodyText, attempt + 1);
+      scheduleTileForm(player, section, actions, ordered, data, bodyText, attempt + 1);
       return;
     }
     selection = response.selection;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (attempt < 3) {
-      scheduleTileForm(player, section, actions, data, bodyText, attempt + 1);
+      scheduleTileForm(player, section, actions, ordered, data, bodyText, attempt + 1);
       return;
     }
     logMod.warn(`Menu « ${section} » : ${message}`);
@@ -4710,10 +4749,9 @@ async function presentTileForm(player, section, actions, data, bodyText, attempt
     return;
   }
   if (selection === void 0) return;
-  const key = layout.actions[selection];
-  if (key === void 0) return;
-  const action = actions.get(key);
+  const action = sequential ? ordered[selection] : actions.get(layout.actions[selection]);
   if (action === void 0) return;
+  const key = sequential ? String(selection) : layout.actions[selection];
   try {
     action.onClick();
   } catch (error) {
@@ -4723,6 +4761,7 @@ async function presentTileForm(player, section, actions, data, bodyText, attempt
 }
 
 // src/db/menu.ts
+var DB_SECTIONS_PER_PAGE = 3;
 function resetClassOf(db2, playerName) {
   return db2.delete(CLASSES_COLLECTION, playerName);
 }
@@ -4746,34 +4785,43 @@ function summarize(doc) {
   }
   return `§f${doc.id}`;
 }
-async function openDbMenu(db2, player) {
-  await openWindow(player, "Base de données", (form) => {
-    const stats = db2.stats();
-    const sections = listSections(db2);
-    form.header(`§a§lBase de données`);
-    form.label(
-      `§7${stats.documents} documents · ${stats.bytes} octets
-§7État : ${stats.dirty ? "§eà sauvegarder" : "§aà jour"}`
+async function openDbMenu(db2, player, page = 0) {
+  const stats = db2.stats();
+  const sections = listSections(db2);
+  const { items, page: current, pageCount } = pageSlice(sections, page, DB_SECTIONS_PER_PAGE);
+  openTileMenu(player, "Base de donnees", (menu) => {
+    menu.body(
+      [
+        "§a§lBase de données§r",
+        `§7${stats.documents} documents · ${stats.bytes} octets`,
+        `§7État : ${stats.dirty ? "§eà sauvegarder" : "§aà jour"}`,
+        "",
+        `§7Sections — page §f${current + 1}§7/§f${pageCount}`,
+        "§8Une tuile par collection : documents, champs, vidage."
+      ].join("\n")
     );
-    form.divider();
-    for (const section of sections) {
-      form.button(
-        `${collectionLabel(section)} §7— ${stats.collections[section]} doc(s)`,
-        () => {
-          void openSectionMenu(db2, player, section);
-        }
-      );
+    for (let slot = 0; slot < DB_SECTIONS_PER_PAGE; slot++) {
+      const section = items[slot];
+      if (section === void 0) continue;
+      menu.action(`section_${slot}`, `${collectionLabel(section)} §8— ${stats.collections[section]} doc`, () => {
+        void openSectionMenu(db2, player, section);
+      });
     }
-    form.divider();
-    form.button(`§a§lForcer la sauvegarde`, () => {
+    menu.action("save", `§aForcer la sauvegarde`, () => {
       db2.save(true);
     });
-    form.button(`§d§lRéinitialiser une classe`, () => {
+    menu.action("reset", `§dRéinitialiser une classe`, () => {
       void openResetClassMenu(db2, player);
     });
-  }).catch(
-    (error) => console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`)
-  );
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) void openDbMenu(db2, player, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) void openDbMenu(db2, player, current + 1);
+    });
+    menu.action("back", `§7Fermer`, () => {
+    });
+  });
 }
 async function openResetClassMenu(db2, player) {
   const docs = db2.find(CLASSES_COLLECTION);
@@ -4829,25 +4877,23 @@ async function openDocumentMenu(db2, player, section, docId) {
   await openWindowRaw(player, windowTitle(docId), (form) => {
     form.header(`§b§l${docId}`);
     form.label(`§7collection : §f${section}`);
-    const editableKeys = [];
-    const kinds = [];
+    const stringValues = {};
+    const numberValues = {};
     const boolValues = {};
     const readonlyLines = [];
     for (const [key, value] of entries) {
       if (typeof value === "string") {
-        form.textField(`§e${key}`, obString(value));
-        editableKeys.push(key);
-        kinds.push("string");
+        const observable = obString(value);
+        stringValues[key] = observable;
+        form.textField(`§e${key}`, observable);
       } else if (typeof value === "number") {
-        form.textField(`§e${key} §7(nombre)`, obString(String(value)));
-        editableKeys.push(key);
-        kinds.push("number");
+        const observable = obString(String(value));
+        numberValues[key] = observable;
+        form.textField(`§e${key} §7(nombre)`, observable);
       } else if (typeof value === "boolean") {
         const toggle = obBool(value);
         boolValues[key] = toggle;
         form.toggleOb(`§e${key}`, toggle);
-        editableKeys.push(key);
-        kinds.push("boolean");
       } else {
         readonlyLines.push(`§7${key}: §f${summarizeValue(value)}`);
       }
@@ -4860,6 +4906,15 @@ ${readonlyLines.join("\n")}`);
     form.divider();
     form.button(`§a§lAppliquer`, () => {
       const patch = {};
+      for (const [key, observable] of Object.entries(stringValues)) {
+        const next = observable.getData();
+        if (next !== doc.data[key]) patch[key] = next;
+      }
+      for (const [key, observable] of Object.entries(numberValues)) {
+        const parsed = Number(observable.getData().replace(",", "."));
+        const current = doc.data[key];
+        if (Number.isFinite(parsed) && parsed !== current) patch[key] = parsed;
+      }
       for (const [key, toggle] of Object.entries(boolValues)) {
         const current = doc.data[key];
         if (typeof current === "boolean" && toggle.getData() !== current) {
@@ -4871,7 +4926,7 @@ ${readonlyLines.join("\n")}`);
         db2.save();
         console.warn(`[DB] "${docId}" mis à jour (${Object.keys(patch).length} champ(s)).`);
       } else {
-        console.warn(`[DB] "${docId}" : aucun changement (seuls les interrupteurs sont éditables).`);
+        console.warn(`[DB] "${docId}" : aucun changement détecté.`);
       }
     });
     form.closeButton();
@@ -5150,7 +5205,8 @@ function openClanBioMenu(player, manager, territory) {
     (error) => console.warn(`[Clans] Erreur bio : ${error instanceof Error ? error.message : String(error)}`)
   );
 }
-function openMembersMenu(player, manager, territory) {
+var MEMBERS_PER_PAGE = 3;
+function openMembersMenu(player, manager, territory, page = 0) {
   const fresh = manager.findOne(territory.id);
   if (fresh === void 0) {
     say(player, "§c[Clans] Ce clan n'existe plus.");
@@ -5161,34 +5217,37 @@ function openMembersMenu(player, manager, territory) {
   const isOwner = data.ownerId === player.id || data.owner === player.name;
   const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
   const canManage = isOwner || myRank === "officer";
-  void openWindowRaw(player, windowTitle("Membres du clan"), (form) => {
-    form.back(() => openMyClanMenu(player, manager, territory));
-    form.header(`§b§l${data.name}§r §7— membres`);
-    form.label(
+  const { items, page: current, pageCount } = pageSlice(data.members, page, MEMBERS_PER_PAGE);
+  openTileMenu(player, "Membres", (menu) => {
+    menu.body(
       [
+        `§b§l${data.name}§r §7— membres`,
         `§eChef : §f${data.owner}`,
-        ...data.members.map(
-          (m) => `§8· §f${m.name} §7(${m.rank === "officer" ? "§bofficier" : "membre"}§7)`
-        ),
-        ...data.members.length === 0 ? [`§8- §o(aucun membre pour l'instant)`] : []
+        `§7Membres : §f${data.members.length}§7 — page §f${current + 1}§7/§f${pageCount}`,
+        data.members.length === 0 ? "§8(aucun membre pour l'instant)" : "§8Un clic = fiche du membre.",
+        canManage ? "§8Tu peux inviter, promouvoir ou exclure." : "§8Seuls le chef et les officiers gèrent."
       ].join("\n")
     );
-    form.divider();
-    if (canManage) {
-      form.button(`§a§lInviter un joueur`, () => openInviteMenu(player, manager, territory));
-      for (const member of data.members) {
-        const isOfficer = member.rank === "officer";
-        form.button(
-          `§f${member.name} §7— §o${isOfficer ? "officier" : "membre"}`,
-          () => {
-            openMemberActionsMenu(player, manager, territory, member.playerId, member.name);
-          }
-        );
-      }
+    for (let slot = 0; slot < MEMBERS_PER_PAGE; slot++) {
+      const member = items[slot];
+      if (member === void 0) continue;
+      menu.action(
+        `member_${slot}`,
+        `§f${member.name} §8— ${member.rank === "officer" ? "§bofficier" : "§7membre"}`,
+        () => openMemberActionsMenu(player, manager, territory, member.playerId, member.name)
+      );
     }
-  }).catch(
-    (error) => console.warn(`[Clans] Erreur menu Membres : ${error instanceof Error ? error.message : String(error)}`)
-  );
+    if (canManage) {
+      menu.action("invite", `§aInviter un joueur`, () => openInviteMenu(player, manager, territory));
+    }
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openMembersMenu(player, manager, territory, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openMembersMenu(player, manager, territory, current + 1);
+    });
+    menu.action("back", `§7Retour au clan`, () => openMyClanMenu(player, manager, territory));
+  });
 }
 function openMemberActionsMenu(player, manager, territory, memberId, memberName) {
   const fresh = manager.findOne(territory.id);
@@ -5198,15 +5257,23 @@ function openMemberActionsMenu(player, manager, territory, memberId, memberName)
     openMembersMenu(player, manager, fresh);
     return;
   }
-  void openWindowRaw(player, windowTitle("Membre"), (form) => {
-    form.back(() => openMembersMenu(player, manager, territory));
-    form.header(`§f§l${memberName}`);
-    form.label(`§7Rang actuel : ${member.rank === "officer" ? "§bofficier" : "membre"}`);
-    form.divider();
-    form.button(
-      member.rank === "officer" ? `§e§lRétrograder en membre` : `§b§lPromouvoir officier`,
+  const isOfficer = member.rank === "officer";
+  openTileMenu(player, "Membre", (menu) => {
+    menu.body(
+      [
+        `§f§l${memberName}§r`,
+        `§7Clan : §f${fresh.data.name}`,
+        `§7Rang actuel : ${isOfficer ? "§bofficier" : "§7membre"}`,
+        "",
+        "§8Le rang officier autorise à revendiquer des chunks",
+        "§8et à gérer les membres du clan."
+      ].join("\n")
+    );
+    menu.action(
+      "rank",
+      isOfficer ? `§eRétrograder en membre` : `§bPromouvoir officier`,
       () => {
-        const nextRank = member.rank === "officer" ? "member" : "officer";
+        const nextRank = isOfficer ? "member" : "officer";
         const result = manager.setMemberRank(territory.id, memberId, nextRank);
         say(
           player,
@@ -5215,7 +5282,7 @@ function openMemberActionsMenu(player, manager, territory, memberId, memberName)
         openMembersMenu(player, manager, territory);
       }
     );
-    form.button(`§c§lExclure du clan`, () => {
+    menu.action("kick", `§cExclure du clan`, () => {
       const result = manager.removeMember(territory.id, memberId);
       say(
         player,
@@ -5223,9 +5290,8 @@ function openMemberActionsMenu(player, manager, territory, memberId, memberName)
       );
       openMembersMenu(player, manager, territory);
     });
-  }).catch(
-    (error) => console.warn(`[Clans] Erreur menu membre : ${error instanceof Error ? error.message : String(error)}`)
-  );
+    menu.action("back", `§7Retour aux membres`, () => openMembersMenu(player, manager, territory));
+  });
 }
 function openInviteMenu(player, manager, territory) {
   const invitables = onlineInvitables(territory, player);
@@ -5265,7 +5331,19 @@ function openInviteMenu(player, manager, territory) {
     (error) => console.warn(`[Clans] Erreur menu invitation : ${error instanceof Error ? error.message : String(error)}`)
   );
 }
-function openFlagMenu(player, manager, territory) {
+var FLAGS_PER_PAGE = 5;
+function openFlagMenu(player, manager, territory, page = 0) {
+  const flags = [
+    ...TERRITORY_COLORS.map(
+      (candidate) => ({ value: candidate.id, label: candidate.id, code: candidate.code })
+    ),
+    ...Array.from({ length: 8 }, (_unused, index) => {
+      const n = index + 1;
+      return { value: `flag:${n}`, label: `Blason ${n}`, code: "§b" };
+    })
+  ];
+  const { items, page: current, pageCount } = pageSlice(flags, page, FLAGS_PER_PAGE);
+  const active = territory.data.color;
   const apply = (flagValue, label) => {
     const fresh = manager.findOne(territory.id);
     if (fresh === void 0) {
@@ -5278,49 +5356,57 @@ function openFlagMenu(player, manager, territory) {
     say(player, `§a[Clans] Drapeau changé : ${label}`);
     openMyClanMenu(player, manager, territory);
   };
-  void openWindowRaw(player, windowTitle("Drapeau"), (form) => {
-    form.back(() => openMyClanMenu(player, manager, territory));
-    const current = territory.data.color;
-    form.header(`§6§lDrapeau de ${territory.data.name}`);
-    form.label(`§7Actuel : §f${current.startsWith("flag:") ? current.slice(5) : current}`);
-    form.divider();
-    for (const candidate of TERRITORY_COLORS) {
-      form.button(`${candidate.code}${candidate.id}`, () => apply(candidate.id, candidate.code + candidate.id));
-    }
-    form.divider();
-    form.label(`§7— blasons personnalisés —
-§8Dépose tes PNG dans §fRP/textures/ui/flags/§8 (1.png, 2.png…) puis choisis :`);
-    for (let n = 1; n <= 8; n++) {
-      const flagValue = `flag:${n}`;
-      form.button(`§bBlason ${n}`, () => apply(flagValue, `Blason ${n}`));
-    }
-  }).catch(
-    (error) => console.warn(`[Clans] Erreur menu drapeau : ${error instanceof Error ? error.message : String(error)}`)
-  );
-}
-function openDissolveMenu(player, manager, territory) {
-  void openWindowRaw(player, windowTitle("Dissoudre le clan"), (form) => {
-    form.header(`§4§lDissoudre ${territory.data.name} ?`);
-    form.label(
+  openTileMenu(player, "Drapeau", (menu) => {
+    menu.body(
       [
-        `§7Les §f${territory.data.chunkKeys.length}§7 chunk(s) redeviendront libres.`,
-        `§7Les membres seront retirés du clan.`,
-        ``,
-        `§cAction irréversible.`
+        `§6§lDrapeau de ${territory.data.name}§r`,
+        `§7Actuel : §f${active.startsWith("flag:") ? `blason ${active.slice(5)}` : active}`,
+        "",
+        `§7Page §f${current + 1}§7/§f${pageCount}`,
+        "§8Blasons : dépose tes PNG dans §fRP/textures/ui/flags/§8",
+        "§8(1.png … 8.png) puis choisis le numéro."
       ].join("\n")
     );
-    form.divider();
-    form.button(`§4§lOui, dissoudre définitivement`, () => {
+    for (let slot = 0; slot < FLAGS_PER_PAGE; slot++) {
+      const flag = items[slot];
+      if (flag === void 0) continue;
+      const currentMark = flag.value === active ? "§a← §f" : "§f";
+      menu.action(
+        `flag_${slot}`,
+        `${currentMark}${flag.code}${flag.label}`,
+        () => apply(flag.value, `${flag.code}${flag.label}`)
+      );
+    }
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openFlagMenu(player, manager, territory, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openFlagMenu(player, manager, territory, current + 1);
+    });
+    menu.action("back", `§7Retour au clan`, () => openMyClanMenu(player, manager, territory));
+  });
+}
+function openDissolveMenu(player, manager, territory) {
+  openTileMenu(player, "Dissoudre", (menu) => {
+    menu.body(
+      [
+        `§4§lDissoudre ${territory.data.name} ?§r`,
+        `§7Les §f${territory.data.chunkKeys.length}§7 chunk(s) redeviendront libres.`,
+        "§7Les membres seront retirés du clan.",
+        "",
+        "§cAction irréversible."
+      ].join("\n")
+    );
+    menu.action("confirm", `§4Oui, dissoudre définitivement`, () => {
       const ok = manager.remove(territory.id, player.name, player.id);
       say(
         player,
         ok ? `§e[Clans] §f${territory.data.name} §r§ea été dissous.` : "§c[Clans] Dissolution impossible."
       );
     });
-    form.button(`§a§lAnnuler`, () => openMyClanMenu(player, manager, territory));
-  }).catch(
-    (error) => console.warn(`[Clans] Erreur menu dissolution : ${error instanceof Error ? error.message : String(error)}`)
-  );
+    menu.action("cancel", `§aAnnuler`, () => openMyClanMenu(player, manager, territory));
+    menu.action("back", `§7Retour au clan`, () => openMyClanMenu(player, manager, territory));
+  });
 }
 
 // src/mines/manager.ts
@@ -5814,29 +5900,30 @@ function generateChunk(dimension, plan, cx, cz) {
 }
 
 // src/mines/ui.ts
+function oreLine() {
+  return ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join("§8, ");
+}
 function openWorldMenu(player, mines2, back) {
   const inMines = mines2.isInMines(player);
-  const oreList = ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join("§8, ");
+  const oreList = oreLine();
   const notifier = (message) => {
     player.sendMessage(message);
   };
   openTileMenu(player, "Le Monde", (menu) => {
     menu.body(
       [
-        `§b§lLes portes du monde§r`,
-        inMines ? "§7Tu es actuellement dans §b§lLa Mine§r" : "§7Tu es actuellement dans le §a§lMonde normal§r",
-        "§7Choisis une destination dans la colonne de gauche.",
+        inMines ? "§7Tu es actuellement dans §b§lLa Mine§r §7— clique une carte pour changer de monde." : "§7Tu es actuellement dans le §a§lMonde normal§r §7— clique une carte pour changer de monde.",
         `§8Strates : ${oreList}`
       ].join("\n")
     );
-    menu.action("overworld", inMines ? `§aMonde normal` : `§8Monde normal (ici)`, () => {
+    menu.action("overworld", inMines ? "§aAller au monde normal" : "§8Monde normal (tu y es)", () => {
       if (!inMines) {
         notifier("§7[Mines] Tu es déjà dans le monde normal.");
         return;
       }
       notifier(mines2.goNormal(player));
     });
-    menu.action("mines", inMines ? `§8La Mine (ici)` : `§bDescendre dans la Mine`, () => {
+    menu.action("mines", inMines ? "§8La Mine (tu y es)" : "§bDescendre dans la Mine", () => {
       if (inMines) {
         notifier("§7[Mines] Tu es déjà dans la mine.");
         return;
@@ -5845,10 +5932,10 @@ function openWorldMenu(player, mines2, back) {
     });
     menu.action(
       "ores",
-      `§6Sous mes pieds ?`,
-      () => notifier(`§7[Mines] À la profondeur où tu te trouves, cherche : ${oreList}§7.`)
+      "§6Strates et minerais",
+      () => notifier(`§7[Mines] À cette profondeur, cherche : ${oreList}§7.`)
     );
-    menu.action("where", `§eOù suis-je ?`, () => {
+    menu.action("where", "§eOù suis-je ?", () => {
       const { x, y, z } = player.location;
       notifier(
         `§7[Mines] Position §f${Math.floor(x)}§7, §f${Math.floor(y)}§7, §f${Math.floor(z)}§7 — §f${player.dimension.id}§7.`
@@ -5856,12 +5943,14 @@ function openWorldMenu(player, mines2, back) {
     });
     menu.action(
       "help",
-      `§7Aide minage`,
-      () => notifier("§7[Mines] §f/sn:mine§7 descend ou remonte instantanément. La mine est un bloc de pierre plein : à toi de creuser.")
+      "§7Aide minage",
+      () => notifier(
+        "§7[Mines] §f/sn:mine§7 descend ou remonte instantanément. La mine est un bloc de pierre plein : à toi de creuser."
+      )
     );
-    menu.action("close", `§7Fermer`, () => {
+    menu.action("close", "§7Fermer", () => {
     });
-    menu.action("back", `§7Retour au menu`, () => {
+    menu.action("back", back !== void 0 ? "§7Retour au menu" : "§7Fermer", () => {
       if (back !== void 0) back();
     });
   });
@@ -6872,20 +6961,39 @@ var PermissionManager = class {
 };
 
 // src/permissions/ui.ts
-function openRolesMenu(player, permissions2) {
+var ROLES_PER_PAGE = 4;
+function openRolesMenu(player, permissions2, page = 0) {
   const roles = permissions2.allRoles();
-  void openWindow(player, "Rôles", (form) => {
-    form.header(`§6§lRôles du serveur`);
-    form.label(`§7${roles.length} rôle(s). Clique pour configurer :`);
-    form.divider();
-    form.button(`§a§lCréer un rôle`, () => openCreateRoleMenu(player, permissions2));
-    for (const role of roles) {
-      form.button(
-        `${role.data.color}[${role.data.name}]§r §7— niv. ${role.data.level} · ${permissions2.membersWithRole(role.data.name).length} membre(s)`,
+  const { items, page: current, pageCount } = pageSlice(roles, page, ROLES_PER_PAGE);
+  openTileMenu(player, "Roles", (menu) => {
+    menu.body(
+      [
+        "§6§lRôles du serveur§r",
+        `§7${roles.length} rôle(s) — page §f${current + 1}§7/§f${pageCount}`,
+        "",
+        "§8Clique un rôle pour changer sa couleur, son préfixe,",
+        "§8son niveau, voir ses membres ou le supprimer."
+      ].join("\n")
+    );
+    for (let slot = 0; slot < ROLES_PER_PAGE; slot++) {
+      const role = items[slot];
+      if (role === void 0) continue;
+      menu.action(
+        `role_${slot}`,
+        `${role.data.color}[${role.data.name}] §7niv. ${role.data.level}`,
         () => openRoleConfigMenu(player, role, permissions2)
       );
     }
-  }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+    menu.action("create", `§aCréer un rôle`, () => openCreateRoleMenu(player, permissions2));
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openRolesMenu(player, permissions2, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openRolesMenu(player, permissions2, current + 1);
+    });
+    menu.action("back", `§7Fermer`, () => {
+    });
+  });
 }
 function openCreateRoleMenu(player, permissions2) {
   const name = obString("");
@@ -6958,22 +7066,35 @@ function openLevelMenu(player, role, permissions2) {
     form.closeButton();
   }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
-function openRoleMembersMenu(player, role, permissions2) {
-  void openWindow(player, `Membres ${role.data.color}[${role.data.name}]`, (form) => {
-    const members = permissions2.membersWithRole(role.data.name);
-    if (members.length === 0) {
-      form.label("§7Aucun membre dans ce rôle.");
-    } else {
-      form.label("§7Clique sur un membre pour lui retirer le rôle :");
-      for (const member of members) {
-        form.button(`§f${member.data.name}`, () => {
-          permissions2.removeRole(member.data.name);
-          player.sendMessage(`§a[Rôles] ${member.data.name} ne fait plus partie du rôle.`);
-          openRoleMembersMenu(player, role, permissions2);
-        });
-      }
+function openRoleMembersMenu(player, role, permissions2, page = 0) {
+  const members = permissions2.membersWithRole(role.data.name);
+  const { items, page: current, pageCount } = pageSlice(members, page, 5);
+  openTileMenu(player, "Roles", (menu) => {
+    menu.body(
+      [
+        `§6§lMembres ${role.data.color}[${role.data.name}]§r`,
+        members.length === 0 ? "§7Aucun membre dans ce rôle." : `§7${members.length} membre(s) — page §f${current + 1}§7/§f${pageCount}`,
+        "",
+        "§8Clique un membre pour lui retirer ce rôle."
+      ].join("\n")
+    );
+    for (let slot = 0; slot < 5; slot++) {
+      const member = items[slot];
+      if (member === void 0) continue;
+      menu.action(`member_${slot}`, `§f${member.data.name}`, () => {
+        permissions2.removeRole(member.data.name);
+        player.sendMessage(`§a[Rôles] ${member.data.name} ne fait plus partie du rôle.`);
+        openRoleMembersMenu(player, role, permissions2, current);
+      });
     }
-  }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openRoleMembersMenu(player, role, permissions2, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openRoleMembersMenu(player, role, permissions2, current + 1);
+    });
+    menu.action("back", `§7Retour aux rôles`, () => openRolesMenu(player, permissions2));
+  });
 }
 function openColorPicker(player, title, onPick) {
   void openWindow(player, title, (form) => {
@@ -7054,49 +7175,56 @@ function allKnownPlayers(db2) {
 }
 
 // src/permissions/players-ui.ts
-function openPlayersMenu(player, permissions2, db2) {
-  void openWindow(player, "Joueurs", (form) => {
-    const online = world12.getAllPlayers();
-    form.header(`§b§lJoueurs`);
-    form.label(
-      `§aEn ligne : §f${online.length}
-§7Connus (DB) : §f${db2 !== void 0 ? allKnownPlayers(db2).length : "?"}`
-    );
-    form.divider();
-    form.label(`§a§lEn ligne§r §7(${online.length})`);
-    if (online.length === 0) {
-      form.label("§7Personne d'autre n'est connecté.");
-    }
-    for (const target of online) {
+var PLAYERS_PER_PAGE = 4;
+function openPlayersMenu(player, permissions2, db2, page = 0) {
+  const online = world12.getAllPlayers();
+  const known = db2 !== void 0 ? allKnownPlayers(db2) : [];
+  const offline = known.filter((record) => !online.some((target) => target.name === record.data.name));
+  const entries = [
+    ...online.map((target) => {
       const member = permissions2.getMember(target.name);
-      const role = permissions2.getRole(member?.data.role ?? "");
-      form.button(
-        `${role?.data.color ?? "§7"}${target.name}§r §7— ${member?.data.role ?? "aucun rôle"}`,
-        () => openPlayerConfigMenu(player, target.name, permissions2, db2)
-      );
-    }
-    form.divider();
-    form.label(`§7§lHors ligne / historique§r §7(index complet)`);
-    form.button(
-      `§a§lGérer un joueur hors ligne (saisir le pseudo)`,
-      () => openPlayerLookupMenu(player, permissions2, db2)
+      return { name: target.name, online: true, detail: member?.data.role ?? "aucun rôle" };
+    }),
+    ...offline.map((record) => {
+      const lastSeen = new Date(record.data.lastSeen);
+      const hh = `${String(lastSeen.getHours()).padStart(2, "0")}:${String(lastSeen.getMinutes()).padStart(2, "0")}`;
+      return {
+        name: record.data.name,
+        online: false,
+        detail: `${record.data.sessions} sess. · vu à ${hh}`
+      };
+    })
+  ];
+  const { items, page: current, pageCount } = pageSlice(entries, page, PLAYERS_PER_PAGE);
+  openTileMenu(player, "Joueurs", (menu) => {
+    menu.body(
+      [
+        "§b§lJoueurs§r",
+        `§aEn ligne : §f${online.length}§r   §7Connus (DB) : §f${db2 !== void 0 ? known.length : "?"}`,
+        "",
+        `§7Page §f${current + 1}§7/§f${pageCount}`,
+        "§8Une tuile par joueur — fiche, rôle, préfixe, classe."
+      ].join("\n")
     );
-    if (db2 !== void 0) {
-      const known = allKnownPlayers(db2).filter(
-        (record) => !online.some((target) => target.name === record.data.name)
+    for (let slot = 0; slot < PLAYERS_PER_PAGE; slot++) {
+      const entry = items[slot];
+      if (entry === void 0) continue;
+      menu.action(
+        `player_${slot}`,
+        `${entry.online ? "§a" : "§8"}${entry.name}§r §8— §7${entry.detail}`,
+        () => openPlayerConfigMenu(player, entry.name, permissions2, db2)
       );
-      for (const record of known.slice(0, 15)) {
-        const role = permissions2.getRole(record.data.grade);
-        const lastSeen = new Date(record.data.lastSeen);
-        const hh = `${String(lastSeen.getHours()).padStart(2, "0")}:${String(lastSeen.getMinutes()).padStart(2, "0")}`;
-        form.button(
-          `§8${record.data.name}§r §7— ${record.data.grade !== "" ? role?.data.color + record.data.grade + "§7 · " : ""}${record.data.sessions} session(s) · vu à ${hh}`,
-          () => openPlayerConfigMenu(player, record.data.name, permissions2, db2)
-        );
-      }
-      if (known.length > 15) form.label(`§8… et ${known.length - 15} autres (recherche par pseudo)`);
     }
-  }).catch((error) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+    menu.action("lookup", `§eGérer un joueur (pseudo)`, () => openPlayerLookupMenu(player, permissions2, db2));
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openPlayersMenu(player, permissions2, db2, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openPlayersMenu(player, permissions2, db2, current + 1);
+    });
+    menu.action("back", `§7Fermer`, () => {
+    });
+  });
 }
 function openPlayerLookupMenu(player, permissions2, db2) {
   const name = obString("");
@@ -7362,65 +7490,91 @@ function resolveTargetId(targetName) {
   const online = world14.getAllPlayers().find((candidate) => candidate.name === targetName);
   return online?.id ?? null;
 }
+var SANCTIONS_PER_PAGE = 5;
 function openSanctionsMenu(player, sanctions2, permissions2) {
   const stats = sanctions2.stats();
-  void openWindow(player, "Modération", (form) => {
-    form.header(`§4§lModération`);
-    form.label(
-      `§7Bans actifs : §f${stats.bans}
-§7Mutes actifs : §f${stats.mutes}
-§7Warns au total : §f${stats.warns}`
+  openTileMenu(player, "Moderation", (menu) => {
+    menu.body(
+      [
+        "§4§lModération§r",
+        `§7Bans actifs : §f${stats.bans}`,
+        `§7Mutes actifs : §f${stats.mutes}`,
+        `§7Warns au total : §f${stats.warns}`,
+        "",
+        "§8Les listes se parcourent page par page ;",
+        "§8clique une entrée pour lever la sanction."
+      ].join("\n")
     );
-    form.divider();
-    form.button(`§4§lBans actifs`, () => openBansList(player, sanctions2, permissions2));
-    form.button(`§6§lMutes actifs`, () => openMutesList(player, sanctions2, permissions2));
-    form.button(`§e§lSanctionner un joueur`, () => openSanctionForm(player, sanctions2));
-    form.button(`§b§lHistorique d'un joueur`, () => openHistoryLookup(player, sanctions2));
-  }).catch(
-    (error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`)
-  );
+    menu.action("bans", `§4Bans actifs §7(${stats.bans})`, () => openBansList(player, sanctions2, permissions2, 0));
+    menu.action("mutes", `§6Mutes actifs §7(${stats.mutes})`, () => openMutesList(player, sanctions2, permissions2, 0));
+    menu.action("sanction", `§eSanctionner un joueur`, () => openSanctionForm(player, sanctions2));
+    menu.action("history", `§bHistorique d'un joueur`, () => openHistoryLookup(player, sanctions2));
+    menu.action("refresh", `§7Rafraîchir`, () => openSanctionsMenu(player, sanctions2, permissions2));
+    menu.action("back", `§7Fermer`, () => {
+    });
+  });
 }
-function openBansList(player, sanctions2, permissions2) {
+function openBansList(player, sanctions2, permissions2, page) {
   const bans = sanctions2.allBans();
-  void openWindow(player, "Bans actifs", (form) => {
-    if (bans.length === 0) {
-      form.label("§7Aucun ban actif.");
-      return;
-    }
-    form.label("§7Clique sur un ban pour le lever :");
-    for (const ban of bans) {
+  const { items, page: current, pageCount } = pageSlice(bans, page, SANCTIONS_PER_PAGE);
+  openTileMenu(player, "Bans", (menu) => {
+    menu.body(
+      [
+        "§4§lBans actifs§r",
+        bans.length === 0 ? "§7Aucun ban actif." : `§7${bans.length} ban(s) — page §f${current + 1}§7/§f${pageCount}`,
+        "§8Clique une entrée pour lever le ban."
+      ].join("\n")
+    );
+    for (let slot = 0; slot < SANCTIONS_PER_PAGE; slot++) {
+      const ban = items[slot];
+      if (ban === void 0) continue;
       const expiry = ban.data.expiresAt === 0 ? "§4permanent" : `§7(${formatDuration(Math.ceil((ban.data.expiresAt - Date.now()) / 6e4))})`;
-      form.button(`§f${ban.data.name} §7— ${expiry} · §7par ${ban.data.by}`, () => {
+      menu.action(`ban_${slot}`, `§f${ban.data.name} §8— ${expiry}`, () => {
         const result = sanctions2.unban(ban.data.name);
         player.sendMessage(result.ok ? `§a[Modération] ${ban.data.name} débanni.` : `§c[Modération] ${result.error}`);
-        openBansList(player, sanctions2, permissions2);
+        openBansList(player, sanctions2, permissions2, current);
       });
     }
-  }).catch(
-    (error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`)
-  );
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openBansList(player, sanctions2, permissions2, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openBansList(player, sanctions2, permissions2, current + 1);
+    });
+    menu.action("back", `§7Retour`, () => openSanctionsMenu(player, sanctions2, permissions2));
+  });
 }
-function openMutesList(player, sanctions2, permissions2) {
+function openMutesList(player, sanctions2, permissions2, page) {
   const mutes = sanctions2.allMutes();
-  void openWindow(player, "Mutes actifs", (form) => {
-    if (mutes.length === 0) {
-      form.label("§7Aucun mute actif.");
-      return;
-    }
-    form.label("§7Clique sur un mute pour le lever :");
-    for (const mute of mutes) {
+  const { items, page: current, pageCount } = pageSlice(mutes, page, SANCTIONS_PER_PAGE);
+  openTileMenu(player, "Mutes", (menu) => {
+    menu.body(
+      [
+        "§6§lMutes actifs§r",
+        mutes.length === 0 ? "§7Aucun mute actif." : `§7${mutes.length} mute(s) — page §f${current + 1}§7/§f${pageCount}`,
+        "§8Clique une entrée pour rendre la parole."
+      ].join("\n")
+    );
+    for (let slot = 0; slot < SANCTIONS_PER_PAGE; slot++) {
+      const mute = items[slot];
+      if (mute === void 0) continue;
       const expiry = mute.data.expiresAt === 0 ? "§cpermanent" : `§7(${formatDuration(Math.ceil((mute.data.expiresAt - Date.now()) / 6e4))})`;
-      form.button(`§f${mute.data.name} §7— ${expiry} · §7par ${mute.data.by}`, () => {
+      menu.action(`mute_${slot}`, `§f${mute.data.name} §8— ${expiry}`, () => {
         const result = sanctions2.unmute(mute.data.name);
         player.sendMessage(
           result.ok ? `§a[Modération] ${mute.data.name} peut parler.` : `§c[Modération] ${result.error}`
         );
-        openMutesList(player, sanctions2, permissions2);
+        openMutesList(player, sanctions2, permissions2, current);
       });
     }
-  }).catch(
-    (error) => console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`)
-  );
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openMutesList(player, sanctions2, permissions2, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openMutesList(player, sanctions2, permissions2, current + 1);
+    });
+    menu.action("back", `§7Retour`, () => openSanctionsMenu(player, sanctions2, permissions2));
+  });
 }
 function openSanctionForm(player, sanctions2) {
   const target = obString("");
@@ -7793,66 +7947,64 @@ var JobManager = class {
 };
 
 // src/jobs/ui.ts
+var JOBS_PER_PAGE = 5;
 function xpBar2(xp, perLevel) {
   const filled = Math.min(10, Math.floor(xp / perLevel * 10));
-  return `§a[${"|".repeat(filled)}§8${".".repeat(10 - filled)}§a]§r`;
+  const bar = "|".repeat(filled);
+  const empty = ".".repeat(10 - filled);
+  return `§a[${bar}§8${empty}§a]§r`;
 }
-function openJobsMenu(player, jobs2) {
-  void openWindow(player, "Métiers", (form) => {
-    const mine = jobs2.jobsOf(player.name);
-    form.header("§b§lAtelier des métiers");
-    form.body(
+function openJobsMenu(player, jobs2, page = 0) {
+  const catalog = jobs2.catalog();
+  const mine = jobs2.jobsOf(player.name);
+  const { items, page: current, pageCount } = pageSlice(catalog, page, JOBS_PER_PAGE);
+  openTileMenu(player, "Metiers", (menu) => {
+    menu.body(
       [
-        "§7Les métiers sont des disciplines parallèles à ta classe.",
-        "§7Chaque métier possède sa propre progression et son propre rythme.",
-        `§7Disciplines actives : §f${mine.length}/${jobs2.catalog().length}`
+        "§b§lAtelier des métiers§r",
+        "§7Les métiers sont des disciplines parallèles à ta classe :",
+        "§7chacun a sa propre progression et son propre rythme.",
+        "",
+        `§7Disciplines actives : §f${mine.length}§7/${catalog.length}`,
+        ...mine.map((job) => {
+          const info = catalog.find((candidate) => candidate.id === job.jobId);
+          return `§8- ${info?.color ?? "§f"}${info?.name ?? job.jobId}§8 niv. §f${jobLevel(job.xp)}§8 ${xpBar2(
+            job.xp % JOB_XP_PER_LEVEL,
+            JOB_XP_PER_LEVEL
+          )}`;
+        }),
+        "",
+        `§8Page §f${current + 1}§8/§f${pageCount}§8 — un clic démarre ou quitte la discipline.`
       ].join("\n")
     );
-    form.divider();
-    if (mine.length > 0) {
-      form.header("§e§lMétiers actifs");
-      for (const job of mine) {
-        const info = jobs2.catalog().find((candidate) => candidate.id === job.jobId);
-        const jobName = info?.name ?? job.jobId;
-        form.header(`${info?.color ?? "§f"}§l${jobName}§r`);
-        form.label(
-          [
-            `§7Niveau §f${jobLevel(job.xp)}`,
-            `§7Progression ${xpBar2(job.xp % JOB_XP_PER_LEVEL, JOB_XP_PER_LEVEL)}`
-          ].join("\n")
-        );
-        form.button(`§cQuitter ${jobName}`, () => {
-          if (jobs2.quitJob(player.name, job.jobId)) {
-            player.sendMessage(`§e[Métiers] Tu quittes le métier ${jobName}.`);
+    for (let slot = 0; slot < JOBS_PER_PAGE; slot++) {
+      const info = items[slot];
+      if (info === void 0) continue;
+      const active = mine.find((job) => job.jobId === info.id);
+      menu.action(
+        `job_${slot}`,
+        active !== void 0 ? `§cQuitter ${info.name} §7(niv. ${jobLevel(active.xp)})` : `§aCommencer ${info.name}`,
+        () => {
+          if (active !== void 0) {
+            if (jobs2.quitJob(player.name, info.id)) {
+              player.sendMessage(`§e[Métiers] Tu quittes le métier ${info.name}.`);
+            }
+          } else if (jobs2.startJob(player.name, info.id)) {
+            player.sendMessage(`§a[Métiers] Métier commencé : ${info.name}.`);
           }
-          openJobsMenu(player, jobs2);
-        });
-        form.divider();
-      }
-      form.divider();
-    }
-    form.header("§6§lChoisir une discipline");
-    for (const info of jobs2.catalog()) {
-      if (jobs2.hasJob(player.name, info.id)) continue;
-      form.header(`${info.color}§l${info.name}§r`);
-      form.label(`§7${info.description}`);
-      form.button(`§aCommencer ${info.name}`, () => {
-        if (jobs2.startJob(player.name, info.id)) {
-          player.sendMessage(`§a[Métiers] Métier commencé : ${info.name}.`);
+          openJobsMenu(player, jobs2, current);
         }
-        openJobsMenu(player, jobs2);
-      });
-      form.divider();
+      );
     }
-    form.divider();
-    form.header("§e§lOutils du parcours");
-    form.button("§eVoir ma progression", () => {
-      player.sendMessage("§e[Métiers] Ta progression détaillée est affichée sur chaque discipline active.");
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openJobsMenu(player, jobs2, current - 1);
     });
-    form.button("§6Classement des métiers", () => {
-      player.sendMessage("§6[Métiers] Le classement sera alimenté quand les actions de métier seront branchées.");
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openJobsMenu(player, jobs2, current + 1);
     });
-  }).catch((error) => console.warn(`[Métiers] ${error instanceof Error ? error.message : String(error)}`));
+    menu.action("back", `§7Fermer`, () => {
+    });
+  });
 }
 
 // src/ui/admin.ts
@@ -7903,55 +8055,68 @@ var ModuleManager = class {
 };
 
 // src/modules/ui.ts
-function openModulesMenu(player, modules2, territories2) {
-  void openWindow(player, "Modules", (form) => {
-    form.header(`§6§lModules du serveur`);
-    form.label(`§7${modules2.enabledCount()}/${MODULE_CATALOG.length} module(s) actif(s).`);
-    form.divider();
-    for (const info of MODULE_CATALOG) {
+var MODULES_PER_PAGE = 3;
+function openModulesMenu(player, modules2, territories2, page = 0) {
+  const { items, page: current, pageCount } = pageSlice(MODULE_CATALOG, page, MODULES_PER_PAGE);
+  openTileMenu(player, "Modules", (menu) => {
+    menu.body(
+      [
+        "§6§lModules du serveur§r",
+        `§7${modules2.enabledCount()}/${MODULE_CATALOG.length} module(s) actif(s) — page §f${current + 1}§7/§f${pageCount}`,
+        "",
+        "§8Un clic bascule l'état du module (persisté).",
+        "§8Modules désactivés : leurs commandes répondent « désactivé »."
+      ].join("\n")
+    );
+    for (let slot = 0; slot < MODULES_PER_PAGE; slot++) {
+      const info = items[slot];
+      if (info === void 0) continue;
       const enabled = modules2.isEnabled(info.id);
-      form.button(
-        `${enabled ? "§a[ON]" : "§8[OFF]"} §l${info.name}§r §7— ${info.description}`,
-        () => {
-          const next = !modules2.isEnabled(info.id);
-          modules2.setEnabled(info.id, next);
-          player.sendMessage(`§a[Modules] ${info.name} ${next ? "§aactivé" : "§cdésactivé"}§a.`);
-          openModulesMenu(player, modules2, territories2);
-        },
-        void 0,
-        enabled ? "check" : "close"
-      );
-    }
-    if (MODULE_CATALOG.some((info) => info.id === "territories")) {
-      form.divider();
-      form.button(`§e§lVoir les États`, () => {
-        if (territories2 !== void 0) openStatesMenu(player, territories2);
-      });
-      form.button(`§c§lDANGER : supprimer TOUS les États`, () => {
-        if (territories2 !== void 0) openWipeTerritoriesMenu(player, modules2, territories2);
+      menu.action(`module_${slot}`, `${enabled ? "§a[ON] §f" : "§8[OFF] §7"}${info.name}`, () => {
+        const next = !modules2.isEnabled(info.id);
+        modules2.setEnabled(info.id, next);
+        player.sendMessage(`§a[Modules] ${info.name} ${next ? "§aactivé" : "§cdésactivé"}§a.`);
+        openModulesMenu(player, modules2, territories2, current);
       });
     }
-  }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openModulesMenu(player, modules2, territories2, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openModulesMenu(player, modules2, territories2, current + 1);
+    });
+    menu.action("states", `§eVoir les États`, () => {
+      if (territories2 !== void 0) openStatesMenu(player, territories2);
+    });
+    menu.action("wipe", `§4Supprimer TOUS les États`, () => {
+      if (territories2 !== void 0) openWipeTerritoriesMenu(player, modules2, territories2);
+    });
+    menu.action("back", `§7Retour`, () => {
+    });
+  });
 }
 function openWipeTerritoriesMenu(player, modules2, territories2) {
-  void openWindowRaw(player, windowTitle("Supprimer les États"), (form) => {
-    form.header(`§4§lDANGER`);
-    form.label(
-      `Supprimer §lTOUS§r§4 les États (${territories2.all().length}) ?
-
-§7Action irréversible !`
+  const count = territories2.all().length;
+  openTileMenu(player, "Dissoudre", (menu) => {
+    menu.body(
+      [
+        "§4§lDANGER§r",
+        `§7Supprimer §lTOUS§r§7 les États (§f${count}§7) ?`,
+        "",
+        "§cAction irréversible : les chunks redeviennent libres",
+        "§cet les membres perdent leur clan."
+      ].join("\n")
     );
-    form.divider();
-    form.button(`§4§lSUPPRIMER TOUT`, () => {
+    menu.action("confirm", `§4SUPPRIMER TOUT`, () => {
       let removed = 0;
       for (const territory of territories2.all()) {
         if (territories2.removeForced(territory.id)) removed++;
       }
       player.sendMessage(`§a[Modules] ${removed} État(s) supprimé(s).`);
-      openModulesMenu(player, modules2, territories2);
     });
-    form.button(`§a§lAnnuler`, () => openModulesMenu(player, modules2, territories2));
-  }).catch((error) => console.warn(`[Modules] ${error instanceof Error ? error.message : String(error)}`));
+    menu.action("cancel", `§aAnnuler`, () => openModulesMenu(player, modules2, territories2));
+    menu.action("back", `§7Retour`, () => openModulesMenu(player, modules2, territories2));
+  });
 }
 
 // src/ui/admin.ts
@@ -8122,50 +8287,71 @@ var QuestManager = class {
 };
 
 // src/quests/ui.ts
+var QUESTS_PER_PAGE = 5;
 function rewardLabel(questId, quests2) {
   const reward = quests2.questOf(questId)?.reward;
   if (reward?.classXp !== void 0) return `+${reward.classXp} XP de classe`;
   if (reward?.jobXp !== void 0) return `+${reward.jobXp} XP de métier`;
   return "Récompense à découvrir";
 }
-function openQuestMenu(player, quests2, classes2, jobs2) {
-  void openWindow(player, "Quêtes", (form) => {
-    const state = quests2.stateOf(player.name);
-    const active = quests2.active(player.name);
-    const completedCount = state.claimed.length;
-    form.header("§6§lJournal de route");
-    form.body(
+function openQuestMenu(player, quests2, classes2, jobs2, page = 0) {
+  const state = quests2.stateOf(player.name);
+  const active = quests2.active(player.name);
+  const entries = [
+    ...active.map((quest) => ({
+      id: quest.id,
+      title: quest.title,
+      description: quest.description,
+      target: quest.target,
+      state: "active"
+    })),
+    ...QUEST_CATALOG.filter(
+      (candidate) => !state.active.includes(candidate.id) && !state.claimed.includes(candidate.id)
+    ).map((quest) => ({
+      id: quest.id,
+      title: quest.title,
+      description: quest.description,
+      target: quest.target,
+      state: "open"
+    }))
+  ];
+  const { items, page: current, pageCount } = pageSlice(entries, page, QUESTS_PER_PAGE);
+  const myClass = classes2?.classOf(player.name);
+  openTileMenu(player, "Quetes", (menu) => {
+    menu.body(
       [
-        "§7Chaque quête accompagne un système réel de NaLandia.",
-        `§7Progression : §f${completedCount}/${QUEST_CATALOG.length}§7 récompense(s) récupérée(s).`,
-        classes2?.classOf(player.name) !== void 0 ? `§7Voie actuelle : §f${classes2.classOf(player.name)?.classId}` : "§7Voie actuelle : §8à choisir",
+        "§6§lJournal de route§r",
+        `§7Récompenses récupérées : §f${state.claimed.length}§7/§f${QUEST_CATALOG.length}`,
+        myClass !== void 0 ? `§7Voie actuelle : §f${myClass.classId}` : "§7Voie actuelle : §8à choisir",
         jobs2 !== void 0 ? `§7Métiers actifs : §f${jobs2.jobsOf(player.name).length}` : "",
-        `§7Les pistes se déclenchent quand tu vis réellement l'action : classe, mine, clan ou métier.`
+        "",
+        `§8Pistes suivies : §f${active.length}§8 — page §f${current + 1}§8/§f${pageCount}`,
+        "§8Les pistes se déclenchent en vivant réellement l'action :",
+        "§8classe, mine, clan ou métier."
       ].filter((line) => line !== "").join("\n")
     );
-    form.divider();
-    if (active.length === 0) {
-      form.label("§8Aucune quête suivie. Les prochaines aventures apparaîtront ici.");
-    }
-    for (const quest of active) {
-      const progress = quests2.progressOf(player.name, quest.id);
-      const ready = quests2.isCompleted(player.name, quest.id);
-      form.header(`${ready ? "§a" : "§e"}§l${quest.title}§r`);
-      form.label(
-        [
-          `§7${quest.description}`,
-          `§7Progression §f${progress}/${quest.target}`,
-          `§7Récompense §6${rewardLabel(quest.id, quests2)}`
-        ].join("\n")
-      );
-      form.button(
-        ready ? "§aRécupérer la récompense" : "§eVoir les détails",
+    for (let slot = 0; slot < QUESTS_PER_PAGE; slot++) {
+      const entry = items[slot];
+      if (entry === void 0) continue;
+      if (entry.state === "open") {
+        menu.action(`quest_${slot}`, `§8Suivre : §7${entry.title}`, () => {
+          const result = quests2.start(player.name, entry.id);
+          if (!result.ok) player.sendMessage(`§c[Quêtes] ${result.error}`);
+          openQuestMenu(player, quests2, classes2, jobs2, current);
+        });
+        continue;
+      }
+      const progress = quests2.progressOf(player.name, entry.id);
+      const ready = quests2.isCompleted(player.name, entry.id);
+      menu.action(
+        `quest_${slot}`,
+        ready ? `§aRÉCUPÉRER : §f${entry.title}` : `§e${entry.title} §7(${progress}/${entry.target})`,
         () => {
           if (!ready) {
-            player.sendMessage(`§7[Quêtes] ${quest.description}`);
+            player.sendMessage(`§7[Quêtes] ${entry.description} §8(${progress}/${entry.target})`);
             return;
           }
-          const result = quests2.claim(player.name, quest.id);
+          const result = quests2.claim(player.name, entry.id);
           if (!result.ok) {
             player.sendMessage(`§c[Quêtes] ${result.error}`);
             return;
@@ -8177,24 +8363,20 @@ function openQuestMenu(player, quests2, classes2, jobs2) {
             const firstJob = jobs2.jobsOf(player.name)[0];
             if (firstJob !== void 0) jobs2.addXp(player.name, firstJob.jobId, result.reward.jobXp);
           }
-          player.sendMessage(`§6[Quêtes] Récompense récupérée : §f${rewardLabel(quest.id, quests2)}§6.`);
-          openQuestMenu(player, quests2, classes2, jobs2);
+          player.sendMessage(`§6[Quêtes] Récompense récupérée : §f${rewardLabel(entry.id, quests2)}§6.`);
+          openQuestMenu(player, quests2, classes2, jobs2, current);
         }
       );
     }
-    form.divider();
-    form.header("§7Pistes disponibles");
-    for (const quest of QUEST_CATALOG.filter((candidate) => !state.active.includes(candidate.id) && !state.claimed.includes(candidate.id))) {
-      form.header(`§8${quest.title}`);
-      form.label(`§8${quest.description}`);
-      form.button("§6Suivre cette piste", () => {
-        const result = quests2.start(player.name, quest.id);
-        if (!result.ok) player.sendMessage(`§c[Quêtes] ${result.error}`);
-        openQuestMenu(player, quests2, classes2, jobs2);
-      });
-      form.divider();
-    }
-  }).catch((error) => console.warn(`[Quêtes] ${error instanceof Error ? error.message : String(error)}`));
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openQuestMenu(player, quests2, classes2, jobs2, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openQuestMenu(player, quests2, classes2, jobs2, current + 1);
+    });
+    menu.action("back", `§7Fermer`, () => {
+    });
+  });
 }
 
 // src/ui/hub.ts

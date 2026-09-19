@@ -32,7 +32,7 @@ import type {
 } from "@minecraft/server-ui";
 import { logMod } from "../lib/log";
 import { designForSection, designForTitle, sheetTitleFor, TITLE_PREFIX, type ScreenDesign } from "./sheets";
-import { TILE_MENUS, tileTitleFor, type TileSection } from "./tiles";
+import { TILE_MENUS, fitLabel, tileTitleFor, type TileSection } from "./tiles";
 
 export const RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
 export const THEME = { primary: "§a", accent: "§6", danger: "§c", muted: "§7" } as const;
@@ -141,7 +141,9 @@ export class OMForm {
   slider(label: string, observable: ObservableNumber, min: number, max: number, options?: SliderOptions): OMForm {
     const value = new NativeObservableNumber(observable.getData());
     value.subscribe((next) => observable.setData(next));
-    this.elements.push({ kind: "field", add: (form) => form.slider(label, value, min, max, { step: options?.step ?? 1 }) });
+    // Le step est optionnel chez Mojang : ne PAS en forcer un — forcer 1
+    // cassait les curseurs à pas fin (ex. pas de 15 min : rien ne bougeait).
+    this.elements.push({ kind: "field", add: (form) => form.slider(label, value, min, max, options?.step === undefined ? undefined : { step: options.step }) });
     return this;
   }
 
@@ -380,7 +382,11 @@ async function presentTileForm(
   form.title(tileTitleFor(section));
   if (bodyText.trim().length > 0) form.body(bodyText);
   if (sequential) {
-    for (const entry of ordered) form.button(entry.label);
+    // Les tuiles des listes génériques ont une largeur FIXE : un libellé trop
+    // long débordait de sa case (« les boutons sont trop petits pour le
+    // texte »). La borne est appliquée ICI, une fois pour toutes : plus aucun
+    // menu de liste ne peut déborder, quel que soit son contenu.
+    for (const entry of ordered) form.button(fitLabel(entry.label, 32));
   } else {
     for (const key of layout.actions) {
       form.button(actions.get(key)?.label ?? "§8—");

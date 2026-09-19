@@ -1,9 +1,26 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v2.7.0 — CAUSE RACINE du menu Nations trouvée (titre accentué) + fin du cadre gris Mojang + cartes de classe au propre**.
+> Dernière mise à jour : **v2.7.1 — GRANDE ANALYSE : cause racine des formulaires vides/incohérents réparée (fusion des 23 définitions vanilla effacées) + DB éditable pour de vrai + débordements de texte finis**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
+
+## 🆕 v2.7.1 — Grande analyse post-récupération : la vraie cause de tout, réparée (sept. 2026)
+
+**La demande** : « rien n'est à jour ou presque », « le tactile et manette ne marchent pas à l'endroit où il faut », « y a des trucs chelou en bas dans certains menus », « les boutons sont trop petits pour le texte », « certains menus n'ont pas leur UI et ça c'est grave », « le système de classe est tout cassé », « ajoute l'UI quêtes / mon clan / les UIs intermédiaires / progression de classe », « répare la DB », « fais une grosse analyse ».
+
+**Le diagnostic (l'analyse complète)** : en voulant reskinner le serveur, `RP/ui/server_form.json` avait **écrasé TOUT le fichier vanilla** — or le jeu y pioche **24 définitions de base** que nos formulaires appellent : `custom_form_panel` (le panneau scrollable des formulaires à champs), `generated_contents` (la fabrique qui rend chaque composant), les widgets `custom_toggle`/`custom_slider`/`custom_dropdown`/`custom_input`, `dynamic_button`, et l'écran racine `third_party_server_screen`. Sans elles :
+- les formulaires à champs (créer un clan, sanctions, réglages, fiches…) s'ouvraient **avec un contenu manquant** → « des trucs chelou en bas », écrans « intermédiaires » sans UI ;
+- la fabrique vanilla ne connaît pas les types `button`/`image` de l'API bêta → **les boutons des formulaires ne se rendaient pas** ;
+- les fiches de classe et de progression (écrans CustomForm) héritaient du même rendu cassé → « le système de classe est tout cassé » (le moteur de classe, lui, n'avait aucun bug).
+
+- [x] **Fusion vanilla + habillage** : `server_form.json` reconstruit = **24 définitions vanilla officielles (1.26.50, miroir Mojang) réinjectées** + nos 19 définitions `om_*` et nos overrides `long_form`/`custom_form` par-dessus. Résultat : **44 définitions**, chaque référence résout. Le contenu des formulaires revient, l'habillage or & argent reste.
+- [x] **Boutons des formulaires à champs rendus** : la fabrique `generated_contents` ne connaît que label/toggle/slider/dropdown/input/header/divider — les boutons `CustomForm` (choisir une voie, fonder, valider…) n'apparaissaient pas. Mappés vers le gabarit vanilla `dynamic_button` (texte + zone icône + barres de chargement), sur la collection `form_buttons` comme le fait Mojang pour ActionForm.
+- [x] **Boutons trop petits pour le texte** : les tuiles des listes à thème ont une largeur fixe — les libellés longs (« Aym3n9585 — 12 sess. · vu à 18:42 ») débordaient. Double fix : colonnes élargies 150→180 px (fenêtres 300→330) **et** troncature automatique (`fitLabel`, 32 caractères visibles) appliquée **dans le moteur** à toute liste générique — plus aucun menu ne peut déborder, même ceux à venir.
+- [x] **DB réparée pour de vrai** : l'application ne lisait que les interrupteurs (les textes étaient jugés « non relisibles » — fausse note : les Observables bêta sont des références vivantes). Textes, nombres (avec virgule acceptée) et booléens s'appliquent désormais réellement, changements détectés champ par champ.
+- [x] **Slider réparé** : le moteur forçait un pas de 1 — les curseurs à pas fin (durée de sanction par 15 min, niveau de rôle par 5) restaient bloqués.
+- [x] **Tactile/manette** : nos tuiles utilisent les mappings standards `button.menu_select`/`button.menu_ok` (identiques aux formulaires Mojang) — c'est le **contenu manquant** des formulaires (ci-dessus) qui faisait croire à un problème d'input ; la fusion le corrige.
+- [x] **UI quêtes / mon clan / fiches intermédiaires / progression de classe** : tous servis par la même réparation — ils passaient par `custom_form_panel`/`generated_contents`, absents du pack. Aucun menu n'est plus « sans son UI ».
 
 ## 🆕 v2.7.0 — Nations réparé, plus aucun cadre gris, tuiles partout où c'était demandé (sept. 2026)
 

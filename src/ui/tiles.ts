@@ -255,20 +255,20 @@ export const TILE_PANELS: Record<TileSection, TilePanelSpec> = {
    * par l'instance du contrôle). Chaque menu a donc sa propre fenêtre et ses
    * propres cartes colorées, sans dupliquer la mise en page.
    */
-  Mines: { controller: "om_mines_root", panel: "server_form.om_menu_panel", size: [300, 236], indexed: false, theme: "mines" },
-  Moderation: { controller: "om_moderation_root", panel: "server_form.om_menu_panel", size: [300, 236], indexed: false, theme: "moderation" },
-  Bans: { controller: "om_bans_root", panel: "server_form.om_menu_panel", size: [300, 236], indexed: false, theme: "bans" },
-  Mutes: { controller: "om_mutes_root", panel: "server_form.om_menu_panel", size: [300, 236], indexed: false, theme: "mutes" },
-  Roles: { controller: "om_roles_root", panel: "server_form.om_menu_panel", size: [300, 236], indexed: false, theme: "roles" },
-  Joueurs: { controller: "om_joueurs_root", panel: "server_form.om_menu_panel", size: [300, 236], indexed: false, theme: "joueurs" },
-  Membres: { controller: "om_membres_root", panel: "server_form.om_menu_panel", size: [300, 236], indexed: false, theme: "membres" },
-  Membre: { controller: "om_membre_root", panel: "server_form.om_menu_panel", size: [300, 236], indexed: false, theme: "membre" },
-  Modules: { controller: "om_modules_root", panel: "server_form.om_menu_panel", size: [300, 236], indexed: false, theme: "modules" },
-  Metiers: { controller: "om_metiers_root", panel: "server_form.om_menu_panel", size: [300, 236], indexed: false, theme: "metiers" },
-  Quetes: { controller: "om_quetes_root", panel: "server_form.om_menu_panel", size: [300, 236], indexed: false, theme: "quetes" },
-  Drapeau: { controller: "om_drapeau_root", panel: "server_form.om_menu_panel", size: [300, 236], indexed: false, theme: "drapeau" },
-  Dissoudre: { controller: "om_dissoudre_root", panel: "server_form.om_menu_panel", size: [300, 236], indexed: false, theme: "dissoudre" },
-  "Base de donnees": { controller: "om_base_root", panel: "server_form.om_menu_panel", size: [300, 236], indexed: false, theme: "base" },
+  Mines: { controller: "om_mines_root", panel: "server_form.om_menu_panel", size: [330, 236], indexed: false, theme: "mines" },
+  Moderation: { controller: "om_moderation_root", panel: "server_form.om_menu_panel", size: [330, 236], indexed: false, theme: "moderation" },
+  Bans: { controller: "om_bans_root", panel: "server_form.om_menu_panel", size: [330, 236], indexed: false, theme: "bans" },
+  Mutes: { controller: "om_mutes_root", panel: "server_form.om_menu_panel", size: [330, 236], indexed: false, theme: "mutes" },
+  Roles: { controller: "om_roles_root", panel: "server_form.om_menu_panel", size: [330, 236], indexed: false, theme: "roles" },
+  Joueurs: { controller: "om_joueurs_root", panel: "server_form.om_menu_panel", size: [330, 236], indexed: false, theme: "joueurs" },
+  Membres: { controller: "om_membres_root", panel: "server_form.om_menu_panel", size: [330, 236], indexed: false, theme: "membres" },
+  Membre: { controller: "om_membre_root", panel: "server_form.om_menu_panel", size: [330, 236], indexed: false, theme: "membre" },
+  Modules: { controller: "om_modules_root", panel: "server_form.om_menu_panel", size: [330, 236], indexed: false, theme: "modules" },
+  Metiers: { controller: "om_metiers_root", panel: "server_form.om_menu_panel", size: [330, 236], indexed: false, theme: "metiers" },
+  Quetes: { controller: "om_quetes_root", panel: "server_form.om_menu_panel", size: [330, 236], indexed: false, theme: "quetes" },
+  Drapeau: { controller: "om_drapeau_root", panel: "server_form.om_menu_panel", size: [330, 236], indexed: false, theme: "drapeau" },
+  Dissoudre: { controller: "om_dissoudre_root", panel: "server_form.om_menu_panel", size: [330, 236], indexed: false, theme: "dissoudre" },
+  "Base de donnees": { controller: "om_base_root", panel: "server_form.om_menu_panel", size: [330, 236], indexed: false, theme: "base" },
 };
 
 /**

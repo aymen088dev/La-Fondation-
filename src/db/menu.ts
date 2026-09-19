@@ -183,28 +183,29 @@ async function openDocumentMenu(
     form.header(`§b§l${docId}`);
     form.label(`§7collection : §f${section}`);
 
-    // Champs éditables : textes, nombres, booléens (toggle). Le reste est
-    // affiché en lecture seule.
-    const editableKeys: string[] = [];
-    const kinds: ("string" | "number" | "boolean")[] = [];
+    // Champs éditables : textes, nombres, booléens (toggle). Les observables
+    // sont des VRAIES références vivantes : CustomForm y écrit la saisie du
+    // joueur en direct, donc l'appliquer relit simplement getData().
+    const stringValues: Record<string, ReturnType<typeof obString>> = {};
+    const numberValues: Record<string, ReturnType<typeof obString>> = {};
     const boolValues: Record<string, ReturnType<typeof obBool>> = {};
     const readonlyLines: string[] = [];
 
     for (const [key, value] of entries) {
       if (typeof value === "string") {
-        form.textField(`§e${key}`, obString(value));
-        editableKeys.push(key);
-        kinds.push("string");
+        const observable = obString(value);
+        stringValues[key] = observable;
+        form.textField(`§e${key}`, observable);
       } else if (typeof value === "number") {
-        form.textField(`§e${key} §7(nombre)`, obString(String(value)));
-        editableKeys.push(key);
-        kinds.push("number");
+        // Un nombre s'édite en texte : on valide à l'application (évite un
+        // champ partiellement saisi pendant que le joueur tape).
+        const observable = obString(String(value));
+        numberValues[key] = observable;
+        form.textField(`§e${key} §7(nombre)`, observable);
       } else if (typeof value === "boolean") {
         const toggle = obBool(value);
         boolValues[key] = toggle;
         form.toggleOb(`§e${key}`, toggle);
-        editableKeys.push(key);
-        kinds.push("boolean");
       } else {
         readonlyLines.push(`§7${key}: §f${summarizeValue(value)}`);
       }
@@ -217,10 +218,16 @@ async function openDocumentMenu(
 
     form.divider();
     form.button(`§a§lAppliquer`, () => {
-      // NOTE : les textes saisis ne sont pas relisibles depuis l'Observable
-      // après fermeture dans cette bêta (le binding est initialisé avec la
-      // valeur d'origine) : seuls les toggles sont appliqués de façon fiable.
-      const patch: Record<string, boolean> = {};
+      const patch: Record<string, unknown> = {};
+      for (const [key, observable] of Object.entries(stringValues)) {
+        const next = observable.getData();
+        if (next !== doc.data[key]) patch[key] = next;
+      }
+      for (const [key, observable] of Object.entries(numberValues)) {
+        const parsed = Number(observable.getData().replace(",", "."));
+        const current = doc.data[key];
+        if (Number.isFinite(parsed) && parsed !== current) patch[key] = parsed;
+      }
       for (const [key, toggle] of Object.entries(boolValues)) {
         const current = doc.data[key];
         if (typeof current === "boolean" && toggle.getData() !== current) {
@@ -233,7 +240,7 @@ async function openDocumentMenu(
         db.save();
         console.warn(`[DB] "${docId}" mis à jour (${Object.keys(patch).length} champ(s)).`);
       } else {
-        console.warn(`[DB] "${docId}" : aucun changement (seuls les interrupteurs sont éditables).`);
+        console.warn(`[DB] "${docId}" : aucun changement détecté.`);
       }
     });
     form.closeButton();
