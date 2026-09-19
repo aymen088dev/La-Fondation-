@@ -4,7 +4,7 @@
     "name": "NaLandia BP",
     "description": "Behavior Pack NaLandia : gameplay, progression, menus à tuiles (JSON UI) et formulaires officiels Bedrock (Script API 1.26.50).",
     "uuid": "2915bab9-50f2-442e-a17a-4c8e9cd688fb",
-    "version": [3, 1, 0],
+    "version": [3, 1, 1],
     "min_engine_version": [1, 26, 50]
   },
   "modules": [

@@ -916,6 +916,37 @@ def menu_card_textures() -> None:
             write_nineslice(f"om_menu_{theme_id}_card{suffix}", [10, 10, 10, 10], [s, s])
 
 
+def scrollbar_textures() -> None:
+    """`ScrollRail` (3px) et `ScrollHandle` (5px) : la barre de défilement des
+    formulaires serveur, au style or/argent du serveur.
+
+    IMPORTANT : ce sont les noms de FICHIER vanilla (`textures/ui/ScrollRail`,
+    `textures/ui/ScrollHandle`) référencés par `common.scroll_indent_image` et
+    `common.scrollbar_box_image`. Présents dans NOTRE RP, ils remplacent les
+    textures gris froid de Mojang pour tous nos formulaires — aucun branchement
+    JSON UI nécessaire."""
+    # ---- Rail 3 x 8 : piste sombre discrète ----
+    w, h = 3, 8
+    rail: list[list[tuple[int, int, int, int]]] = [
+        [(*INK, 170) for _ in range(w)] for _ in range(h)
+    ]
+    write_png(RP_ROOT / "textures" / "ui" / "ScrollRail.png", w, h, rail)
+
+    # ---- Thumb 5 x 8 : or plein, liseré clair ----
+    w, h = 5, 8
+    thumb: list[list[tuple[int, int, int, int]]] = []
+    for y in range(h):
+        row: list[tuple[int, int, int, int]] = []
+        for x in range(w):
+            edge = min(x, y, w - 1 - x, h - 1 - y)
+            if edge == 0:
+                row.append((*lerp(GOLD, WHITE, 0.35), 255))
+            else:
+                row.append((*GOLD, 255))
+        thumb.append(row)
+    write_png(RP_ROOT / "textures" / "ui" / "ScrollHandle.png", w, h, thumb)
+
+
 def main() -> None:
     print("Génération des textures UI (Resource Pack NaLandia)...")
     button_tiles()
@@ -932,6 +963,7 @@ def main() -> None:
     world_card_textures()
     menu_theme_textures()
     menu_card_textures()
+    scrollbar_textures()
     pack_icon()
     print("Terminé.")
 

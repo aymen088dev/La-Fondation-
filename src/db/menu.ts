@@ -45,7 +45,7 @@ function summarize(doc: StoredDocument<Record<string, unknown>>): string {
     if (typeof data.sessions === "number") extras.push(`${data.sessions} sessions`);
     if (Array.isArray(data.perms)) extras.push(`${data.perms.length} perms`);
     if (Array.isArray(data.members)) extras.push(`${data.members.length} membres`);
-    return `§f${data.name}§r§7${extras.length > 0 ? ` — ${extras.join(" · ")}` : ""}`;
+    return `§f${data.name}§r§7${extras.length > 0 ? ` — ${extras.join(", ")}` : ""}`;
   }
 
   if (typeof data.playerId === "string" && data.playerId !== "") {
@@ -70,7 +70,7 @@ export async function openDbMenu(db: JsonDatabase, player: Player, page = 0): Pr
     menu.body(
       [
         "§a§lBase de données§r",
-        `§7${stats.documents} documents · ${stats.bytes} octets`,
+        `§7${stats.documents} documents — ${stats.bytes} octets`,
         `§7État : ${stats.dirty ? "§eà sauvegarder" : "§aà jour"}`,
         "",
         `§7Sections — page §f${current + 1}§7/§f${pageCount}`,

@@ -4693,7 +4693,7 @@ function summarize(doc) {
     if (typeof data.sessions === "number") extras.push(`${data.sessions} sessions`);
     if (Array.isArray(data.perms)) extras.push(`${data.perms.length} perms`);
     if (Array.isArray(data.members)) extras.push(`${data.members.length} membres`);
-    return `§f${data.name}§r§7${extras.length > 0 ? ` — ${extras.join(" · ")}` : ""}`;
+    return `§f${data.name}§r§7${extras.length > 0 ? ` — ${extras.join(", ")}` : ""}`;
   }
   if (typeof data.playerId === "string" && data.playerId !== "") {
     return `§fid:${String(data.playerId).slice(0, 12)}…§r§7${typeof data.name === "string" ? ` ${data.name}` : ""}`;
@@ -4708,7 +4708,7 @@ async function openDbMenu(db2, player, page = 0) {
     menu.body(
       [
         "§a§lBase de données§r",
-        `§7${stats.documents} documents · ${stats.bytes} octets`,
+        `§7${stats.documents} documents — ${stats.bytes} octets`,
         `§7État : ${stats.dirty ? "§eà sauvegarder" : "§aà jour"}`,
         "",
         `§7Sections — page §f${current + 1}§7/§f${pageCount}`,
@@ -4912,8 +4912,8 @@ function openCreateMenu(player, manager) {
         `§7et s'étend en carré ${CLAN_RADIUS * 2 + 1}×${CLAN_RADIUS * 2 + 1} autour.`,
         ``,
         `§7Règles du nom :`,
-        `§8· 3 à 24 caractères`,
-        `§8· lettres, chiffres, espaces, _ et -`,
+        `§8- 3 à 24 caractères`,
+        `§8- lettres, chiffres, espaces, _ et -`,
         `§8Un seul clan par joueur.`
       ].join("\n")
     );
@@ -4977,8 +4977,8 @@ function openStatesMenu(player, manager, page = 0) {
       }
       const color = getColor(state.data.color);
       const label = fitLabel(
-        `${color.code}${state.data.name}§r §8· §7${state.data.owner} §8· ${state.data.chunkKeys.length}ch`,
-        26
+        `${color.code}${state.data.name}§r §7— ${state.data.owner} §8(${state.data.chunkKeys.length} chunks)`,
+        30
       );
       menu.action(key, label, () => showStateInfo(player, state, manager));
     }
@@ -5008,13 +5008,7 @@ function showStateInfo(player, territory, manager) {
   const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
   void openWindowRaw(player, windowTitle("Clan"), (form) => {
     form.back(() => openStatesMenu(player, manager));
-    form.label(
-      [
-        `${color.code}======================`,
-        `§f§l${data.name}`,
-        `${color.code}======================`
-      ].join("\n")
-    );
+    form.label(`${color.code}§l${data.name}§r`);
     form.label(
       [
         `§eChef        §f${data.owner}${isOwner ? " §a(toi)" : ""}`,
@@ -7125,7 +7119,7 @@ function openPlayersMenu(player, permissions2, db2, page = 0) {
       return {
         name: record.data.name,
         online: false,
-        detail: `${record.data.sessions} sess. · vu à ${hh}`
+        detail: `${record.data.sessions} sess. — vu à ${hh}`
       };
     })
   ];
@@ -7694,11 +7688,7 @@ var CLASS_TRAITS = {
   archer: ["§a+ Précision à distance", "§a+ Déplacement rapide", "§7- Faible au mêlée"]
 };
 function banner(info) {
-  return [
-    `${info.color}======================`,
-    `§f§l${info.name}`,
-    `${info.color}======================`
-  ].join("\n");
+  return `§f§l${info.name}`;
 }
 function classCard(player, classes2, info, allowChoose, backTo) {
   void openWindowRaw(player, windowTitle("Classe"), (form) => {

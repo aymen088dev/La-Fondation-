@@ -37,13 +37,12 @@ const CLASS_TRAITS: Record<string, string[]> = {
   archer: ["§a+ Précision à distance", "§a+ Déplacement rapide", "§7- Faible au mêlée"],
 };
 
-/** Grande bannière d'une voie : bandeaux couleur + NOM BLANC centré. */
+/**
+ * En-tête d'une fiche de voie : nom en couleur de la voie, blanc et gras,
+ * sans aucun glyphe décoratif — l'habillage or du RP porte le design.
+ */
 function banner(info: ClassInfo): string {
-  return [
-    `${info.color}======================`,
-    `§f§l${info.name}`,
-    `${info.color}======================`,
-  ].join("\n");
+  return `§f§l${info.name}`;
 }
 
 /**

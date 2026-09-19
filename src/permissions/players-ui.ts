@@ -57,7 +57,7 @@ export function openPlayersMenu(
       return {
         name: record.data.name,
         online: false,
-        detail: `${record.data.sessions} sess. · vu à ${hh}`,
+        detail: `${record.data.sessions} sess. — vu à ${hh}`,
       };
     }),
   ];

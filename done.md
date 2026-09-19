@@ -1,7 +1,21 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v3.1.0 — Refonte UI complète : architecture « transport invisible + JSON UI à nous ».** Framework `@bedrock-core/ui` et render pack CoreUI supprimés ; apparence portée par `RP/ui/server_form.json` généré depuis la base vanilla officielle (1.26.50). — v3.0.4 : réponses des commandes `/sn:*` retraitées.
+> Dernière mise à jour : **v3.1.1 — Habillage JSON UI finalisé : fenêtre or/argent `om_window` à la place du cadre blanc vanilla, scrollbar dorée, fiches sans glyphes ASCII.** — v3.1.0 : refonte UI « transport invisible + JSON UI à nous ».
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v3.1.1 — Fini le cadre blanc, fiches sobres (sept. 2026)
+
+**La demande** : « enlève le cadre blanc, designe toutes les UI, refais les fiches (bannières ASCII), nations sans glyphes ».
+
+- [x] **Cadre blanc supprimé** : le fond clair des écrans venait de `dialog_background_hollow_3` (la texture vanilla héritée de `common_dialogs.main_panel_no_buttons`). Le générateur branche maintenant `$custom_background` sur `server_form.om_window_background` — notre fenêtre sombre à double filet or/argent (`om_window`) sur TOUTES les UI (menus ActionForm ET fiches CustomForm).
+- [x] **Scrollbar dorée** : génération de `ScrollRail.png` / `ScrollHandle.png` (piste sombre + curseur or à liseré clair). Présents dans le RP, ces noms de fichier vanilla remplacent automatiquement les textures gris froid de Mojang dans tous nos formulaires.
+- [x] **Fiches sans glyphes** : les bannières `=====` des fiches Classe et Clan sont remplacées par un en-tête sobre (nom en couleur, gras). Le séparateur `·` est remplacé par `—` ou `,` partout (nations, DB, joueurs, règles de nom).
+- [x] Nations : libellés de tuiles élargis (30 caractères) avec format lisible « Nom — Chef (N chunks) ».
+
+### ✔️ Vérifié
+Typecheck OK · **74/74 tests** · bundle recompilé · packs **3.1.1** (BP, RP, `serveur/*.json`).
 
 ---
 

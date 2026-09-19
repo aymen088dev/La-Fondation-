@@ -38,6 +38,10 @@ CARD_HEIGHT = 32
 TEXT_MAX = ["100%", 20]
 TEXT_COLOR = [0.96, 0.96, 0.96]
 
+# Notre habillage de fenêtre : le corps sombre à double filet or/argent.
+# Remplace `dialog_background_hollow_3` (le cadre gris clair vanilla).
+OM_WINDOW_BG = "textures/ui/om_window"
+
 # Définitions vanilla que ce fichier ne redéclare PAS (elles restent lues
 # dans ui_common.json ; c'est le cas vanilla).
 EXCLUDE_IDS = {
@@ -281,14 +285,25 @@ def find_key(data: dict, base: str) -> str:
 
 
 def apply(data: dict) -> dict:
-    # 1) Fenêtres élargies + titre doré.
+    # 1) Fenêtres élargies + titre doré + FOND À NOUS.
+    #    `$custom_background` est le point d'injection du fond dans
+    #    common_dialogs.main_panel_no_buttons (vanilla : dialog_background_hollow_3,
+    #    le fameux « cadre blanc »). On branche notre fenêtre or/argent.
     for base, size in (("long_form", WINDOW_SIZE), ("custom_form", FORM_SIZE)):
         key = find_key(data, base)
         data[key]["size"] = size
         data[key]["$title_text_color"] = TITLE_GOLD
+        data[key]["$custom_background"] = "server_form.om_window_background"
         data[key]["$panel_indent_size"] = ["100% - 18px", "100% - 34px"]
 
-    # 2) Nos contrôles.
+    # 2) Nos contrôles. `om_window_background` = l'image `om_window` branchée
+    #    là où vanilla met son cadre clair ; le niveau d'obscurité du jeu reste
+    #    celui du `common.common_panel` sous-jacent.
+    data["om_window_background"] = {
+        "type": "image",
+        "texture": OM_WINDOW_BG,
+        "layer": 1,
+    }
     data["om_button"] = OM_BUTTON
     data["om_focus_button"] = OM_FOCUS_BUTTON
     data["dynamic_button"] = om_dynamic_button()

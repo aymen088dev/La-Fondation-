@@ -90,8 +90,8 @@ export function openCreateMenu(player: Player, manager: TerritoryManager): void 
         `§7et s'étend en carré ${CLAN_RADIUS * 2 + 1}×${CLAN_RADIUS * 2 + 1} autour.`,
         ``,
         `§7Règles du nom :`,
-        `§8· 3 à 24 caractères`,
-        `§8· lettres, chiffres, espaces, _ et -`,
+        `§8- 3 à 24 caractères`,
+        `§8- lettres, chiffres, espaces, _ et -`,
         `§8Un seul clan par joueur.`,
       ].join("\n"),
     );
@@ -192,8 +192,8 @@ export function openStatesMenu(player: Player, manager: TerritoryManager, page =
       const color = getColor(state.data.color);
       // Nom + chef + taille : borné pour ne JAMAIS déborder de la tuile.
       const label = fitLabel(
-        `${color.code}${state.data.name}§r §8· §7${state.data.owner} §8· ${state.data.chunkKeys.length}ch`,
-        26,
+        `${color.code}${state.data.name}§r §7— ${state.data.owner} §8(${state.data.chunkKeys.length} chunks)`,
+        30,
       );
       menu.action(key, label, () => showStateInfo(player, state, manager));
     }
@@ -239,13 +239,8 @@ export function showStateInfo(
   // dans la bannière du parchemin juste en dessous.
   void openWindowRaw(player, windowTitle("Clan"), (form) => {
     form.back(() => openStatesMenu(player, manager));
-    form.label(
-      [
-        `${color.code}======================`,
-        `§f§l${data.name}`,
-        `${color.code}======================`,
-      ].join("\n"),
-    );
+    // En-tête sobre : nom de l'État en couleur du drapeau, sans glyphe.
+    form.label(`${color.code}§l${data.name}§r`);
     form.label(
       [
         `§eChef        §f${data.owner}${isOwner ? " §a(toi)" : ""}`,

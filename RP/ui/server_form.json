@@ -51,6 +51,7 @@
       0.667,
       0.0
     ],
+    "$custom_background": "server_form.om_window_background",
     "$panel_indent_size": [
       "100% - 18px",
       "100% - 34px"
@@ -326,6 +327,7 @@
       0.667,
       0.0
     ],
+    "$custom_background": "server_form.om_window_background",
     "$panel_indent_size": [
       "100% - 18px",
       "100% - 34px"
@@ -707,6 +709,11 @@
         "binding_collection_name": "custom_form"
       }
     ]
+  },
+  "om_window_background": {
+    "type": "image",
+    "texture": "textures/ui/om_window",
+    "layer": 1
   },
   "om_button": {
     "type": "button",
