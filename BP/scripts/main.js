@@ -695,15 +695,4387 @@ var TerritoryManager = class {
 // src/territories/commands.ts
 import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, system as system9, world as world9 } from "@minecraft/server";
 
-// src/ui/theme.ts
+// src/ui/theme.tsx
 import { system as system7 } from "@minecraft/server";
 import {
   CustomForm as NativeCustomForm,
-  FormCancelationReason,
   ObservableBoolean as NativeObservableBoolean,
   ObservableNumber as NativeObservableNumber,
   ObservableString as NativeObservableString
 } from "@minecraft/server-ui";
+
+// node_modules/@bedrock-core/ui-runtime/src/components/stateBackground.ts
+function resolveStateBackgrounds(props) {
+  const background = props.background ?? UNSTYLED_TEXTURE;
+  return {
+    background,
+    backgroundHover: props.backgroundHover ?? background,
+    backgroundPressed: props.backgroundPressed ?? background,
+    backgroundLocked: props.backgroundLocked ?? background
+  };
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/components/control.ts
+var UNSTYLED_TEXTURE = "textures/ui/unstyled";
+function withControl(props) {
+  const {
+    visible: visible2,
+    enabled,
+    background,
+    // Layout props
+    width,
+    height,
+    display,
+    flexDirection,
+    justifyContent,
+    alignItems,
+    alignContent,
+    wrap,
+    gap,
+    padding,
+    paddingTop,
+    paddingRight,
+    paddingBottom,
+    paddingLeft,
+    flexGrow,
+    flexShrink,
+    flexBasis,
+    flex,
+    alignSelf,
+    margin,
+    marginTop,
+    marginRight,
+    marginBottom,
+    marginLeft,
+    minWidth,
+    minHeight,
+    maxWidth,
+    maxHeight,
+    aspectRatio,
+    // Positioning
+    position,
+    top,
+    right,
+    bottom,
+    left,
+    zIndex
+  } = props;
+  return {
+    // Defaults, computed by layout phase
+    jsonUIWidth: 100,
+    jsonUIHeight: 100,
+    jsonUIx: 0,
+    jsonUIy: 0,
+    // Control props
+    visible: visible2 ?? true,
+    enabled: enabled ?? true,
+    background: background ?? "",
+    // [440-522] optional background texture path
+    // [523-605] region/scroll index. Defaults to 0 (single-region screens). For
+    // multi-region screens the region-propagation pass overwrites this in place
+    // (keeping the canonical key order) with the nearest slot ancestor's index.
+    region: 0,
+    // [606-688] the cell's font alias, read by the merged label cell for EVERY cell
+    // type. Must always be a valid engine alias (see the byte map above); Text
+    // overwrites it IN PLACE — re-assigning an existing key keeps its position, so the
+    // value stays at [606] and never lands in the component-specific region.
+    fontType: "default",
+    $reserved: { bytes: 335 },
+    // Reserve space for future expansion (v0008: 335 bytes, carved 83 for fontType)
+    // Layout props (not serialized, used by layout phase) - stored with __ prefix
+    __layout: {
+      display,
+      width,
+      height,
+      flexDirection,
+      justifyContent,
+      alignItems,
+      alignContent,
+      wrap,
+      gap,
+      padding,
+      paddingTop,
+      paddingRight,
+      paddingBottom,
+      paddingLeft,
+      flex,
+      flexGrow,
+      flexShrink,
+      flexBasis,
+      alignSelf,
+      margin,
+      marginTop,
+      marginRight,
+      marginBottom,
+      marginLeft,
+      minWidth,
+      minHeight,
+      maxWidth,
+      maxHeight,
+      aspectRatio,
+      position,
+      top,
+      right,
+      bottom,
+      left,
+      zIndex
+    }
+  };
+}
+function isControlled(props) {
+  return typeof props.jsonUIx === "number" && typeof props.jsonUIy === "number" && typeof props.jsonUIWidth === "number" && typeof props.jsonUIHeight === "number";
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Background.ts
+var BACKGROUND_SLOT_TYPE = "background";
+
+// node_modules/@bedrock-core/ui-runtime/src/core/guards.ts
+var isFunction = (value) => typeof value === "function";
+function isElement(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value) && "type" in value;
+}
+function isActionForm(form) {
+  return "button" in form;
+}
+function isModalForm(form) {
+  return "toggle" in form;
+}
+function isActionContext(ctx) {
+  return ctx.mode === "action";
+}
+function isModalContext(ctx) {
+  return ctx.mode === "modal";
+}
+function isSerializablePrimitive(value) {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return true;
+  }
+  if (typeof value === "object" && value !== null && value !== void 0 && ("bytes" in value || "tail" in value)) {
+    return true;
+  }
+  return false;
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/types.ts
+var SerializationError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "SerializationError";
+  }
+};
+var ScrollLimitError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ScrollLimitError";
+  }
+};
+var ModalFormError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ModalFormError";
+  }
+};
+
+// node_modules/@bedrock-core/ui-runtime/src/core/writers.ts
+function emitButton(payload, form, ctx, callbacks, icon) {
+  if (!isActionForm(form)) {
+    throw new ModalFormError(
+      "emitButton(): a button-slot control reached the modal form path. Modal forms accept only toggle/slider/dropdown/input/label plus the hardcoded submit/esc buttons — move interactive `Button`s out of the `<ModalForm>`."
+    );
+  }
+  if (ctx && isActionContext(ctx)) {
+    if (callbacks.onPress) {
+      ctx.buttonCallbacks.set(ctx.buttonIndex, callbacks.onPress);
+    }
+    ctx.buttonIndex++;
+  }
+  form.button(payload, icon);
+}
+function emitLabel(payload, form, ctx) {
+  if (ctx && isModalContext(ctx)) {
+    ctx.modalControlIndex++;
+  }
+  form.label(payload);
+}
+function emitHeader(payload, form, ctx) {
+  if (!isActionForm(form)) {
+    emitLabel(payload, form, ctx);
+    return;
+  }
+  form.header(payload);
+}
+function recordModalOrdinal(ctx, name) {
+  if (ctx && isModalContext(ctx)) {
+    ctx.modalControls.set(ctx.modalControlIndex, { name });
+    ctx.modalControlIndex++;
+  }
+}
+function emitToggle(payload, form, ctx, name, defaultValue) {
+  recordModalOrdinal(ctx, name);
+  form.toggle(payload, { defaultValue });
+}
+function emitSlider(payload, form, ctx, name, min, max, defaultValue, valueStep) {
+  recordModalOrdinal(ctx, name);
+  form.slider(payload, min, max, { defaultValue, valueStep });
+}
+function emitDropdown(payload, form, ctx, name, options, defaultValueIndex) {
+  recordModalOrdinal(ctx, name);
+  form.dropdown(payload, options, { defaultValueIndex });
+}
+function emitInput(payload, form, ctx, name, placeholder, defaultValue) {
+  recordModalOrdinal(ctx, name);
+  form.textField(payload, placeholder, { defaultValue });
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Button.ts
+var Button = ({ onPress, backgroundHover, backgroundPressed, backgroundLocked, children, ...rest }) => {
+  const states = resolveStateBackgrounds({ background: rest.background, backgroundHover, backgroundPressed, backgroundLocked });
+  return {
+    type: "button",
+    props: {
+      ...withControl({ ...rest, background: states.background }),
+      backgroundHover: states.backgroundHover,
+      backgroundPressed: states.backgroundPressed,
+      backgroundLocked: states.backgroundLocked,
+      onPress: onPress ?? (() => {
+      }),
+      children
+    }
+  };
+};
+var buttonWriter = (payload, form, ctx, callbacks) => {
+  emitButton(payload, form, ctx, callbacks);
+};
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Form/controlPayload.ts
+var FONT_SIZE_BASE = 0.5;
+var FONT_TYPE_MAP = {
+  mojangles: "default",
+  minecraftTen: "MinecraftTen"
+};
+function labelFontFields(style = {}) {
+  return {
+    fontType: FONT_TYPE_MAP[style.font ?? "mojangles"],
+    fontScaleFactor: (style.scale ?? 1) / FONT_SIZE_BASE
+  };
+}
+function labelPayloadFields(prefix, opts = {}) {
+  const font = labelFontFields(opts);
+  return {
+    [`${prefix}FontType`]: font.fontType,
+    [`${prefix}FontScale`]: font.fontScaleFactor,
+    [`${prefix}X`]: opts.x ?? 0,
+    [`${prefix}Y`]: opts.y ?? 0,
+    [`${prefix}Text`]: opts.text ?? ""
+  };
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Form/FormOption.ts
+var MODAL_OPTION_SLOT_TYPE = "modal-option";
+var FormOption = ({
+  value,
+  label,
+  background,
+  backgroundHover,
+  backgroundSelected,
+  bullet,
+  bulletSelected,
+  bulletHover,
+  bulletSelectedHover,
+  bulletWidth,
+  bulletHeight,
+  font,
+  scale,
+  align,
+  ...layout
+}) => {
+  const fontFields = font !== void 0 || scale !== void 0 ? labelFontFields({ font, scale }) : void 0;
+  return {
+    type: MODAL_OPTION_SLOT_TYPE,
+    props: {
+      ...withControl(layout),
+      value,
+      label,
+      background,
+      backgroundHover,
+      backgroundSelected,
+      bullet,
+      bulletSelected,
+      bulletHover,
+      bulletSelectedHover,
+      bulletWidth,
+      bulletHeight,
+      align,
+      // Resolved font fields (or undefined → inherit the group's), so the writer needn't re-map.
+      __optionFontType: fontFields?.fontType,
+      __optionFontScale: fontFields?.fontScaleFactor
+    }
+  };
+};
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Scroll.ts
+var SCROLL_SLOT_TYPE = "scroll-slot";
+var MAX_SCROLLS = 4;
+var MAX_POOLED_SCROLLS = 2;
+var Scroll = ({ children, ...rest }) => ({
+  type: SCROLL_SLOT_TYPE,
+  props: {
+    // Viewport laid out like any other control: control props flow through withControl into
+    // __layout. `__axis` is fixed to 'y' so the title still carries the axis field (protocol
+    // unchanged); horizontal scrolling isn't exposed yet.
+    ...withControl(rest),
+    __axis: "y",
+    children
+  }
+});
+
+// node_modules/@bedrock-core/i18n/src/interpolate.ts
+var VAR_RE = /\{\{\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*\}\}/g;
+var SLOT_RE = /%(?:(\d+)\$)?s/g;
+function isNamedArgs(args) {
+  return !Array.isArray(args);
+}
+function interpolate(template, args) {
+  if (args === void 0) {
+    return template;
+  }
+  if (isNamedArgs(args)) {
+    return template.replace(VAR_RE, (marker, name) => name in args ? String(args[name]) : marker);
+  }
+  let auto = 0;
+  return template.replace(SLOT_RE, (marker, index) => {
+    const i = index === void 0 ? auto++ : Number(index) - 1;
+    return i >= 0 && i < args.length ? String(args[i]) : marker;
+  });
+}
+
+// node_modules/@bedrock-core/i18n/src/createI18n.ts
+var defaultInstance;
+function currentI18n() {
+  return defaultInstance;
+}
+var PATH = Symbol("i18n.path");
+
+// node_modules/@bedrock-core/ui-runtime/src/core/fabric/context.ts
+function createContext(defaultValue) {
+  const Ctx = (props) => ({
+    type: "context-provider",
+    props: {
+      __context: Ctx,
+      value: props.value,
+      children: props.children
+    }
+  });
+  Ctx.defaultValue = defaultValue;
+  return Ctx;
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/fabric/registry.ts
+var FiberRegistry = /* @__PURE__ */ new Map();
+var currentFiber = void 0;
+var currentDispatcher = void 0;
+function setCurrentFiber(fiber, dispatcher) {
+  currentFiber = fiber;
+  currentDispatcher = dispatcher;
+}
+function getCurrentFiber() {
+  return [currentFiber, currentDispatcher];
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/hooks/useContext.ts
+function useContext(ctx) {
+  const [, d] = getCurrentFiber();
+  invariant(d, "useContext");
+  return d.useContext(ctx);
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/data/Translation.ts
+var TranslationContext = createContext(null);
+function defaultResolverFor(getPlayer) {
+  const instance = currentI18n();
+  return instance ? instance.forPlayer(getPlayer()).resolve : null;
+}
+var DefaultTranslations = ({ player, children }) => TranslationContext({ value: defaultResolverFor(() => player), children });
+function useTranslationResolver() {
+  const [fiber] = getCurrentFiber();
+  if (!fiber) {
+    return null;
+  }
+  return useContext(TranslationContext);
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Text.ts
+var TEXT_SHADOW_TYPE = "text_shadow";
+var TEXT_WRAP_TYPE = "text_wrap";
+var TEXT_SHADOW_WRAP_TYPE = "text_shadow_wrap";
+function isTextElementType(type) {
+  return type === "text" || type === TEXT_SHADOW_TYPE || type === TEXT_WRAP_TYPE || type === TEXT_SHADOW_WRAP_TYPE;
+}
+function safeLabelText(text) {
+  return /^[\d-]/.test(text) ? `§r${text}` : text;
+}
+var Text = ({
+  children,
+  font,
+  scale,
+  wordBreak,
+  overflow,
+  maxLines,
+  offsetX,
+  offsetY,
+  shadow,
+  ...rest
+}) => {
+  const resolvedScale = scale ?? 1;
+  const labelFont = labelFontFields({ font, scale });
+  if (Array.isArray(children)) {
+    throw new Error("Text accepts a single string or RawMessage child — compose inside a RawMessage or use sibling <Text> elements.");
+  }
+  const rawChild = typeof children === "object" && children !== null ? children : void 0;
+  const stringChild = typeof children === "string" ? children : void 0;
+  const resolver = useTranslationResolver();
+  const translateKey = rawChild?.translate;
+  const withArgs = rawChild?.with;
+  const hasArgs = withArgs !== void 0 && !(Array.isArray(withArgs) && withArgs.length === 0);
+  let isLocalized;
+  let resolvedText;
+  if (rawChild !== void 0) {
+    isLocalized = true;
+    resolvedText = translateKey !== void 0 ? resolver?.(translateKey) ?? translateKey : rawChild.text ?? "";
+    if (translateKey !== void 0 && hasArgs && withArgs !== void 0) {
+      const params = Array.isArray(withArgs) ? withArgs : (withArgs.rawtext ?? []).map((param) => param.text ?? (param.translate !== void 0 ? resolver?.(param.translate) ?? param.translate : ""));
+      resolvedText = interpolate(resolvedText, params);
+    }
+  } else {
+    const candidate = stringChild ?? "";
+    const hit = candidate === "" ? void 0 : resolver?.(candidate);
+    isLocalized = hit !== void 0;
+    resolvedText = hit ?? candidate;
+  }
+  const tail = rawChild !== void 0 ? translateKey !== void 0 && !hasArgs ? translateKey : { rawtext: [{ text: "§r" }, rawChild] } : isLocalized && stringChild !== void 0 ? stringChild : safeLabelText(resolvedText);
+  const rpWraps = isLocalized && (wordBreak === "break-word" || overflow === "ellipsis" || maxLines !== void 0);
+  return {
+    // Shadow picks the component TYPE (see TEXT_SHADOW_TYPE): all types share this
+    // writer and payload; the RP routers gate them apart with the standard type gate.
+    type: shadow ? rpWraps ? TEXT_SHADOW_WRAP_TYPE : TEXT_SHADOW_TYPE : rpWraps ? TEXT_WRAP_TYPE : "text",
+    props: {
+      ...withControl(rest),
+      // The COMMON font slot at [606-688]. Assigning an existing key does not move
+      // it, so this overwrites withControl's 'default' in place rather than
+      // appending — the RP's label leaves read the font from here for every cell
+      // type, which is what keeps texture paths out of #font_type.
+      fontType: labelFont.fontType,
+      // The label GROUP contract (v0008, decoded sequentially from [1024]):
+      // labelFontType, fontScale, x, y, text — text LAST, as the payload's variable
+      // tail. Field ORDER is what the RP reads. `labelFontType` is the group's
+      // original font slot; the cell label now sources [606] instead, but the slot
+      // stays so every later group offset (labelX [1190], labelY [1273], tail) and
+      // every sub-element group that still reads its own slot 1 are unchanged.
+      labelFontType: labelFont.fontType,
+      fontScaleFactor: labelFont.fontScaleFactor,
+      labelX: offsetX ?? 0,
+      // [1190] → label anchored X offset
+      labelY: offsetY ?? 0,
+      // [1273] → label anchored Y offset
+      value: { tail },
+      __textMetrics: {
+        font,
+        fontSize: resolvedScale,
+        wordBreak,
+        overflow,
+        maxLines,
+        // Resolved display string used by the layout phase for metrics.
+        // For raw text this equals the tail; for localized text it's the
+        // server-side resolution (the client paints its own).
+        resolvedText,
+        // True for localized texts: the tail holds a key or RawMessage the
+        // client resolves, so the layout phase must never rewrite it with
+        // processed display text. Raw text DOES get its wrapped/truncated
+        // string committed — a JSON UI label is content-sized and never wraps
+        // on its own, so the `\n`s must be in the string.
+        isKey: isLocalized
+      }
+    }
+  };
+};
+var textWriter = (payload, form, ctx) => {
+  emitLabel(payload, form, ctx);
+};
+
+// node_modules/@bedrock-core/ui-runtime/src/core/componentRegistry.ts
+var registry = /* @__PURE__ */ new Map();
+function registerComponent(type, descriptor) {
+  if (registry.has(type)) {
+    throw new SerializationError(
+      `registerComponent(): type "${type}" is already registered. Pick a unique, namespaced type for your custom component.`
+    );
+  }
+  if (!descriptor.transparent && !descriptor.writer) {
+    throw new SerializationError(
+      `registerComponent(): descriptor for "${type}" must provide a writer or be transparent.`
+    );
+  }
+  registry.set(type, descriptor);
+}
+function getComponentDescriptor(type) {
+  return registry.get(type);
+}
+function isTransparentType(type) {
+  return registry.get(type)?.transparent ?? false;
+}
+function getRegisteredTypes() {
+  return [...registry.keys()].sort();
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/serializer.ts
+var FIELD_MARKERS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_".split("");
+var PAD_CHAR = ";";
+var VERSION = "v0008";
+var PROTOCOL_HEADER = `bcui${VERSION}`;
+var TYPE_WIDTH = {
+  s: 80,
+  n: 80,
+  b: 5,
+  r: 0
+  // variable
+};
+var PREFIX_WIDTH = {
+  s: 2,
+  n: 2,
+  b: 2,
+  r: 0
+};
+var MARKER_WIDTH = 1;
+var FULL_WIDTH = {
+  s: PREFIX_WIDTH.s + TYPE_WIDTH.s + MARKER_WIDTH,
+  n: PREFIX_WIDTH.n + TYPE_WIDTH.n + MARKER_WIDTH,
+  b: PREFIX_WIDTH.b + TYPE_WIDTH.b + MARKER_WIDTH,
+  r: TYPE_WIDTH.r
+};
+var TYPE_PREFIX = {
+  s: "s",
+  n: "n",
+  b: "b",
+  r: "r"
+};
+function utf8ByteLength(str) {
+  let bytes = 0;
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (code <= 127) {
+      bytes += 1;
+    } else if (code <= 2047) {
+      bytes += 2;
+    } else if (code >= 55296 && code <= 56319) {
+      const next = i + 1 < str.length ? str.charCodeAt(i + 1) : 0;
+      if (next >= 56320 && next <= 57343) {
+        bytes += 4;
+        i++;
+      } else {
+        bytes += 3;
+      }
+    } else if (code >= 56320 && code <= 57343) {
+      bytes += 3;
+    } else {
+      bytes += 3;
+    }
+  }
+  return bytes;
+}
+function getFieldMarker(index, key) {
+  if (index >= FIELD_MARKERS.length) {
+    throw new SerializationError(`serialize(): exceeded maximum number of 64 props in an element. Key: "${key}" and following do not fit`);
+  }
+  return FIELD_MARKERS[index];
+}
+function padToByteLength(str, length) {
+  const currentLength = utf8ByteLength(str);
+  if (currentLength > length) {
+    throw new SerializationError(`serialize(): string ${str} exceeds maximum byte length of ${length} bytes, actual ${currentLength} bytes. Prefer to use translate keys for long texts.`);
+  }
+  return str + PAD_CHAR.repeat(length - currentLength);
+}
+function serialize({ type, props: { children, ...rest }, nativeArgs }, form, context) {
+  if (typeof type === "function") {
+    throw new SerializationError(
+      `serialize(): Encountered unresolved function component "${type.name || "anonymous"}". This is a bug - buildTree() should have called all function components before serialization.`
+    );
+  }
+  if (rest.visible === false) {
+    return;
+  }
+  if (type === MODAL_OPTION_SLOT_TYPE) {
+    return;
+  }
+  if (isTransparentType(type)) {
+    if (children) {
+      const childArray = Array.isArray(children) ? children : [children];
+      childArray.filter(isElement).forEach((child) => {
+        serialize(child, form, context);
+      });
+    }
+    return;
+  }
+  if (type === "panel") {
+    const childElements = (Array.isArray(children) ? children : children !== void 0 ? [children] : []).filter(isElement);
+    const panelBackground = rest.background;
+    if (typeof panelBackground !== "string" || panelBackground === "") {
+      childElements.forEach((child) => {
+        serialize(child, form, context);
+      });
+      return;
+    }
+    if (childElements.length === 1) {
+      const [child] = childElements;
+      const childProps = child.props;
+      if ((child.type === "text" || child.type === TEXT_SHADOW_TYPE) && childProps.visible !== false && (childProps.background === void 0 || childProps.background === "") && typeof childProps.jsonUIx === "number" && typeof childProps.jsonUIy === "number" && typeof rest.jsonUIx === "number" && typeof rest.jsonUIy === "number") {
+        const { children: _textContent, ...childRest } = childProps;
+        const merged = {
+          type: child.type,
+          props: {
+            ...childRest,
+            jsonUIWidth: rest.jsonUIWidth,
+            jsonUIHeight: rest.jsonUIHeight,
+            jsonUIx: rest.jsonUIx,
+            jsonUIy: rest.jsonUIy,
+            background: panelBackground,
+            labelX: (typeof childProps.labelX === "number" ? childProps.labelX : 0) + childProps.jsonUIx - rest.jsonUIx,
+            labelY: (typeof childProps.labelY === "number" ? childProps.labelY : 0) + childProps.jsonUIy - rest.jsonUIy
+          }
+        };
+        serialize(merged, form, context);
+        return;
+      }
+    }
+  }
+  const serializableProps = {};
+  const invalidProps = [];
+  const callbacks = {};
+  for (const [key, value] of Object.entries(rest)) {
+    if (key.startsWith("__")) {
+      continue;
+    }
+    if (isSerializablePrimitive(value)) {
+      serializableProps[key] = value;
+    } else if (isFunction(value)) {
+      callbacks[key] = value;
+    } else {
+      invalidProps.push(`${key} (type: ${typeof value}, value: ${JSON.stringify(value)})`);
+    }
+  }
+  if (invalidProps.length > 0) {
+    throw new SerializationError(
+      `Component "${type}" has non-serializable props. All props must be primitives (string, number, boolean) or ReservedBytes. Invalid props: ${invalidProps.join(", ")}. Ensure all optional props have default values in the component definition.`
+    );
+  }
+  const [payload] = serializeProps({ type, ...serializableProps });
+  const descriptor = getComponentDescriptor(type);
+  if (!descriptor?.writer) {
+    const known = getRegisteredTypes().join(", ");
+    throw new SerializationError(`Unknown native component type: ${type}. Known types: ${known}`);
+  }
+  descriptor.writer(payload, form, context, callbacks, serializableProps, nativeArgs, children);
+  if (children) {
+    const childArray = Array.isArray(children) ? children : [children];
+    childArray.filter(isElement).forEach((child) => {
+      serialize(child, form, context);
+    });
+  }
+}
+function serializeProps({ type, ...props }) {
+  let totalBytes = 0;
+  let rawTail;
+  const entries = Object.entries({ type, ...props });
+  const segments = entries.map(([key, value], index) => {
+    let core;
+    let widthBytes;
+    let rawStr;
+    if (typeof value === "object" && value !== null && "tail" in value) {
+      if (index !== entries.length - 1) {
+        throw new SerializationError(`serialize(): tail property "${key}" must be the last field of the payload`);
+      }
+      if (typeof value.tail === "string") {
+        totalBytes += utf8ByteLength(value.tail);
+        return value.tail;
+      }
+      rawTail = value.tail;
+      return "";
+    } else if (typeof value === "boolean") {
+      rawStr = value ? "true" : "false";
+      core = `${TYPE_PREFIX.b}:${padToByteLength(rawStr, TYPE_WIDTH.b)}`;
+      widthBytes = FULL_WIDTH.b;
+    } else if (typeof value === "number") {
+      rawStr = value.toString();
+      core = `${TYPE_PREFIX.n}:${padToByteLength(rawStr, TYPE_WIDTH.n)}`;
+      widthBytes = FULL_WIDTH.n;
+    } else if (typeof value === "object" && value.bytes !== void 0) {
+      core = `${PAD_CHAR.repeat(value.bytes - 1)}`;
+      widthBytes = value.bytes;
+    } else if (typeof value === "string") {
+      rawStr = value;
+      core = `${TYPE_PREFIX.s}:${padToByteLength(rawStr, TYPE_WIDTH.s)}`;
+      widthBytes = FULL_WIDTH.s;
+    } else {
+      throw new SerializationError(`serialize(): unsupported type for property "${key}": ${typeof value} (value: ${JSON.stringify(value)})`);
+    }
+    totalBytes += widthBytes;
+    const marker = getFieldMarker(index, key);
+    return core + marker;
+  });
+  const prefix = PROTOCOL_HEADER;
+  const result = prefix + segments.join("");
+  const finalBytes = totalBytes + utf8ByteLength(prefix);
+  if (rawTail !== void 0) {
+    return [{ rawtext: [{ text: result }, rawTail] }, finalBytes];
+  }
+  return [result, finalBytes];
+}
+function asStaticPayload(payload) {
+  if (typeof payload !== "string") {
+    throw new SerializationError("serialize(): tail payloads are not valid in title/metadata fields");
+  }
+  return payload;
+}
+var SCROLL_FIELD_COUNT = 6;
+var SCROLL_BLOCK_BYTES = SCROLL_FIELD_COUNT * FULL_WIDTH.n;
+var FLOW_BUTTON_BLOCK_BYTES = 4 * FULL_WIDTH.n + 2 * FULL_WIDTH.b + 5 * FULL_WIDTH.s;
+var BACKGROUND_TITLE_SKIP = FULL_WIDTH.s + (MAX_SCROLLS + 1) * SCROLL_BLOCK_BYTES;
+function serializeScrollMetadata(scrolls, background = "") {
+  const fields = {};
+  scrolls.forEach((scroll, index) => {
+    fields[`axis${index}`] = scroll.axis;
+    fields[`x${index}`] = Math.round(scroll.x);
+    fields[`y${index}`] = Math.round(scroll.y);
+    fields[`width${index}`] = Math.round(scroll.width);
+    fields[`height${index}`] = Math.round(scroll.height);
+    fields[`extent${index}`] = Math.round(scroll.extent);
+  });
+  if (background !== "") {
+    const emptySlots = MAX_SCROLLS + 1 - scrolls.length;
+    if (emptySlots > 0) {
+      fields.pad = { bytes: emptySlots * SCROLL_BLOCK_BYTES };
+    }
+    fields.bg = background;
+  }
+  const [payload] = serializeProps({ type: "scrolls", ...fields });
+  return asStaticPayload(payload);
+}
+function serializeModalTitle(scrolls, extraFields, background = "") {
+  if (scrolls.length !== 1) {
+    throw new ModalFormError(
+      `A modal <Form> must have exactly the root scroll (got ${scrolls.length}). <Scroll> regions are ActionForm-only; the title field offsets depend on a single scroll block.`
+    );
+  }
+  const modalFieldsEnd = FULL_WIDTH.s + SCROLL_BLOCK_BYTES + 2 * FLOW_BUTTON_BLOCK_BYTES;
+  const backgroundFields = background !== "" ? { pad: { bytes: BACKGROUND_TITLE_SKIP - modalFieldsEnd }, bg: background } : {};
+  const [scroll] = scrolls;
+  const [payload] = serializeProps({
+    type: "scrolls",
+    axis0: scroll.axis,
+    x0: Math.round(scroll.x),
+    y0: Math.round(scroll.y),
+    width0: Math.round(scroll.width),
+    height0: Math.round(scroll.height),
+    extent0: Math.round(scroll.extent),
+    ...extraFields,
+    ...backgroundFields
+  });
+  return asStaticPayload(payload);
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/lifecycle.ts
+import { uiManager as uiManager2 } from "@minecraft/server-ui";
+
+// node_modules/@bedrock-core/ui-runtime/src/util/inputLock.ts
+import { InputPermissionCategory } from "@minecraft/server";
+var inputLocks = /* @__PURE__ */ new Map();
+function startInputLock(player) {
+  if (inputLocks.has(player.id)) {
+    return;
+  }
+  const previousCameraPermission = player.inputPermissions.isPermissionCategoryEnabled(InputPermissionCategory.Camera);
+  const previousMovementPermission = player.inputPermissions.isPermissionCategoryEnabled(InputPermissionCategory.Movement);
+  inputLocks.set(player.id, {
+    camera: previousCameraPermission,
+    movement: previousMovementPermission
+  });
+  player.inputPermissions.setPermissionCategory(InputPermissionCategory.Camera, false);
+  player.inputPermissions.setPermissionCategory(InputPermissionCategory.Movement, false);
+}
+function stopInputLock(player) {
+  const previousPermissions = inputLocks.get(player.id);
+  if (!previousPermissions) {
+    return;
+  }
+  player.inputPermissions.setPermissionCategory(InputPermissionCategory.Camera, previousPermissions.camera);
+  player.inputPermissions.setPermissionCategory(InputPermissionCategory.Movement, previousPermissions.movement);
+  inputLocks.delete(player.id);
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/presenters/presentAction.ts
+import { ActionFormData } from "@minecraft/server-ui";
+
+// node_modules/@bedrock-core/flexbox/src/constants.ts
+var SCREEN = {
+  POCKET: { width: 320, height: 210 },
+  DESKTOP: { width: 376, height: 250 }
+};
+var CANONICAL_SCREEN = SCREEN.POCKET;
+
+// node_modules/@bedrock-core/flexbox/src/utils.ts
+function isPercent(value) {
+  return typeof value === "string" && value.endsWith("%");
+}
+function resolveSize(value, parentSize) {
+  if (value === void 0 || value === "auto") {
+    return void 0;
+  }
+  if (typeof value === "number") {
+    return value;
+  }
+  return parseFloat(value) / 100 * parentSize;
+}
+function resolveSpacing(value, base) {
+  if (value === void 0) {
+    return 0;
+  }
+  if (typeof value === "number") {
+    return value;
+  }
+  return parseFloat(value) / 100 * base;
+}
+function resolvePadding(style, parentWidth) {
+  const base = style.padding;
+  return {
+    top: resolveSpacing(style.paddingTop ?? base, parentWidth),
+    right: resolveSpacing(style.paddingRight ?? base, parentWidth),
+    bottom: resolveSpacing(style.paddingBottom ?? base, parentWidth),
+    left: resolveSpacing(style.paddingLeft ?? base, parentWidth)
+  };
+}
+function resolveMargin(style, parentWidth) {
+  const base = style.margin;
+  return {
+    top: resolveSpacing(style.marginTop ?? base, parentWidth),
+    right: resolveSpacing(style.marginRight ?? base, parentWidth),
+    bottom: resolveSpacing(style.marginBottom ?? base, parentWidth),
+    left: resolveSpacing(style.marginLeft ?? base, parentWidth)
+  };
+}
+function resolveRowGap(style, containerWidth) {
+  return resolveSpacing(style.rowGap ?? style.gap, containerWidth);
+}
+function resolveColumnGap(style, containerHeight) {
+  return resolveSpacing(style.columnGap ?? style.gap, containerHeight);
+}
+function resolveFlexGrow(style) {
+  if (style.flexGrow !== void 0) {
+    return style.flexGrow;
+  }
+  if (style.flex !== void 0) {
+    return style.flex;
+  }
+  return 0;
+}
+function resolveFlexShrink(style) {
+  return style.flexShrink ?? 1;
+}
+function resolveFlexBasisMain(style, measuredMain) {
+  if (typeof style.flexBasis === "number") {
+    return style.flexBasis;
+  }
+  if (style.flexBasis !== void 0 && style.flexBasis !== "auto") {
+    return measuredMain;
+  }
+  if (style.flexBasis === void 0 && resolveFlexGrow(style) > 0) {
+    return 0;
+  }
+  return measuredMain;
+}
+function resolveAlignSelf(childStyle, parentAlignItems) {
+  const as = childStyle.alignSelf ?? "auto";
+  if (as !== "auto") {
+    return as;
+  }
+  return parentAlignItems;
+}
+
+// node_modules/@bedrock-core/flexbox/src/layout.ts
+function visible(node) {
+  return node.style.display !== "none";
+}
+function relative(node) {
+  return (node.style.position ?? "relative") === "relative";
+}
+function mainAxis(style) {
+  const d = style.flexDirection ?? "column";
+  return d === "row" || d === "row-reverse" ? "row" : "column";
+}
+function applyAspectRatio(node) {
+  const ratio = node.style.aspectRatio;
+  if (ratio === void 0 || ratio <= 0 || node.measure) {
+    return;
+  }
+  const widthExplicit = node.style.width !== void 0;
+  const heightExplicit = node.style.height !== void 0;
+  if (widthExplicit && heightExplicit) {
+    return;
+  }
+  const widthDefinite = typeof node.style.width === "number" || isPercent(node.style.width) && node.layout.width > 0;
+  const heightDefinite = typeof node.style.height === "number" || isPercent(node.style.height) && node.layout.height > 0;
+  if (heightExplicit) {
+    if (heightDefinite) {
+      node.layout.width = node.layout.height * ratio;
+    }
+    return;
+  }
+  if (widthExplicit && !widthDefinite) {
+    return;
+  }
+  node.layout.height = node.layout.width / ratio;
+}
+function clamp(node, parentW, parentH) {
+  const s = node.style;
+  const minW = resolveSize(s.minWidth, parentW);
+  const maxW = resolveSize(s.maxWidth, parentW);
+  const minH = resolveSize(s.minHeight, parentH);
+  const maxH = resolveSize(s.maxHeight, parentH);
+  if (minW !== void 0) {
+    node.layout.width = Math.max(node.layout.width, minW);
+  }
+  if (maxW !== void 0) {
+    node.layout.width = Math.min(node.layout.width, maxW);
+  }
+  if (minH !== void 0) {
+    node.layout.height = Math.max(node.layout.height, minH);
+  }
+  if (maxH !== void 0) {
+    node.layout.height = Math.min(node.layout.height, maxH);
+  }
+}
+function deriveSize(node, axis, parentWidth) {
+  const s = node.style;
+  const dir = mainAxis(s);
+  const isMainAxis = axis === "width" === (dir === "row");
+  const pad = resolvePadding(s, parentWidth);
+  const paddingMain = axis === "width" ? pad.left + pad.right : pad.top + pad.bottom;
+  const gap = axis === "width" ? resolveRowGap(s, 0) : resolveColumnGap(s, 0);
+  const kids = node.children.filter((c) => visible(c) && relative(c));
+  if (isMainAxis) {
+    const isWrap = (s.wrap ?? "nowrap") !== "nowrap";
+    if (isWrap) {
+      let max = paddingMain;
+      for (const child of kids) {
+        const styleSize = axis === "width" ? child.style.width : child.style.height;
+        if (isPercent(styleSize)) {
+          continue;
+        }
+        const childSize = axis === "width" ? child.layout.width : child.layout.height;
+        const cm = resolveMargin(child.style, parentWidth);
+        const childMargin = axis === "width" ? cm.left + cm.right : cm.top + cm.bottom;
+        max = Math.max(max, paddingMain + childSize + childMargin);
+      }
+      return max;
+    }
+    let total = paddingMain;
+    let count = 0;
+    for (const child of kids) {
+      const styleSize = axis === "width" ? child.style.width : child.style.height;
+      if (isPercent(styleSize)) {
+        continue;
+      }
+      const childSize = axis === "width" ? child.layout.width : child.layout.height;
+      const cm = resolveMargin(child.style, parentWidth);
+      const childMargin = axis === "width" ? cm.left + cm.right : cm.top + cm.bottom;
+      total += childSize + childMargin;
+      count++;
+    }
+    if (count > 1) {
+      total += (count - 1) * gap;
+    }
+    return total;
+  } else {
+    const isWrap = (s.wrap ?? "nowrap") !== "nowrap";
+    if (isWrap) {
+      const wrapMainAvail = dir === "row" ? node.layout.width - pad.left - pad.right : node.layout.height - pad.top - pad.bottom;
+      if (wrapMainAvail > 0) {
+        const wrapMainGap = dir === "row" ? resolveRowGap(s, 0) : resolveColumnGap(s, 0);
+        const wrapCrossGap = dir === "row" ? resolveColumnGap(s, 0) : resolveRowGap(s, 0);
+        const lineCrossSizes = [];
+        let lineMainUsed = 0;
+        let lineCrossMax = 0;
+        let lineHasChild = false;
+        for (const child of kids) {
+          const styleMainSize = dir === "row" ? child.style.width : child.style.height;
+          if (isPercent(styleMainSize)) {
+            continue;
+          }
+          const cm = resolveMargin(child.style, parentWidth);
+          const childMain = dir === "row" ? child.layout.width + cm.left + cm.right : child.layout.height + cm.top + cm.bottom;
+          const childCross = dir === "row" ? child.layout.height + cm.top + cm.bottom : child.layout.width + cm.left + cm.right;
+          const gapOffset = lineHasChild ? wrapMainGap : 0;
+          if (lineHasChild && lineMainUsed + gapOffset + childMain > wrapMainAvail + 1e-3) {
+            lineCrossSizes.push(lineCrossMax);
+            lineMainUsed = childMain;
+            lineCrossMax = childCross;
+          } else {
+            lineMainUsed += gapOffset + childMain;
+            lineCrossMax = Math.max(lineCrossMax, childCross);
+            lineHasChild = true;
+          }
+        }
+        if (lineHasChild) {
+          lineCrossSizes.push(lineCrossMax);
+        }
+        if (lineCrossSizes.length > 0) {
+          const totalCross = lineCrossSizes.reduce((a, b) => a + b, 0) + Math.max(0, lineCrossSizes.length - 1) * wrapCrossGap;
+          return totalCross + paddingMain;
+        }
+      }
+    }
+    let max = 0;
+    for (const child of kids) {
+      const styleSize = axis === "width" ? child.style.width : child.style.height;
+      if (isPercent(styleSize)) {
+        continue;
+      }
+      const childSize = axis === "width" ? child.layout.width : child.layout.height;
+      const cm = resolveMargin(child.style, parentWidth);
+      const childMargin = axis === "width" ? cm.left + cm.right : cm.top + cm.bottom;
+      max = Math.max(max, childSize + childMargin);
+    }
+    return max + paddingMain;
+  }
+}
+function applyCrossAlign(child, pad, parent, dir, effectiveAlign) {
+  const cm = resolveMargin(child.style, parent.layout.width);
+  if (dir === "row") {
+    const crossStart = parent.layout.y + pad.top;
+    const crossAvail = parent.layout.height - pad.top - pad.bottom;
+    if (effectiveAlign === "flex-start" || effectiveAlign === "stretch") {
+      child.layout.y = crossStart + cm.top;
+    } else if (effectiveAlign === "center") {
+      child.layout.y = crossStart + (crossAvail - child.layout.height) / 2;
+    } else if (effectiveAlign === "flex-end") {
+      child.layout.y = crossStart + crossAvail - child.layout.height - cm.bottom;
+    }
+  } else {
+    const crossStart = parent.layout.x + pad.left;
+    const crossAvail = parent.layout.width - pad.left - pad.right;
+    if (effectiveAlign === "flex-start" || effectiveAlign === "stretch") {
+      child.layout.x = crossStart + cm.left;
+    } else if (effectiveAlign === "center") {
+      child.layout.x = crossStart + (crossAvail - child.layout.width) / 2;
+    } else if (effectiveAlign === "flex-end") {
+      child.layout.x = crossStart + crossAvail - child.layout.width - cm.right;
+    }
+  }
+}
+var MAX_MEASURE_ROUNDS = 2;
+function collectMeasured(node, out) {
+  if (node.measure) {
+    out.set(node, node.measure(Number.POSITIVE_INFINITY));
+  }
+  for (const child of node.children) {
+    collectMeasured(child, out);
+  }
+}
+function computeLayout(root, refWidth = CANONICAL_SCREEN.width, refHeight = CANONICAL_SCREEN.height) {
+  const measured = /* @__PURE__ */ new Map();
+  collectMeasured(root, measured);
+  solve(root, refWidth, refHeight, measured);
+  for (let round = 0; round < MAX_MEASURE_ROUNDS && measured.size > 0; round++) {
+    let dirty = false;
+    for (const [node, size] of measured) {
+      const granted = node.layout.width;
+      if (granted <= 0) {
+        continue;
+      }
+      const next = node.measure(granted);
+      if (next.width !== size.width || next.height !== size.height) {
+        measured.set(node, next);
+        dirty = true;
+      }
+    }
+    if (!dirty) {
+      break;
+    }
+    solve(root, refWidth, refHeight, measured);
+  }
+}
+function solve(root, refWidth, refHeight, measured) {
+  const explicitRootWidth = resolveSize(root.style.width, refWidth);
+  const explicitRootHeight = resolveSize(root.style.height, refHeight);
+  const hasVisibleRootChildren = root.children.some(visible);
+  root.layout.x = 0;
+  root.layout.y = 0;
+  root.layout.width = explicitRootWidth ?? refWidth;
+  root.layout.height = explicitRootHeight ?? (hasVisibleRootChildren ? 0 : refHeight);
+  root.layout.zIndex = root.style.zIndex ?? 0;
+  clamp(root, refWidth, refHeight);
+  const levelOrder = [];
+  const parentOf = /* @__PURE__ */ new Map();
+  const bfsQueue = [root];
+  while (bfsQueue.length > 0) {
+    const node = bfsQueue.shift();
+    levelOrder.push(node);
+    for (const child of node.children) {
+      parentOf.set(child, node);
+      if (visible(child)) {
+        bfsQueue.push(child);
+      }
+    }
+  }
+  for (let iteration = 0; iteration < 3; iteration++) {
+    for (let i = levelOrder.length - 1; i >= 1; i--) {
+      const node = levelOrder[i];
+      const parent = parentOf.get(node);
+      const pW = parent.layout.width;
+      const pH = parent.layout.height;
+      const s = node.style;
+      if (typeof s.width === "number") {
+        node.layout.width = s.width;
+      } else if (isPercent(s.width)) {
+        node.layout.width = 0;
+      } else if (node.measure) {
+        node.layout.width = measured.get(node)?.width ?? 0;
+      } else {
+        const derived = deriveSize(node, "width", pW);
+        node.layout.width = iteration === 0 ? derived : Math.max(node.layout.width, derived);
+      }
+      const isWrapMainRow = mainAxis(s) === "row" && (s.wrap ?? "nowrap") !== "nowrap";
+      if (typeof s.height === "number") {
+        node.layout.height = s.height;
+      } else if (isPercent(s.height)) {
+        node.layout.height = 0;
+      } else if (node.measure) {
+        node.layout.height = measured.get(node)?.height ?? 0;
+      } else if (isWrapMainRow && iteration === 0) {
+        node.layout.height = 0;
+      } else {
+        const derived = deriveSize(node, "height", pW);
+        node.layout.height = iteration === 0 ? derived : Math.max(node.layout.height, derived);
+      }
+      applyAspectRatio(node);
+      clamp(node, pW, pH);
+    }
+    for (const node of levelOrder) {
+      if (!visible(node)) {
+        continue;
+      }
+      if ((node.style.wrap ?? "nowrap") !== "nowrap") {
+        continue;
+      }
+      const dir = mainAxis(node.style);
+      const pad = resolvePadding(node.style, parentOf.get(node)?.layout.width ?? node.layout.width);
+      const contentW = Math.max(0, node.layout.width - pad.left - pad.right);
+      const contentH = Math.max(0, node.layout.height - pad.top - pad.bottom);
+      const alignItems = node.style.alignItems ?? "stretch";
+      for (const child of node.children) {
+        if (!visible(child) || !relative(child)) {
+          continue;
+        }
+        const eff = resolveAlignSelf(child.style, alignItems);
+        if (eff !== "stretch") {
+          continue;
+        }
+        const cm = resolveMargin(child.style, node.layout.width);
+        if (dir === "row" && child.style.height === void 0) {
+          child.layout.height = Math.max(child.layout.height, Math.max(0, contentH - cm.top - cm.bottom));
+        } else if (dir === "column" && child.style.width === void 0) {
+          child.layout.width = Math.max(child.layout.width, Math.max(0, contentW - cm.left - cm.right));
+        }
+      }
+    }
+  }
+  if (root.style.height === void 0) {
+    const derivedRootHeight = deriveSize(root, "height", refWidth);
+    root.layout.height = Math.max(derivedRootHeight, refHeight);
+    clamp(root, refWidth, refHeight);
+  }
+  for (const node of levelOrder) {
+    const parent = parentOf.get(node);
+    const pW = parent?.layout.width ?? refWidth;
+    const pH = parent?.layout.height ?? refHeight;
+    const parentPad = parent ? resolvePadding(parent.style, pW) : null;
+    const contentPW = parentPad ? Math.max(0, pW - parentPad.left - parentPad.right) : pW;
+    const contentPH = parentPad ? Math.max(0, pH - parentPad.top - parentPad.bottom) : pH;
+    const s = node.style;
+    if (isPercent(s.width)) {
+      node.layout.width = parseFloat(s.width) / 100 * contentPW;
+    }
+    if (isPercent(s.height)) {
+      node.layout.height = parseFloat(s.height) / 100 * contentPH;
+    }
+    applyAspectRatio(node);
+    clamp(node, pW, pH);
+    node.layout.zIndex = s.zIndex ?? (parent?.layout.zIndex ?? 0);
+    const pad = resolvePadding(s, pW);
+    const dir = mainAxis(s);
+    const ownContentW = Math.max(0, node.layout.width - pad.left - pad.right);
+    const ownContentH = Math.max(0, node.layout.height - pad.top - pad.bottom);
+    const mainGap = dir === "row" ? resolveRowGap(s, ownContentW) : resolveColumnGap(s, ownContentH);
+    const alignItems = s.alignItems ?? "stretch";
+    const jc = s.justifyContent ?? "flex-start";
+    const isSpaced = jc === "space-between" || jc === "space-around" || jc === "space-evenly";
+    const relKids = node.children.filter((c) => visible(c) && relative(c));
+    const absKids = node.children.filter((c) => visible(c) && !relative(c));
+    const contentW = Math.max(0, node.layout.width - pad.left - pad.right);
+    const contentH = Math.max(0, node.layout.height - pad.top - pad.bottom);
+    for (const child of node.children) {
+      if (!visible(child)) {
+        continue;
+      }
+      if (isPercent(child.style.width)) {
+        child.layout.width = parseFloat(child.style.width) / 100 * contentW;
+      }
+      if (isPercent(child.style.height)) {
+        child.layout.height = parseFloat(child.style.height) / 100 * contentH;
+      }
+      if (child.measure !== void 0 && child.style.width === void 0) {
+        const cm = resolveMargin(child.style, node.layout.width);
+        child.layout.width = Math.min(child.layout.width, Math.max(0, contentW - cm.left - cm.right));
+      }
+      applyAspectRatio(child);
+      clamp(child, node.layout.width, node.layout.height);
+    }
+    const flexWrap = s.wrap ?? "nowrap";
+    if (flexWrap === "nowrap") {
+      const crossAvail = dir === "row" ? node.layout.height - pad.top - pad.bottom : node.layout.width - pad.left - pad.right;
+      for (const child of relKids) {
+        const eff = resolveAlignSelf(child.style, alignItems);
+        const cm = resolveMargin(child.style, node.layout.width);
+        if (eff === "stretch") {
+          if (dir === "row" && child.style.height === void 0) {
+            child.layout.height = Math.max(0, crossAvail - cm.top - cm.bottom);
+          } else if (dir === "column" && child.style.width === void 0) {
+            child.layout.width = Math.max(0, crossAvail - cm.left - cm.right);
+          }
+        }
+      }
+      const containerMain = dir === "row" ? node.layout.width - pad.left - pad.right : node.layout.height - pad.top - pad.bottom;
+      let totalFlex = 0;
+      let totalShrinkWeight = 0;
+      let usedMain = 0;
+      let flowCount = 0;
+      for (const child of relKids) {
+        const cm = resolveMargin(child.style, node.layout.width);
+        const flex = resolveFlexGrow(child.style);
+        const shrink = resolveFlexShrink(child.style);
+        const childMargin = dir === "row" ? cm.left + cm.right : cm.top + cm.bottom;
+        const measuredMain = dir === "row" ? child.layout.width : child.layout.height;
+        const childBasis = resolveFlexBasisMain(child.style, measuredMain);
+        if (childBasis !== measuredMain) {
+          if (dir === "row") {
+            child.layout.width = childBasis;
+          } else {
+            child.layout.height = childBasis;
+          }
+        }
+        flowCount++;
+        usedMain += childBasis + childMargin;
+        if (flex > 0) {
+          totalFlex += flex;
+        }
+        if (shrink > 0) {
+          totalShrinkWeight += shrink * childBasis;
+        }
+      }
+      if (!isSpaced && flowCount > 1) {
+        usedMain += (flowCount - 1) * mainGap;
+      }
+      const freeSpace = containerMain - usedMain;
+      if (freeSpace > 0 && totalFlex > 0) {
+        for (const child of relKids) {
+          const flex = resolveFlexGrow(child.style);
+          if (flex > 0) {
+            const grow = flex / totalFlex * freeSpace;
+            const basis = dir === "row" ? child.layout.width : child.layout.height;
+            const next = Math.max(0, basis + grow);
+            if (dir === "row") {
+              child.layout.width = next;
+            } else {
+              child.layout.height = next;
+            }
+          }
+        }
+      } else if (freeSpace < 0 && totalShrinkWeight > 0) {
+        const deficit = -freeSpace;
+        for (const child of relKids) {
+          const shrink = resolveFlexShrink(child.style);
+          if (shrink <= 0) {
+            continue;
+          }
+          const basis = dir === "row" ? child.layout.width : child.layout.height;
+          const weight = shrink * basis;
+          if (weight === 0) {
+            continue;
+          }
+          const reduction = weight / totalShrinkWeight * deficit;
+          const next = Math.max(0, basis - reduction);
+          if (dir === "row") {
+            child.layout.width = next;
+          } else {
+            child.layout.height = next;
+          }
+        }
+      }
+      let mainAvail = containerMain;
+      for (const child of relKids) {
+        const cm = resolveMargin(child.style, node.layout.width);
+        const childMargin = dir === "row" ? cm.left + cm.right : cm.top + cm.bottom;
+        const childSize = dir === "row" ? child.layout.width : child.layout.height;
+        mainAvail -= childSize + childMargin;
+      }
+      if (!isSpaced && flowCount > 1) {
+        mainAvail -= (flowCount - 1) * mainGap;
+      }
+      let cursor = dir === "row" ? node.layout.x + pad.left : node.layout.y + pad.top;
+      let spacingGap = 0;
+      if (isSpaced && flowCount > 0) {
+        let totalChildSize = 0;
+        for (const child of relKids) {
+          const cm = resolveMargin(child.style, node.layout.width);
+          const childSize = dir === "row" ? child.layout.width : child.layout.height;
+          const childMargin = dir === "row" ? cm.left + cm.right : cm.top + cm.bottom;
+          totalChildSize += childSize + childMargin;
+        }
+        const containerMain2 = dir === "row" ? node.layout.width - pad.left - pad.right : node.layout.height - pad.top - pad.bottom;
+        const freeSpace2 = Math.max(0, containerMain2 - totalChildSize);
+        if (jc === "space-between") {
+          spacingGap = flowCount > 1 ? freeSpace2 / (flowCount - 1) : 0;
+        } else if (jc === "space-around") {
+          spacingGap = flowCount > 0 ? freeSpace2 / flowCount : 0;
+          cursor += spacingGap / 2;
+        } else {
+          spacingGap = flowCount > 0 ? freeSpace2 / (flowCount + 1) : 0;
+          cursor += spacingGap;
+        }
+      } else {
+        if (jc === "center") {
+          cursor += Math.max(0, mainAvail) / 2;
+        } else if (jc === "flex-end") {
+          cursor += Math.max(0, mainAvail);
+        }
+      }
+      if (relKids.some((c) => resolveFlexGrow(c.style) > 0 || resolveFlexShrink(c.style) > 0)) {
+        const boundaries = [cursor];
+        let bc = cursor;
+        for (const child of relKids) {
+          const cm = resolveMargin(child.style, node.layout.width);
+          const childMargin = dir === "row" ? cm.left + cm.right : cm.top + cm.bottom;
+          const childSize = dir === "row" ? child.layout.width : child.layout.height;
+          bc += childMargin + childSize + (isSpaced ? spacingGap : mainGap);
+          boundaries.push(bc);
+        }
+        const rb = boundaries.map((b) => Math.round(b));
+        for (let i = 0; i < relKids.length; i++) {
+          const child = relKids[i];
+          if (resolveFlexGrow(child.style) <= 0 && resolveFlexShrink(child.style) <= 0) {
+            continue;
+          }
+          const cm = resolveMargin(child.style, node.layout.width);
+          const childMargin = dir === "row" ? cm.left + cm.right : cm.top + cm.bottom;
+          const gap = isSpaced ? spacingGap : mainGap;
+          const snapped = Math.max(0, rb[i + 1] - rb[i] - childMargin - gap);
+          if (dir === "row") {
+            child.layout.width = snapped;
+          } else {
+            child.layout.height = snapped;
+          }
+        }
+      }
+      for (const child of relKids) {
+        applyAspectRatio(child);
+      }
+      for (const child of relKids) {
+        const cm = resolveMargin(child.style, node.layout.width);
+        if (dir === "row") {
+          child.layout.x = cursor + cm.left;
+          cursor += child.layout.width + cm.left + cm.right;
+        } else {
+          child.layout.y = cursor + cm.top;
+          cursor += child.layout.height + cm.top + cm.bottom;
+        }
+        cursor += isSpaced ? spacingGap : mainGap;
+        const eff = resolveAlignSelf(child.style, alignItems);
+        applyCrossAlign(child, pad, node, dir, eff);
+      }
+    } else {
+      const wrapMainAvail = dir === "row" ? node.layout.width - pad.left - pad.right : node.layout.height - pad.top - pad.bottom;
+      const crossGap = dir === "row" ? resolveColumnGap(s, ownContentH) : resolveRowGap(s, ownContentW);
+      const lines = [];
+      let currentLine = [];
+      let currentLineMainSize = 0;
+      for (const child of relKids) {
+        const cm = resolveMargin(child.style, node.layout.width);
+        const childMain = dir === "row" ? child.layout.width + cm.left + cm.right : child.layout.height + cm.top + cm.bottom;
+        const gapOffset = currentLine.length > 0 ? mainGap : 0;
+        if (currentLine.length > 0 && currentLineMainSize + gapOffset + childMain > wrapMainAvail + 1e-3) {
+          lines.push(currentLine);
+          currentLine = [child];
+          currentLineMainSize = childMain;
+        } else {
+          currentLine.push(child);
+          currentLineMainSize += gapOffset + childMain;
+        }
+      }
+      if (currentLine.length > 0) {
+        lines.push(currentLine);
+      }
+      let crossCursor = dir === "row" ? node.layout.y + pad.top : node.layout.x + pad.left;
+      for (const line of lines) {
+        let lineCrossSize = 0;
+        for (const child of line) {
+          const cm = resolveMargin(child.style, node.layout.width);
+          const childCross = dir === "row" ? child.layout.height + cm.top + cm.bottom : child.layout.width + cm.left + cm.right;
+          lineCrossSize = Math.max(lineCrossSize, childCross);
+        }
+        for (const child of line) {
+          const eff = resolveAlignSelf(child.style, alignItems);
+          const cm = resolveMargin(child.style, node.layout.width);
+          if (eff === "stretch") {
+            if (dir === "row" && child.style.height === void 0) {
+              child.layout.height = Math.max(0, lineCrossSize - cm.top - cm.bottom);
+            } else if (dir === "column" && child.style.width === void 0) {
+              child.layout.width = Math.max(0, lineCrossSize - cm.left - cm.right);
+            }
+          }
+        }
+        let lineMainUsed = 0;
+        for (const child of line) {
+          const cm = resolveMargin(child.style, node.layout.width);
+          lineMainUsed += dir === "row" ? child.layout.width + cm.left + cm.right : child.layout.height + cm.top + cm.bottom;
+        }
+        if (line.length > 1) {
+          lineMainUsed += (line.length - 1) * mainGap;
+        }
+        const lineFree = Math.max(0, wrapMainAvail - lineMainUsed);
+        let lineSpacingGap = 0;
+        let lineCursor = dir === "row" ? node.layout.x + pad.left : node.layout.y + pad.top;
+        if (isSpaced && line.length > 0) {
+          if (jc === "space-between") {
+            lineSpacingGap = line.length > 1 ? lineFree / (line.length - 1) : 0;
+          } else if (jc === "space-around") {
+            lineSpacingGap = lineFree / line.length;
+            lineCursor += lineSpacingGap / 2;
+          } else {
+            lineSpacingGap = lineFree / (line.length + 1);
+            lineCursor += lineSpacingGap;
+          }
+        } else {
+          if (jc === "center") {
+            lineCursor += lineFree / 2;
+          } else if (jc === "flex-end") {
+            lineCursor += lineFree;
+          }
+        }
+        for (const child of line) {
+          const cm = resolveMargin(child.style, node.layout.width);
+          const eff = resolveAlignSelf(child.style, alignItems);
+          if (dir === "row") {
+            child.layout.x = lineCursor + cm.left;
+            lineCursor += child.layout.width + cm.left + cm.right + (isSpaced ? lineSpacingGap : mainGap);
+            const childCross = child.layout.height + cm.top + cm.bottom;
+            if (eff === "flex-start" || eff === "stretch") {
+              child.layout.y = crossCursor + cm.top;
+            } else if (eff === "center") {
+              child.layout.y = crossCursor + (lineCrossSize - childCross) / 2 + cm.top;
+            } else if (eff === "flex-end") {
+              child.layout.y = crossCursor + lineCrossSize - childCross + cm.top;
+            }
+          } else {
+            child.layout.y = lineCursor + cm.top;
+            lineCursor += child.layout.height + cm.top + cm.bottom + (isSpaced ? lineSpacingGap : mainGap);
+            const childCross = child.layout.width + cm.left + cm.right;
+            if (eff === "flex-start" || eff === "stretch") {
+              child.layout.x = crossCursor + cm.left;
+            } else if (eff === "center") {
+              child.layout.x = crossCursor + (lineCrossSize - childCross) / 2 + cm.left;
+            } else if (eff === "flex-end") {
+              child.layout.x = crossCursor + lineCrossSize - childCross + cm.left;
+            }
+          }
+        }
+        crossCursor += lineCrossSize + crossGap;
+      }
+      if (lines.length > 0) {
+        const initialCross = dir === "row" ? node.layout.y + pad.top : node.layout.x + pad.left;
+        const contentCross = crossCursor - initialCross - crossGap;
+        if (dir === "row" && node.style.height === void 0) {
+          node.layout.height = pad.top + contentCross + pad.bottom;
+        } else if (dir === "column" && node.style.width === void 0) {
+          node.layout.width = pad.left + contentCross + pad.right;
+        }
+      }
+    }
+    for (const child of absKids) {
+      const cs = child.style;
+      const cm = resolveMargin(cs, node.layout.width);
+      child.layout.x = node.layout.x + pad.left + cm.left;
+      child.layout.y = node.layout.y + pad.top + cm.top;
+      if (cs.left !== void 0 && cs.right !== void 0 && cs.width === void 0) {
+        child.layout.x = node.layout.x + cs.left;
+        child.layout.width = node.layout.width - cs.left - cs.right;
+      } else if (cs.left !== void 0) {
+        child.layout.x = node.layout.x + cs.left + cm.left;
+      } else if (cs.right !== void 0) {
+        child.layout.x = node.layout.x + node.layout.width - cs.right - child.layout.width - cm.right;
+      }
+      applyAspectRatio(child);
+      if (cs.top !== void 0 && cs.bottom !== void 0 && cs.height === void 0) {
+        child.layout.y = node.layout.y + cs.top;
+        child.layout.height = node.layout.height - cs.top - cs.bottom;
+        if (cs.aspectRatio !== void 0 && cs.aspectRatio > 0 && cs.width === void 0 && !(cs.left !== void 0 && cs.right !== void 0)) {
+          child.layout.width = child.layout.height * cs.aspectRatio;
+          if (cs.right !== void 0 && cs.left === void 0) {
+            child.layout.x = node.layout.x + node.layout.width - cs.right - child.layout.width - cm.right;
+          }
+        }
+      } else if (cs.top !== void 0) {
+        child.layout.y = node.layout.y + cs.top + cm.top;
+      } else if (cs.bottom !== void 0) {
+        child.layout.y = node.layout.y + node.layout.height - cs.bottom - child.layout.height - cm.bottom;
+      }
+    }
+    node.layout.x = Math.round(node.layout.x);
+    node.layout.y = Math.round(node.layout.y);
+    node.layout.width = Math.round(node.layout.width);
+    node.layout.height = Math.round(node.layout.height);
+  }
+}
+
+// node_modules/@bedrock-core/flexbox/src/node.ts
+function zeroLayout() {
+  return { x: 0, y: 0, width: 0, height: 0, zIndex: 0 };
+}
+function createNode(style = {}, children = [], measure) {
+  return measure !== void 0 ? { style, children, layout: zeroLayout(), measure } : { style, children, layout: zeroLayout() };
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Form/FormButton.ts
+var MODAL_FORM_BUTTON_SLOT_TYPE = "modal-form-button";
+function safeLabelText2(text) {
+  return /^[\d-]/.test(text) ? `§r${text}` : text;
+}
+var FormButton = ({
+  type,
+  label,
+  backgroundHover,
+  backgroundPressed,
+  backgroundLocked,
+  ...layout
+}) => {
+  const states = resolveStateBackgrounds({ background: layout.background, backgroundHover, backgroundPressed, backgroundLocked });
+  const sized = layout.width !== void 0 || layout.flex !== void 0 || layout.flexGrow !== void 0 || layout.flexBasis !== void 0;
+  return {
+    type: MODAL_FORM_BUTTON_SLOT_TYPE,
+    props: {
+      // withControl so the layout phase computes jsonUIx/y/Width/Height like any control.
+      ...withControl({ ...sized ? {} : { width: "100%" }, ...layout, background: states.background }),
+      backgroundHover: states.backgroundHover,
+      backgroundPressed: states.backgroundPressed,
+      backgroundLocked: states.backgroundLocked,
+      buttonKind: type,
+      label: safeLabelText2(label ?? (type === "submit" ? "Submit" : "Close"))
+    }
+  };
+};
+var formButtonWriter = () => {
+};
+function collectFormButtons(tree) {
+  const found = {};
+  walkButtons(tree, found);
+  if (!found.submit) {
+    throw new ModalFormError(
+      'A <Form> must declare exactly one `Form.Button type="submit"` — the modal has no built-in submit button; place it anywhere in the form flow.'
+    );
+  }
+  return { submit: found.submit, exit: found.exit };
+}
+function walkButtons(node, found) {
+  if (Array.isArray(node)) {
+    node.forEach((child) => walkButtons(child, found));
+    return;
+  }
+  if (!isElement(node)) {
+    return;
+  }
+  if (node.type === MODAL_FORM_BUTTON_SLOT_TYPE) {
+    const kind = node.props.buttonKind === "exit" ? "exit" : "submit";
+    if (found[kind]) {
+      throw new ModalFormError(
+        `A <Form> may declare at most ONE \`Form.Button type="${kind}"\` — found a second one. The RP renders a single control per kind from the title payload.`
+      );
+    }
+    found[kind] = node;
+  }
+  walkButtons(node.props.children, found);
+}
+function formButtonTitleFields(prefix, element) {
+  const props = element?.props;
+  const num = (v) => typeof v === "number" && Number.isFinite(v) ? Math.round(v) : 0;
+  const str = (v) => typeof v === "string" ? v : "";
+  return {
+    [`${prefix}W`]: num(props?.jsonUIWidth),
+    [`${prefix}H`]: num(props?.jsonUIHeight),
+    [`${prefix}X`]: num(props?.jsonUIx),
+    [`${prefix}Y`]: num(props?.jsonUIy),
+    [`${prefix}Visible`]: element !== void 0 && props?.visible !== false,
+    [`${prefix}Enabled`]: element !== void 0 && props?.enabled !== false,
+    [`${prefix}Label`]: str(props?.label),
+    [`${prefix}Bg`]: str(props?.background),
+    [`${prefix}Hover`]: str(props?.backgroundHover),
+    [`${prefix}Pressed`]: str(props?.backgroundPressed),
+    [`${prefix}Locked`]: str(props?.backgroundLocked)
+  };
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/util/font-metrics.generated.json
+var font_metrics_generated_default = {
+  generatedAt: "2026-07-14T06:45:08.235Z",
+  aliases: {},
+  profiles: {
+    mojangles: {
+      lineHeight: 10,
+      fallbackWidth: 6,
+      boldOffset: 1,
+      glyphWidths: {
+        "32": 5,
+        "33": 2,
+        "34": 4,
+        "35": 6,
+        "36": 6,
+        "37": 6,
+        "38": 6,
+        "39": 3,
+        "40": 5,
+        "41": 5,
+        "42": 5,
+        "43": 6,
+        "44": 2,
+        "45": 6,
+        "46": 2,
+        "47": 6,
+        "48": 6,
+        "49": 6,
+        "50": 6,
+        "51": 6,
+        "52": 6,
+        "53": 6,
+        "54": 6,
+        "55": 6,
+        "56": 6,
+        "57": 6,
+        "58": 2,
+        "59": 2,
+        "60": 5,
+        "61": 6,
+        "62": 5,
+        "63": 6,
+        "64": 7,
+        "65": 6,
+        "66": 6,
+        "67": 6,
+        "68": 6,
+        "69": 6,
+        "70": 6,
+        "71": 6,
+        "72": 6,
+        "73": 4,
+        "74": 6,
+        "75": 6,
+        "76": 6,
+        "77": 6,
+        "78": 6,
+        "79": 6,
+        "80": 6,
+        "81": 6,
+        "82": 6,
+        "83": 6,
+        "84": 6,
+        "85": 6,
+        "86": 6,
+        "87": 6,
+        "88": 6,
+        "89": 6,
+        "90": 6,
+        "91": 4,
+        "92": 6,
+        "93": 4,
+        "94": 6,
+        "95": 6,
+        "96": 3,
+        "97": 6,
+        "98": 6,
+        "99": 6,
+        "100": 6,
+        "101": 6,
+        "102": 6,
+        "103": 6,
+        "104": 6,
+        "105": 2,
+        "106": 6,
+        "107": 6,
+        "108": 4,
+        "109": 6,
+        "110": 6,
+        "111": 6,
+        "112": 6,
+        "113": 6,
+        "114": 6,
+        "115": 6,
+        "116": 4,
+        "117": 6,
+        "118": 6,
+        "119": 6,
+        "120": 6,
+        "121": 6,
+        "122": 6,
+        "123": 5,
+        "124": 2,
+        "125": 5,
+        "126": 7,
+        "127": 6,
+        "128": 6,
+        "129": 6,
+        "130": 6,
+        "131": 6,
+        "132": 6,
+        "133": 6,
+        "134": 6,
+        "135": 6,
+        "136": 6,
+        "137": 6,
+        "138": 6,
+        "139": 6,
+        "140": 6,
+        "141": 6,
+        "142": 6,
+        "143": 6,
+        "144": 6,
+        "145": 6,
+        "146": 6,
+        "147": 6,
+        "148": 6,
+        "149": 6,
+        "150": 6,
+        "151": 6,
+        "152": 6,
+        "153": 6,
+        "154": 6,
+        "155": 6,
+        "156": 6,
+        "157": 6,
+        "158": 6,
+        "159": 6,
+        "160": 5,
+        "161": 2,
+        "162": 6,
+        "163": 6,
+        "164": 6,
+        "165": 6,
+        "166": 2,
+        "167": 6,
+        "168": 4,
+        "169": 8,
+        "170": 5,
+        "171": 7,
+        "172": 6,
+        "173": 5,
+        "174": 8,
+        "175": 6,
+        "176": 5,
+        "177": 6,
+        "178": 4,
+        "179": 4,
+        "180": 3,
+        "181": 6,
+        "182": 6,
+        "183": 2,
+        "184": 3,
+        "185": 4,
+        "186": 5,
+        "187": 7,
+        "188": 6,
+        "189": 7,
+        "190": 6,
+        "191": 6,
+        "192": 6,
+        "193": 6,
+        "194": 6,
+        "195": 6,
+        "196": 6,
+        "197": 6,
+        "198": 6,
+        "199": 6,
+        "200": 6,
+        "201": 6,
+        "202": 6,
+        "203": 6,
+        "204": 4,
+        "205": 4,
+        "206": 4,
+        "207": 4,
+        "208": 6,
+        "209": 6,
+        "210": 6,
+        "211": 6,
+        "212": 6,
+        "213": 6,
+        "214": 6,
+        "215": 4,
+        "216": 6,
+        "217": 6,
+        "218": 6,
+        "219": 6,
+        "220": 6,
+        "221": 6,
+        "222": 5,
+        "223": 6,
+        "224": 6,
+        "225": 6,
+        "226": 6,
+        "227": 6,
+        "228": 6,
+        "229": 6,
+        "230": 8,
+        "231": 6,
+        "232": 6,
+        "233": 6,
+        "234": 6,
+        "235": 6,
+        "236": 3,
+        "237": 3,
+        "238": 4,
+        "239": 4,
+        "240": 6,
+        "241": 6,
+        "242": 6,
+        "243": 6,
+        "244": 6,
+        "245": 6,
+        "246": 6,
+        "247": 6,
+        "248": 6,
+        "249": 6,
+        "250": 6,
+        "251": 6,
+        "252": 6,
+        "253": 6,
+        "254": 6,
+        "255": 6,
+        "8364": 6,
+        "8482": 9,
+        "8592": 6,
+        "8593": 6,
+        "8594": 6,
+        "8595": 6
+      }
+    },
+    minecraftTen: {
+      lineHeight: 12.4,
+      fallbackWidth: 6,
+      boldOffset: 1,
+      glyphWidths: {
+        "32": 2,
+        "33": 3,
+        "34": 6,
+        "35": 7,
+        "36": 6,
+        "37": 7,
+        "38": 7,
+        "39": 3,
+        "40": 6,
+        "41": 6,
+        "42": 5,
+        "43": 5,
+        "44": 3,
+        "45": 5,
+        "46": 3,
+        "47": 7,
+        "48": 6,
+        "49": 5,
+        "50": 6,
+        "51": 6,
+        "52": 6,
+        "53": 6,
+        "54": 6,
+        "55": 6,
+        "56": 6,
+        "57": 6,
+        "58": 3,
+        "59": 3,
+        "60": 6,
+        "61": 5,
+        "62": 6,
+        "63": 7,
+        "64": 9,
+        "65": 6,
+        "66": 6,
+        "67": 5,
+        "68": 6,
+        "69": 6,
+        "70": 6,
+        "71": 6,
+        "72": 6,
+        "73": 3,
+        "74": 6,
+        "75": 6,
+        "76": 5,
+        "77": 8,
+        "78": 7,
+        "79": 6,
+        "80": 6,
+        "81": 6,
+        "82": 6,
+        "83": 6,
+        "84": 6,
+        "85": 6,
+        "86": 6,
+        "87": 8,
+        "88": 6,
+        "89": 6,
+        "90": 6,
+        "91": 5,
+        "92": 7,
+        "93": 5,
+        "94": 5,
+        "95": 8,
+        "96": 3,
+        "97": 6,
+        "98": 6,
+        "99": 5,
+        "100": 6,
+        "101": 6,
+        "102": 6,
+        "103": 6,
+        "104": 6,
+        "105": 3,
+        "106": 6,
+        "107": 6,
+        "108": 5,
+        "109": 8,
+        "110": 7,
+        "111": 6,
+        "112": 6,
+        "113": 6,
+        "114": 6,
+        "115": 6,
+        "116": 6,
+        "117": 6,
+        "118": 6,
+        "119": 8,
+        "120": 6,
+        "121": 6,
+        "122": 6,
+        "123": 5,
+        "124": 3,
+        "125": 5,
+        "126": 5,
+        "127": 6,
+        "128": 6,
+        "129": 6,
+        "130": 6,
+        "131": 6,
+        "132": 6,
+        "133": 6,
+        "134": 6,
+        "135": 6,
+        "136": 6,
+        "137": 6,
+        "138": 6,
+        "139": 6,
+        "140": 6,
+        "141": 6,
+        "142": 6,
+        "143": 6,
+        "144": 6,
+        "145": 6,
+        "146": 6,
+        "147": 6,
+        "148": 6,
+        "149": 6,
+        "150": 6,
+        "151": 6,
+        "152": 6,
+        "153": 6,
+        "154": 6,
+        "155": 6,
+        "156": 6,
+        "157": 6,
+        "158": 6,
+        "159": 6,
+        "160": 5,
+        "161": 3,
+        "162": 5,
+        "163": 6,
+        "164": 6,
+        "165": 6,
+        "166": 3,
+        "167": 6,
+        "168": 5,
+        "169": 8,
+        "170": 6,
+        "171": 8,
+        "172": 5,
+        "173": 5,
+        "174": 7,
+        "175": 5,
+        "176": 5,
+        "177": 5,
+        "178": 6,
+        "179": 6,
+        "180": 3,
+        "181": 6,
+        "182": 8,
+        "183": 3,
+        "184": 3,
+        "185": 6,
+        "186": 6,
+        "187": 8,
+        "188": 6,
+        "189": 6,
+        "190": 6,
+        "191": 7,
+        "192": 6,
+        "193": 6,
+        "194": 6,
+        "195": 6,
+        "196": 6,
+        "197": 6,
+        "198": 9,
+        "199": 5,
+        "200": 6,
+        "201": 6,
+        "202": 6,
+        "203": 6,
+        "204": 3,
+        "205": 3,
+        "206": 3,
+        "207": 3,
+        "208": 8,
+        "209": 7,
+        "210": 6,
+        "211": 6,
+        "212": 6,
+        "213": 6,
+        "214": 6,
+        "215": 6,
+        "216": 6,
+        "217": 6,
+        "218": 6,
+        "219": 6,
+        "220": 6,
+        "221": 6,
+        "222": 6,
+        "223": 6,
+        "224": 6,
+        "225": 6,
+        "226": 6,
+        "227": 6,
+        "228": 6,
+        "229": 6,
+        "230": 9,
+        "231": 5,
+        "232": 6,
+        "233": 6,
+        "234": 6,
+        "235": 6,
+        "236": 3,
+        "237": 3,
+        "238": 3,
+        "239": 3,
+        "240": 8,
+        "241": 7,
+        "242": 6,
+        "243": 6,
+        "244": 6,
+        "245": 6,
+        "246": 6,
+        "247": 7,
+        "248": 6,
+        "249": 6,
+        "250": 6,
+        "251": 6,
+        "252": 6,
+        "253": 6,
+        "254": 6,
+        "255": 6,
+        "8364": 6,
+        "8482": 10,
+        "8592": 6,
+        "8593": 6,
+        "8594": 6,
+        "8595": 6
+      }
+    }
+  }
+};
+
+// node_modules/@bedrock-core/ui-runtime/src/util/textMetrics.ts
+var typedFontMetrics = font_metrics_generated_default;
+var BASE_METRICS = typedFontMetrics.profiles;
+var FONT_ALIASES = typedFontMetrics.aliases;
+function isProfileName(name) {
+  return name in BASE_METRICS;
+}
+function normalizeFont(font) {
+  const name = font ?? "mojangles";
+  if (isProfileName(name)) {
+    return name;
+  }
+  return FONT_ALIASES[name] ?? "mojangles";
+}
+function isColorCode(code) {
+  return /^[0-9a-f]$/i.test(code);
+}
+var FIT_TOLERANCE = 0.5;
+function baseGlyphWidth(codePoint, profile) {
+  const metrics = BASE_METRICS[profile];
+  const width = metrics.glyphWidths[String(codePoint)];
+  return width ?? metrics.fallbackWidth;
+}
+function ellipsizeText(text, maxWidth, font, fontSize = 1) {
+  const profile = normalizeFont(font);
+  const metrics = BASE_METRICS[profile];
+  const scaledMax = (maxWidth + FIT_TOLERANCE) / fontSize;
+  const ELLIPSIS = "...";
+  let ellipsisWidth = 0;
+  const eBold = false;
+  for (let i = 0; i < ELLIPSIS.length; i++) {
+    const cp = ELLIPSIS.codePointAt(i);
+    const w = baseGlyphWidth(cp, profile);
+    ellipsisWidth += eBold ? w + metrics.boldOffset : w;
+  }
+  let lineWidth = 0;
+  let bold = false;
+  let visibleEnd = 0;
+  for (let i = 0; i < text.length; ) {
+    const ch = text[i];
+    if (ch === "§" && i + 1 < text.length) {
+      const lower = text[i + 1].toLowerCase();
+      if (isColorCode(lower) || lower === "r") {
+        bold = false;
+      } else if (lower === "l") {
+        bold = true;
+      }
+      i += 2;
+      continue;
+    }
+    const cp = text.codePointAt(i);
+    const adv = baseGlyphWidth(cp, profile) + (bold ? metrics.boldOffset : 0);
+    if (lineWidth + adv > scaledMax) {
+      return text.slice(0, visibleEnd) + ELLIPSIS;
+    }
+    if (lineWidth + adv + ellipsisWidth <= scaledMax) {
+      visibleEnd = i + (cp > 65535 ? 2 : 1);
+    }
+    lineWidth += adv;
+    i += cp > 65535 ? 2 : 1;
+  }
+  return text;
+}
+function wrapText(text, maxWidth, font, fontSize = 1) {
+  const profile = normalizeFont(font);
+  const metrics = BASE_METRICS[profile];
+  const scaledMax = (maxWidth + FIT_TOLERANCE) / fontSize;
+  let result = "";
+  let lineWidth = 0;
+  let bold = false;
+  const pending = [];
+  let pendingWidth = 0;
+  function glyphAdv(cp) {
+    const w = baseGlyphWidth(cp, profile);
+    return bold ? w + metrics.boldOffset : w;
+  }
+  function flushPending() {
+    if (pending.length === 0) {
+      return;
+    }
+    if (lineWidth + pendingWidth <= scaledMax) {
+      for (const t of pending) {
+        result += t.ch;
+      }
+      lineWidth += pendingWidth;
+    } else if (pendingWidth <= scaledMax) {
+      result += "\n";
+      lineWidth = 0;
+      for (const t of pending) {
+        result += t.ch;
+      }
+      lineWidth += pendingWidth;
+    } else {
+      const hypAdv = glyphAdv(45);
+      for (const { ch, advance } of pending) {
+        if (advance === 0) {
+          result += ch;
+          continue;
+        }
+        if (lineWidth + advance + hypAdv > scaledMax && lineWidth > 0) {
+          result += "-\n";
+          lineWidth = 0;
+        }
+        result += ch;
+        lineWidth += advance;
+      }
+    }
+    pending.length = 0;
+    pendingWidth = 0;
+  }
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "\n") {
+      flushPending();
+      result += "\n";
+      lineWidth = 0;
+      i++;
+      continue;
+    }
+    if (ch === "§" && i + 1 < text.length) {
+      const code = text[i + 1];
+      const lower = code.toLowerCase();
+      if (isColorCode(lower) || lower === "r") {
+        bold = false;
+      } else if (lower === "l") {
+        bold = true;
+      }
+      pending.push({ ch: "§" + code, advance: 0 });
+      i += 2;
+      continue;
+    }
+    if (ch === " ") {
+      flushPending();
+      const spaceAdv = glyphAdv(32);
+      if (lineWidth === 0 && result.endsWith("\n")) {
+      } else if (lineWidth + spaceAdv <= scaledMax) {
+        result += " ";
+        lineWidth += spaceAdv;
+      } else {
+        result += "\n";
+        lineWidth = 0;
+      }
+      i++;
+      continue;
+    }
+    const cp = text.codePointAt(i);
+    const adv = glyphAdv(cp);
+    const charStr = cp > 65535 ? text.slice(i, i + 2) : ch;
+    pending.push({ ch: charStr, advance: adv });
+    pendingWidth += adv;
+    i += cp > 65535 ? 2 : 1;
+  }
+  flushPending();
+  return result;
+}
+function measureText({
+  text,
+  font,
+  fontSize = 1
+}) {
+  const profile = normalizeFont(font);
+  const metrics = BASE_METRICS[profile];
+  let lineWidth = 0;
+  let maxLineWidth = 0;
+  let lineCount = 1;
+  let bold = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "\n") {
+      maxLineWidth = Math.max(maxLineWidth, lineWidth);
+      lineWidth = 0;
+      lineCount++;
+      continue;
+    }
+    if (ch === "§" && i + 1 < text.length) {
+      const code = text[i + 1].toLowerCase();
+      i++;
+      if (isColorCode(code) || code === "r") {
+        bold = false;
+      } else if (code === "l") {
+        bold = true;
+      }
+      continue;
+    }
+    const codePoint = text.codePointAt(i);
+    if (codePoint === void 0) {
+      continue;
+    }
+    if (codePoint > 65535) {
+      i++;
+    }
+    let advance = baseGlyphWidth(codePoint, profile);
+    if (bold) {
+      advance += metrics.boldOffset;
+    }
+    lineWidth += advance;
+  }
+  maxLineWidth = Math.max(maxLineWidth, lineWidth);
+  return {
+    width: Math.max(1, Math.round(maxLineWidth * fontSize)),
+    height: Math.max(1, Math.round(metrics.lineHeight * lineCount * fontSize))
+  };
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Form/optionPayload.ts
+var DROPDOWN_OPTION_TYPE = "dropdown-option";
+var NO_OPTION_GEOMETRY = { x: 0, y: 0, width: 0, height: 0 };
+function isGroupDefaults(v) {
+  return typeof v === "object" && v !== null && "background" in v && "fontType" in v;
+}
+function readNumber(v, fallback = 0) {
+  return typeof v === "number" ? v : fallback;
+}
+function readString(v, fallback) {
+  return typeof v === "string" ? v : fallback;
+}
+function readAlign(v, fallback) {
+  return v === "left" || v === "center" || v === "right" ? v : fallback;
+}
+function isOptionElement(node) {
+  return typeof node === "object" && node !== null && "type" in node && (node.type === MODAL_OPTION_SLOT_TYPE || node.type === FormOption);
+}
+function optionElements(children) {
+  const arr = Array.isArray(children) ? children.flat(Infinity) : children === void 0 ? [] : [children];
+  return arr.filter(isOptionElement);
+}
+function readOption(el, defaults, groupX = 0, groupY = 0) {
+  const p = el.props;
+  return {
+    value: readString(p.value, ""),
+    text: readString(p.label, ""),
+    style: {
+      fontType: readString(p.__optionFontType, defaults.fontType),
+      fontScaleFactor: readNumber(p.__optionFontScale, defaults.fontScaleFactor),
+      align: readAlign(p.align, defaults.align),
+      // Legacy flow-height slot is unused (rows size from geometry / the fixed popup row).
+      height: 0,
+      background: readString(p.background, defaults.background),
+      backgroundHover: readString(p.backgroundHover, defaults.backgroundHover),
+      backgroundSelected: readString(p.backgroundSelected, defaults.backgroundSelected),
+      bulletTexture: readString(p.bullet, defaults.bulletTexture),
+      bulletSelectedTexture: readString(p.bulletSelected, defaults.bulletSelectedTexture),
+      bulletWidth: readNumber(p.bulletWidth, defaults.bulletWidth),
+      bulletHeight: readNumber(p.bulletHeight, defaults.bulletHeight),
+      bulletHoverTexture: readString(p.bulletHover, defaults.bulletHoverTexture),
+      bulletSelectedHoverTexture: readString(p.bulletSelectedHover, defaults.bulletSelectedHoverTexture)
+    },
+    geometry: {
+      x: readNumber(p.jsonUIx) - groupX,
+      y: readNumber(p.jsonUIy) - groupY,
+      width: readNumber(p.jsonUIWidth),
+      height: readNumber(p.jsonUIHeight)
+    }
+  };
+}
+function fallbackGroupDefaults() {
+  return {
+    background: "",
+    backgroundHover: "",
+    backgroundSelected: "",
+    bulletTexture: "",
+    bulletSelectedTexture: "",
+    bulletWidth: 12,
+    bulletHeight: 12,
+    bulletHoverTexture: "",
+    bulletSelectedHoverTexture: "",
+    ...labelFontFields(),
+    align: "left"
+  };
+}
+function optionLabelPosition(text, style, rowWidth, rowHeight, leftInset) {
+  const font = style.fontType === "MinecraftTen" ? "minecraftTen" : "mojangles";
+  const m = measureText({ text, font, fontSize: style.fontScaleFactor * 0.5 });
+  const x = style.align === "center" ? Math.round((rowWidth - m.width) / 2) : style.align === "right" ? Math.round(rowWidth - 4 - m.width) : leftInset;
+  return { x, y: Math.round((rowHeight - m.height) / 2) };
+}
+function serializeSelectOption(text, style, geometry = NO_OPTION_GEOMETRY, label = { x: 4, y: 0 }) {
+  const [payload] = serializeProps({
+    type: DROPDOWN_OPTION_TYPE,
+    // --- the label GROUP (label contract, v0008 order): fontType, fontScale, x, y, text ---
+    fontType: style.fontType,
+    // [92]
+    fontScaleFactor: style.fontScaleFactor,
+    // [175]
+    labelX: label.x,
+    // [258] → option_label anchored X (TS-computed alignment)
+    labelY: label.y,
+    // [341] → option_label anchored Y (vertical centering)
+    text,
+    // [424] → #custom_radio_text (visible label; fixed cell — mid-payload group)
+    // --- row fields ---
+    height: style.height,
+    // [507] (legacy flow row height, unused)
+    background: style.background,
+    // [590] idle option face
+    backgroundHover: style.backgroundHover,
+    // [673]
+    backgroundSelected: style.backgroundSelected,
+    // [756]
+    bulletTexture: style.bulletTexture,
+    // [839] unselected bullet glyph
+    bulletSelectedTexture: style.bulletSelectedTexture,
+    // [922] selected bullet glyph
+    // Per-option flex geometry (px) — the inline row self-positions from these via
+    // use_anchored_offset (x/y) at this size (w/h). Dropdown popup rows pass zeros.
+    optionX: geometry.x,
+    // [1005] → row #anchored_offset_value_x
+    optionY: geometry.y,
+    // [1088] → row #anchored_offset_value_y
+    optionWidth: geometry.width,
+    // [1171] → row #size_binding_x
+    optionHeight: geometry.height,
+    // [1254] → row #size_binding_y
+    bulletWidth: style.bulletWidth,
+    // [1337] bullet glyph width px
+    bulletHeight: style.bulletHeight,
+    // [1420] bullet glyph height px
+    bulletHoverTexture: style.bulletHoverTexture,
+    // [1503] unselected bullet on hover
+    bulletSelectedHoverTexture: style.bulletSelectedHoverTexture
+    // [1586] selected bullet on hover
+  });
+  if (typeof payload !== "string") {
+    throw new Error("serializeSelectOption(): option payloads never carry tails");
+  }
+  return payload;
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Form/FormDropdown.ts
+var OPTION_ROW_HEIGHT = 17;
+var OPTION_ROW_OVERLAP = 1;
+var POPUP_PADDING = 1;
+var POPUP_MAX_HEIGHT = CANONICAL_SCREEN.height / 2;
+var MODAL_DROPDOWN_SLOT_TYPE = "modal-dropdown";
+var FormDropdown = ({
+  name,
+  defaultValue,
+  backgroundHover,
+  backgroundPressed,
+  backgroundLocked,
+  popupBackground,
+  optionBackground,
+  optionHover,
+  optionSelected,
+  optionFont,
+  optionScale,
+  optionAlign,
+  currentColor,
+  currentFont,
+  currentScale,
+  currentInsetX,
+  currentInsetY,
+  children,
+  ...layout
+}) => {
+  const optionLabelFont = labelFontFields({ font: optionFont, scale: optionScale });
+  const currentLabelFont = labelFontFields({ font: currentFont, scale: currentScale });
+  const closedBox = resolveStateBackgrounds({ background: layout.background, backgroundHover, backgroundPressed, backgroundLocked });
+  const optionBase = optionBackground ?? UNSTYLED_TEXTURE;
+  const groupDefaults = {
+    background: optionBase,
+    backgroundHover: optionHover ?? optionBase,
+    backgroundSelected: optionSelected ?? optionBase,
+    bulletTexture: "",
+    bulletSelectedTexture: "",
+    bulletHoverTexture: "",
+    bulletSelectedHoverTexture: "",
+    bulletWidth: 12,
+    bulletHeight: 12,
+    fontType: optionLabelFont.fontType,
+    fontScaleFactor: optionLabelFont.fontScaleFactor,
+    align: optionAlign ?? "left"
+  };
+  const optionCount = optionElements(children).length;
+  return {
+    type: MODAL_DROPDOWN_SLOT_TYPE,
+    props: {
+      // Control block first so the closed-box state textures land at the SAME byte
+      // offsets as `Button`'s ([1024-1272], right after the reserved block) — the RP
+      // closed-box faces are literal copies of the button's state decode blocks.
+      ...withControl({ ...layout, background: closedBox.background }),
+      backgroundHover: closedBox.backgroundHover,
+      // [1024-1106] like Button
+      backgroundPressed: closedBox.backgroundPressed,
+      // [1107-1189]
+      backgroundLocked: closedBox.backgroundLocked,
+      // [1190-1272]
+      popupBackground: popupBackground ?? UNSTYLED_TEXTURE,
+      // [1273-1355] dropdown-specific
+      // [1356-1438] computed popup height (px): the fused option column (rows × height +
+      // the 1px border overlap, cap at half the screen) + top and bottom padding. The RP
+      // decodes it into popup_shift's #size_binding_y; the centering (half above / half below
+      // the pinned middle line) is done geometrically by popup_card's bottom_left→left_middle
+      // anchoring.
+      popupHeight: Math.min(optionCount * OPTION_ROW_HEIGHT + OPTION_ROW_OVERLAP, POPUP_MAX_HEIGHT) + 2 * POPUP_PADDING,
+      // Closed-box current-value label fields (RP-decoded, appended right after popupHeight so
+      // they keep FIXED offsets: currentColor [1439], currentFontType [1522], currentFontScale
+      // [1605], currentX [1688], currentY [1771]). The RP decodes the selected option TEXT out
+      // of #dropdown_option_text, then styles it with these cell-level fields — color rides as
+      // a §-code prefix (system convention), font/scale drive the label, and x/y position it
+      // from the closed box's left-middle frame ([1,1] + top_left anchored offset).
+      currentColor: currentColor ?? "",
+      currentFontType: currentLabelFont.fontType,
+      currentFontScale: currentLabelFont.fontScaleFactor,
+      currentX: currentInsetX ?? 8,
+      currentY: currentInsetY ?? -Math.round(measureText({ text: "Ag", font: currentFont, fontSize: currentScale ?? 1 }).height / 2),
+      // Option children ride props like the inline select's: laid out (harmlessly — popup
+      // rows flow at the fixed height), never serialized as controls (the walk skips
+      // MODAL_OPTION_SLOT_TYPE), read by the writer below.
+      children
+    },
+    // Group defaults ride the writer-only side channel (never serialized). The writer combines
+    // them with each option child's own overrides to build the blobs.
+    nativeArgs: {
+      name,
+      defaultValue: defaultValue ?? "",
+      groupDefaults
+    }
+  };
+};
+var formDropdownWriter = (payload, form, ctx, _callbacks, props, nativeArgs, children) => {
+  if (!isModalForm(form)) {
+    throw new ModalFormError("Form.Dropdown must be rendered inside a `<Form>`.");
+  }
+  const name = typeof nativeArgs?.name === "string" ? nativeArgs.name : "";
+  const defaultValue = typeof nativeArgs?.defaultValue === "string" ? nativeArgs.defaultValue : "";
+  const defaults = isGroupDefaults(nativeArgs?.groupDefaults) ? nativeArgs.groupDefaults : { ...fallbackGroupDefaults(), background: UNSTYLED_TEXTURE, backgroundHover: UNSTYLED_TEXTURE, backgroundSelected: UNSTYLED_TEXTURE };
+  const opts = optionElements(children).map((el) => readOption(el, defaults));
+  const defaultIndex = Math.max(0, opts.findIndex((o) => o.value === defaultValue));
+  const rowWidth = typeof props?.jsonUIWidth === "number" ? props.jsonUIWidth : 0;
+  const encodedOptions = opts.map((o) => serializeSelectOption(
+    o.text,
+    o.style,
+    NO_OPTION_GEOMETRY,
+    // Center the label in the VISIBLE face (flow slot + the 1px border overlap): the face
+    // center is also the center of the interior between the two shared border lines.
+    optionLabelPosition(o.text, o.style, rowWidth, OPTION_ROW_HEIGHT + OPTION_ROW_OVERLAP, 4)
+  ));
+  emitDropdown(payload, form, ctx, name, encodedOptions, defaultIndex);
+};
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Form/FormInlineSelect.ts
+var MODAL_INLINE_SELECT_SLOT_TYPE = "modal-inline-select";
+var FormInlineSelect = ({
+  name,
+  defaultValue,
+  optionBackground,
+  optionHover,
+  optionSelected,
+  bullet,
+  bulletSelected,
+  bulletHover,
+  bulletSelectedHover,
+  bulletWidth,
+  bulletHeight,
+  optionFont,
+  optionScale,
+  optionAlign,
+  children,
+  ...layout
+}) => {
+  const optionBase = optionBackground ?? UNSTYLED_TEXTURE;
+  const groupFont = labelFontFields({ font: optionFont, scale: optionScale });
+  const groupDefaults = {
+    background: optionBase,
+    backgroundHover: optionHover ?? optionBase,
+    backgroundSelected: optionSelected ?? optionBase,
+    bulletTexture: bullet ?? "",
+    bulletSelectedTexture: bulletSelected ?? "",
+    bulletHoverTexture: bulletHover ?? bullet ?? "",
+    bulletSelectedHoverTexture: bulletSelectedHover ?? bulletSelected ?? "",
+    bulletWidth: bulletWidth ?? 12,
+    bulletHeight: bulletHeight ?? 12,
+    fontType: groupFont.fontType,
+    fontScaleFactor: groupFont.fontScaleFactor,
+    align: optionAlign ?? "left"
+  };
+  return {
+    type: MODAL_INLINE_SELECT_SLOT_TYPE,
+    // The Form.Option children ride here so the layout phase lays them out (each gets its own
+    // jsonUIx/y/w/h). They are NOT serialized as controls — the writer reads their geometry and
+    // the serialize walk skips MODAL_OPTION_SLOT_TYPE nodes.
+    props: {
+      // Full-size top-left container: the cell reserves the group's flow box (from the caller's
+      // layout); options position absolutely inside it from their own blob geometry.
+      ...withControl(layout),
+      children
+    },
+    // Group defaults ride the writer-only side channel (never serialized). The writer combines
+    // them with each option child's own overrides + post-layout geometry to build the blobs.
+    nativeArgs: {
+      name,
+      defaultValue: defaultValue ?? "",
+      groupDefaults
+    }
+  };
+};
+var formInlineSelectWriter = (payload, form, ctx, _callbacks, props, nativeArgs, children) => {
+  if (!isModalForm(form)) {
+    throw new ModalFormError("Form.Radio / Form.ToggleButton must be rendered inside a `<Form>`.");
+  }
+  const name = typeof nativeArgs?.name === "string" ? nativeArgs.name : "";
+  const defaultValue = typeof nativeArgs?.defaultValue === "string" ? nativeArgs.defaultValue : "";
+  const defaults = isGroupDefaults(nativeArgs?.groupDefaults) ? nativeArgs.groupDefaults : { ...fallbackGroupDefaults(), background: UNSTYLED_TEXTURE, backgroundHover: UNSTYLED_TEXTURE, backgroundSelected: UNSTYLED_TEXTURE };
+  const groupX = typeof props?.jsonUIx === "number" ? props.jsonUIx : 0;
+  const groupY = typeof props?.jsonUIy === "number" ? props.jsonUIy : 0;
+  const opts = optionElements(children).map((el) => readOption(el, defaults, groupX, groupY));
+  const defaultIndex = Math.max(0, opts.findIndex((o) => o.value === defaultValue));
+  const encodedOptions = opts.map((o) => serializeSelectOption(
+    o.text,
+    o.style,
+    o.geometry,
+    optionLabelPosition(
+      o.text,
+      o.style,
+      o.geometry.width,
+      o.geometry.height,
+      o.style.bulletTexture !== "" ? o.style.bulletWidth + 4 : 4
+    )
+  ));
+  emitDropdown(payload, form, ctx, name, encodedOptions, defaultIndex);
+};
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Form/FormInput.ts
+var MODAL_INPUT_SLOT_TYPE = "modal-input";
+var FIELD_TEXT_INSET_X = 8;
+var FormInput = ({
+  name,
+  placeholder,
+  defaultValue,
+  font,
+  scale,
+  textOffsetX,
+  textOffsetY,
+  placeholderOffsetX,
+  placeholderOffsetY,
+  backgroundHover,
+  backgroundPressed,
+  backgroundLocked,
+  ...layout
+}) => {
+  const box = resolveStateBackgrounds({ background: layout.background, backgroundHover, backgroundPressed, backgroundLocked });
+  const lineHeight = measureText({ text: "Ag", font, fontSize: scale ?? 1 }).height;
+  const centeredY = -Math.round(lineHeight / 2);
+  return {
+    type: MODAL_INPUT_SLOT_TYPE,
+    props: {
+      // Control block first so the state textures land at BUTTON-IDENTICAL byte
+      // offsets ([1024-1272] right after the reserved block). The writer calls
+      // `form.textField()` directly from `nativeArgs` (no `build` closure).
+      ...withControl({ ...layout, background: box.background }),
+      backgroundHover: box.backgroundHover,
+      // [1024-1106] like Button
+      backgroundPressed: box.backgroundPressed,
+      // [1107-1189] focused/pressed box
+      backgroundLocked: box.backgroundLocked,
+      // [1190-1272]
+      // Two label GROUPS (see labelPayloadFields): value at [1273-1687], placeholder at
+      // [1688-2102]. Text slots stay '' — both labels read their text from the native
+      // edit-box channel; the groups carry font + position only.
+      ...labelPayloadFields("value", {
+        font,
+        scale,
+        x: textOffsetX ?? FIELD_TEXT_INSET_X,
+        y: textOffsetY ?? centeredY
+      }),
+      ...labelPayloadFields("placeholder", {
+        font,
+        scale,
+        x: placeholderOffsetX ?? FIELD_TEXT_INSET_X,
+        y: placeholderOffsetY ?? centeredY
+      })
+    },
+    // Native args ride the writer-only side channel: never serialized, so they cost no
+    // payload bytes and can't shift RP-read offsets. placeholder/defaultValue stay raw —
+    // they render inside the native edit box, where decode styling does not apply.
+    nativeArgs: {
+      name,
+      placeholder: placeholder ?? "",
+      defaultValue: defaultValue ?? ""
+    }
+  };
+};
+var formInputWriter = (payload, form, ctx, _callbacks, _props, nativeArgs) => {
+  if (!isModalForm(form)) {
+    throw new ModalFormError("Form.Input must be rendered inside a `<Form>`.");
+  }
+  const name = typeof nativeArgs?.name === "string" ? nativeArgs.name : "";
+  const placeholder = typeof nativeArgs?.placeholder === "string" ? nativeArgs.placeholder : "";
+  const defaultValue = typeof nativeArgs?.defaultValue === "string" ? nativeArgs.defaultValue : "";
+  emitInput(payload, form, ctx, name, placeholder, defaultValue);
+};
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Form/FormSlider.ts
+var MODAL_SLIDER_SLOT_TYPE = "modal-slider";
+var DEFAULT_TRACK_HEIGHT = 10;
+var DEFAULT_THUMB_WIDTH = 16;
+var DEFAULT_THUMB_HEIGHT = 16;
+var FormSlider = ({
+  name,
+  min,
+  max,
+  step,
+  defaultValue,
+  backgroundHover,
+  backgroundPressed,
+  backgroundLocked,
+  progress,
+  progressHover,
+  thumb,
+  thumbHover,
+  thumbPressed,
+  thumbLocked,
+  trackHeight,
+  thumbWidth,
+  thumbHeight,
+  ...layout
+}) => {
+  const track = resolveStateBackgrounds({ background: layout.background, backgroundHover, backgroundPressed, backgroundLocked });
+  const progressBase = progress ?? track.background;
+  const thumbBase = thumb ?? track.background;
+  return {
+    type: MODAL_SLIDER_SLOT_TYPE,
+    props: {
+      // Control block first so the state textures land at BUTTON-IDENTICAL byte
+      // offsets ([1024-1272] right after the reserved block), slider-specific
+      // fields after. `name` is appended LAST so it survives to the writer without
+      // disturbing the RP-read offsets; `build` is a function → routed to
+      // callbacks, not encoded. Default width to '100%' so the track fills whatever
+      // container wraps it regardless of the wrapper's flex direction — but ONLY
+      // when the caller gave no sizing (explicit width or flex sizing must win).
+      ...withControl({
+        ...layout.width !== void 0 || layout.flex !== void 0 || layout.flexGrow !== void 0 || layout.flexBasis !== void 0 ? {} : { width: "100%" },
+        ...layout,
+        background: track.background
+      }),
+      backgroundHover: track.backgroundHover,
+      // [1024-1106] like Button
+      backgroundPressed: track.backgroundPressed,
+      // [1107-1189] reserved (no bar state)
+      backgroundLocked: track.backgroundLocked,
+      // [1190-1272] reserved (no bar state)
+      progress: progressBase,
+      // [1273-1355] slider-specific
+      progressHover: progressHover ?? progressBase,
+      // [1356-1438]
+      thumb: thumbBase,
+      // [1439-1521]
+      thumbHover: thumbHover ?? thumbBase,
+      // [1522-1604]
+      thumbPressed: thumbPressed ?? thumbBase,
+      // [1605-1687] engine "indent" state
+      thumbLocked: thumbLocked ?? thumbBase,
+      // [1688-1770]
+      // Geometry: track spans the full control width (RP), these size the rest.
+      trackHeight: trackHeight ?? DEFAULT_TRACK_HEIGHT,
+      // [1771-1853]
+      thumbWidth: thumbWidth ?? DEFAULT_THUMB_WIDTH,
+      // [1854-1936]
+      thumbHeight: thumbHeight ?? DEFAULT_THUMB_HEIGHT,
+      // [1937-2019]
+      // [2020-2102] thumb-travel width = control width - thumbWidth, so the thumb's
+      // EDGE (not center) meets the track ends at min/max. Placeholder here; the
+      // layout phase fills it in-place once jsonUIWidth is known (like `region`).
+      // This MUST stay the last SERIALIZED field — the RP decodes it at [2020].
+      travelWidth: 0
+    },
+    // Native args ride the writer-only side channel: never serialized, so they cost no
+    // payload bytes and (crucially) leave travelWidth as the last field at [2020].
+    // `defaultValue` resolves `?? min` here so the writer stays a pure reader.
+    nativeArgs: {
+      name,
+      min,
+      max,
+      step: step ?? 0,
+      // 0 → "no step" (native valueStep undefined); see writer.
+      defaultValue: defaultValue ?? min
+    }
+  };
+};
+var formSliderWriter = (payload, form, ctx, _callbacks, _props, nativeArgs) => {
+  if (!isModalForm(form)) {
+    throw new ModalFormError("Form.Slider must be rendered inside a `<Form>`.");
+  }
+  const name = typeof nativeArgs?.name === "string" ? nativeArgs.name : "";
+  const min = typeof nativeArgs?.min === "number" ? nativeArgs.min : 0;
+  const max = typeof nativeArgs?.max === "number" ? nativeArgs.max : 0;
+  const step = typeof nativeArgs?.step === "number" ? nativeArgs.step : 0;
+  const defaultValue = typeof nativeArgs?.defaultValue === "number" ? nativeArgs.defaultValue : min;
+  emitSlider(payload, form, ctx, name, min, max, defaultValue, step === 0 ? void 0 : step);
+};
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Form/FormToggle.ts
+var MODAL_TOGGLE_SLOT_TYPE = "modal-toggle";
+var FormToggle = ({
+  name,
+  defaultValue,
+  backgroundHover,
+  backgroundPressed,
+  backgroundLocked,
+  checkedBackground,
+  checkedHover,
+  checkedLocked,
+  ...layout
+}) => {
+  const unchecked = resolveStateBackgrounds({ background: layout.background, backgroundHover, backgroundPressed, backgroundLocked });
+  const checkedBase = checkedBackground ?? unchecked.background;
+  return {
+    type: MODAL_TOGGLE_SLOT_TYPE,
+    props: {
+      // Control block first so the state textures land at BUTTON-IDENTICAL byte
+      // offsets ([1024-1272] right after the reserved block), toggle-specific
+      // fields after. The writer calls `form.toggle()` directly from `nativeArgs`
+      // (no `build` closure).
+      ...withControl({ ...layout, background: unchecked.background }),
+      backgroundHover: unchecked.backgroundHover,
+      // [1024-1106] like Button
+      backgroundPressed: unchecked.backgroundPressed,
+      // [1107-1189] reserved (no pressed state)
+      backgroundLocked: unchecked.backgroundLocked,
+      // [1190-1272]
+      checkedBackground: checkedBase,
+      // [1273-1355] toggle-specific
+      checkedHover: checkedHover ?? checkedBase,
+      // [1356-1438]
+      checkedLocked: checkedLocked ?? checkedBase
+      // [1439-1521]
+    },
+    // Native args ride the writer-only side channel: never serialized, so they cost no
+    // payload bytes and can't shift RP-read offsets.
+    nativeArgs: {
+      name,
+      defaultValue: defaultValue ?? false
+    }
+  };
+};
+var formToggleWriter = (payload, form, ctx, _callbacks, _props, nativeArgs) => {
+  if (!isModalForm(form)) {
+    throw new ModalFormError("Form.Toggle must be rendered inside a `<Form>`.");
+  }
+  const name = typeof nativeArgs?.name === "string" ? nativeArgs.name : "";
+  const defaultValue = nativeArgs?.defaultValue === true;
+  emitToggle(payload, form, ctx, name, defaultValue);
+};
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Form/Form.ts
+var MODAL_FORM_SLOT_TYPE = "modal-form";
+var ModalContext = createContext(null);
+var FormRoot = ({
+  onSubmit,
+  onCancel,
+  children
+}) => {
+  const config = { onSubmit, onCancel };
+  return ModalContext({
+    value: config,
+    children: {
+      type: MODAL_FORM_SLOT_TYPE,
+      props: {
+        __formConfig: config,
+        children
+      }
+    }
+  });
+};
+var Form = Object.assign(FormRoot, {
+  Toggle: FormToggle,
+  Slider: FormSlider,
+  Dropdown: FormDropdown,
+  InlineSelect: FormInlineSelect,
+  Option: FormOption,
+  Input: FormInput,
+  Button: FormButton
+});
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/session.ts
+import { uiManager } from "@minecraft/server-ui";
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/traversal.ts
+function generateComponentId(player, component, key, parentPath) {
+  const componentName = component.name || "anonymous";
+  const pathSegment = key ? `${componentName}:${key}` : componentName;
+  const fullPath = [...parentPath, pathSegment].join("/");
+  return `${player.id}:${fullPath}`;
+}
+function createInitialContext() {
+  return {
+    parentPath: [],
+    idCounters: /* @__PURE__ */ new Map(),
+    currentContext: /* @__PURE__ */ new Map(),
+    parentFiber: void 0
+  };
+}
+function createRootContext(initialContext) {
+  return {
+    ...initialContext,
+    parentState: {
+      visible: true,
+      enabled: true,
+      x: 0,
+      y: 0,
+      width: CANONICAL_SCREEN.width,
+      height: CANONICAL_SCREEN.height,
+      position: "relative"
+    }
+  };
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/phases/expand.ts
+function expandAndResolveContexts(element, context, player) {
+  if (typeof element.type === "function") {
+    const componentFn = element.type;
+    const componentName = componentFn.name || "anonymous";
+    const keyProp = typeof element.props.key === "string" ? element.props.key : void 0;
+    let effectiveKey = keyProp;
+    if (!effectiveKey) {
+      const pathKey = [...context.parentPath, componentName].join("/");
+      const count = context.idCounters.get(pathKey) ?? 0;
+      effectiveKey = `__auto_${count}`;
+      context.idCounters.set(pathKey, count + 1);
+    }
+    const componentId = generateComponentId(
+      player,
+      componentFn,
+      effectiveKey,
+      context.parentPath
+    );
+    const fiber = getFiber(componentId) ?? createFiber(componentId, player);
+    const parentFiber = context.parentFiber;
+    if (parentFiber) {
+      fiber.parent = parentFiber;
+      if (!parentFiber.child) {
+        parentFiber.child = fiber;
+        fiber.index = 0;
+      } else {
+        let tail = parentFiber.child;
+        while (tail.sibling) {
+          tail = tail.sibling;
+        }
+        tail.sibling = fiber;
+        fiber.index = (tail.index ?? -1) + 1;
+      }
+    } else {
+      fiber.parent = void 0;
+      fiber.index = 0;
+    }
+    fiber.contextSnapshot = context.currentContext;
+    const renderedElement = activateFiber(fiber, () => componentFn(element.props));
+    const childContext = {
+      ...context,
+      parentPath: [...context.parentPath, componentName],
+      parentFiber: fiber
+    };
+    return expandAndResolveContexts(renderedElement, childContext, player);
+  }
+  if (isContextProvider(element)) {
+    const { __context: ctxObj, value, children: children2 } = element.props;
+    const nextContext = new Map(context.currentContext);
+    nextContext.set(ctxObj, value);
+    const childContext = {
+      ...context,
+      currentContext: nextContext
+    };
+    const childrenArray = toChildrenArray(children2);
+    const resolvedChildren = childrenArray.length ? processChildren(childrenArray, childContext, player) : [];
+    return {
+      type: "fragment",
+      props: { children: resolvedChildren }
+    };
+  }
+  const children = element.props.children;
+  if (Array.isArray(children)) {
+    const processedChildren = processChildren(children, context, player);
+    return {
+      type: element.type,
+      nativeArgs: element.nativeArgs,
+      props: {
+        ...element.props,
+        children: processedChildren
+      }
+    };
+  }
+  if (isElement(children)) {
+    const processed = expandAndResolveContexts(children, context, player);
+    return {
+      type: element.type,
+      nativeArgs: element.nativeArgs,
+      props: {
+        ...element.props,
+        children: [processed]
+        // normalize to array
+      }
+    };
+  }
+  return {
+    type: element.type,
+    nativeArgs: element.nativeArgs,
+    props: {
+      ...element.props,
+      children: []
+    }
+  };
+}
+function processChildren(children, context, player) {
+  return children.map((child) => {
+    if (!isElement(child)) {
+      return void 0;
+    }
+    return expandAndResolveContexts(child, context, player);
+  }).filter((child) => child !== void 0);
+}
+function toChildrenArray(children) {
+  if (Array.isArray(children)) {
+    return children;
+  }
+  if (isElement(children)) {
+    return [children];
+  }
+  return [];
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/phases/inherit.ts
+function toPocketUnit(value) {
+  return Math.round(value);
+}
+function applyInheritance(element, context) {
+  const parentState = context.parentState ?? {
+    visible: true,
+    enabled: true,
+    x: 0,
+    y: 0,
+    width: CANONICAL_SCREEN.width,
+    height: CANONICAL_SCREEN.height,
+    position: "relative"
+  };
+  const props = element.props;
+  if (typeof element.type === "string" && isTransparentType(element.type)) {
+    const childContext = {
+      ...context,
+      parentState
+      // Pass parent state through transparent components
+    };
+    const newProps2 = { ...props };
+    if (props.children) {
+      if (Array.isArray(props.children)) {
+        newProps2.children = props.children.filter(isElement).map((child) => applyInheritance(child, childContext));
+      } else if (isElement(props.children)) {
+        newProps2.children = applyInheritance(props.children, childContext);
+      } else {
+        newProps2.children = props.children;
+      }
+    }
+    return {
+      type: element.type,
+      nativeArgs: element.nativeArgs,
+      props: newProps2
+    };
+  }
+  let newProps = { ...props };
+  if (isControlled(props)) {
+    newProps = { ...props };
+    if (!parentState.visible) {
+      newProps.visible = false;
+    }
+    if (!parentState.enabled) {
+      newProps.enabled = false;
+    }
+    const xValue = props.jsonUIx ?? 0;
+    const yValue = props.jsonUIy ?? 0;
+    const widthValue = props.jsonUIWidth ?? 100;
+    const heightValue = props.jsonUIHeight ?? 100;
+    newProps.jsonUIx = toPocketUnit(xValue);
+    newProps.jsonUIy = toPocketUnit(yValue);
+    newProps.jsonUIWidth = toPocketUnit(widthValue);
+    newProps.jsonUIHeight = toPocketUnit(heightValue);
+    const childParentState = {
+      visible: newProps.visible ?? true,
+      enabled: newProps.enabled ?? true,
+      x: xValue,
+      y: yValue,
+      width: widthValue,
+      height: heightValue,
+      position: "relative"
+    };
+    const childContext = {
+      ...context,
+      parentState: childParentState
+    };
+    if (newProps.children) {
+      if (Array.isArray(newProps.children)) {
+        newProps.children = newProps.children.filter(isElement).map((child) => applyInheritance(child, childContext));
+      } else if (isElement(newProps.children)) {
+        newProps.children = applyInheritance(newProps.children, childContext);
+      }
+    }
+  }
+  return {
+    type: element.type,
+    nativeArgs: element.nativeArgs,
+    props: newProps
+  };
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/phases/layout.ts
+var DEBUG_LAYOUT = false;
+function isTransparent(el) {
+  return typeof el.type === "string" && isTransparentType(el.type);
+}
+function collectConcrete(element) {
+  if (!isElement(element)) {
+    return [];
+  }
+  if (element.type === SCROLL_SLOT_TYPE) {
+    return [element];
+  }
+  if (isTransparent(element)) {
+    const ch = element.props.children;
+    if (!ch) {
+      return [];
+    }
+    if (Array.isArray(ch)) {
+      return ch.flatMap(collectConcrete);
+    }
+    if (typeof ch === "string") {
+      return [];
+    }
+    return collectConcrete(ch);
+  }
+  return [element];
+}
+function valueText(value) {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "object" && value !== null && "tail" in value) {
+    const tail = value.tail;
+    return typeof tail === "string" ? tail : "";
+  }
+  return "";
+}
+function extractTextMetrics(props) {
+  const metrics = props.__textMetrics;
+  const isMetricsObject = metrics && typeof metrics === "object" && !Array.isArray(metrics);
+  if (!isMetricsObject) {
+    return { text: valueText(props.value) };
+  }
+  const resolvedText = Reflect.get(metrics, "resolvedText");
+  const text = typeof resolvedText === "string" ? resolvedText : valueText(props.value);
+  const font = Reflect.get(metrics, "font");
+  const scale = Reflect.get(metrics, "fontSize");
+  const wordBreak = Reflect.get(metrics, "wordBreak");
+  const overflow = Reflect.get(metrics, "overflow");
+  const maxLines = Reflect.get(metrics, "maxLines");
+  return {
+    text,
+    font: font === "mojangles" || font === "minecraftTen" ? font : void 0,
+    scale: typeof scale === "number" ? scale : void 0,
+    wordBreak: wordBreak === "break-word" ? wordBreak : void 0,
+    overflow: overflow === "ellipsis" ? overflow : void 0,
+    maxLines: typeof maxLines === "number" ? maxLines : void 0
+  };
+}
+function hasOverflowProps(td) {
+  return td.wordBreak === "break-word" || td.overflow === "ellipsis" || td.maxLines !== void 0;
+}
+function processOverflowText(td, availableWidth) {
+  let displayText = td.text;
+  if (!Number.isFinite(availableWidth) || availableWidth <= 0) {
+    return displayText;
+  }
+  if (td.wordBreak === "break-word") {
+    displayText = wrapText(displayText, availableWidth, td.font, td.scale);
+  }
+  if (td.maxLines !== void 0) {
+    const lines = displayText.split("\n");
+    if (lines.length > td.maxLines) {
+      const kept = lines.slice(0, td.maxLines);
+      kept[kept.length - 1] = ellipsizeText(
+        kept[kept.length - 1],
+        availableWidth,
+        td.font,
+        td.scale
+      );
+      displayText = kept.join("\n");
+    }
+  }
+  if (td.overflow === "ellipsis" && td.wordBreak !== "break-word") {
+    displayText = displayText.split("\n").map((line) => ellipsizeText(line, availableWidth, td.font, td.scale)).join("\n");
+  }
+  return displayText;
+}
+function makeTextMeasure(element) {
+  if (!isTextElementType(element.type)) {
+    return void 0;
+  }
+  const style = element.props.__layout ?? {};
+  if (typeof style.width === "number" && typeof style.height === "number") {
+    return void 0;
+  }
+  const td = extractTextMetrics(element.props);
+  if (!hasOverflowProps(td)) {
+    return void 0;
+  }
+  return (availableWidth) => measureText({
+    text: processOverflowText(td, availableWidth),
+    font: td.font,
+    fontSize: td.scale
+  });
+}
+var MODAL_CONTROL_DEFAULT_HEIGHT = {
+  [MODAL_TOGGLE_SLOT_TYPE]: 24,
+  [MODAL_SLIDER_SLOT_TYPE]: 32,
+  [MODAL_DROPDOWN_SLOT_TYPE]: 24,
+  // Inline select is content-sized: the component sets an explicit height (rows × row height +
+  // chrome), so this is only a one-row floor for a degenerate empty-option list.
+  [MODAL_INLINE_SELECT_SLOT_TYPE]: 17,
+  [MODAL_INPUT_SLOT_TYPE]: 24,
+  [MODAL_FORM_BUTTON_SLOT_TYPE]: 24
+};
+function hasChildElements(element) {
+  const kids = element.props.children;
+  const arr = Array.isArray(kids) ? kids : kids === void 0 ? [] : [kids];
+  return arr.some((k) => typeof k === "object" && k !== null && "type" in k);
+}
+function withIntrinsicSize(element, style) {
+  const modalDefaultHeight = typeof element.type === "string" ? MODAL_CONTROL_DEFAULT_HEIGHT[element.type] : void 0;
+  if (modalDefaultHeight !== void 0) {
+    const next2 = { ...style };
+    const contentSized = element.type === MODAL_INLINE_SELECT_SLOT_TYPE && hasChildElements(element);
+    if (next2.height === void 0 && !contentSized) {
+      next2.height = modalDefaultHeight;
+    }
+    const flexSized = next2.flex !== void 0 || next2.flexGrow !== void 0 || next2.flexBasis !== void 0;
+    if (next2.width === void 0 && !flexSized) {
+      next2.width = "100%";
+    }
+    return next2;
+  }
+  if (!isTextElementType(element.type)) {
+    return style;
+  }
+  if (typeof style.width === "number" && typeof style.height === "number") {
+    return style;
+  }
+  const td = extractTextMetrics(element.props);
+  if (hasOverflowProps(td)) {
+    return style;
+  }
+  const dims = measureText({
+    text: td.text,
+    font: td.font,
+    fontSize: td.scale
+  });
+  const next = { ...style };
+  if (next.width === void 0) {
+    next.width = dims.width;
+  }
+  if (next.height === void 0) {
+    next.height = dims.height;
+  }
+  return next;
+}
+function buildNode(element) {
+  if (element.type === SCROLL_SLOT_TYPE) {
+    return createNode(scrollFlexStyle(element), []);
+  }
+  const baseStyle = element.props.__layout ?? {};
+  const style = withIntrinsicSize(element, baseStyle);
+  const rawChildren = element.props.children;
+  let childElements = [];
+  if (Array.isArray(rawChildren)) {
+    childElements = rawChildren.flatMap(collectConcrete);
+  } else if (isElement(rawChildren)) {
+    childElements = collectConcrete(rawChildren);
+  }
+  return createNode(style, childElements.map((c) => buildNode(c)), makeTextMeasure(element));
+}
+function applyToTree(element, parentNode, cursor, regionIndex = 0) {
+  if (element.type === SCROLL_SLOT_TYPE) {
+    const node2 = parentNode.children[cursor.index++];
+    if (node2) {
+      element.props.jsonUIx = node2.layout.x;
+      element.props.jsonUIy = node2.layout.y;
+      element.props.jsonUIWidth = node2.layout.width;
+      element.props.jsonUIHeight = node2.layout.height;
+    }
+    return;
+  }
+  if (isTransparent(element)) {
+    const ch2 = element.props.children;
+    if (Array.isArray(ch2)) {
+      ch2.filter(isElement).forEach((c) => {
+        applyToTree(c, parentNode, cursor, regionIndex);
+      });
+    } else if (isElement(ch2)) {
+      applyToTree(ch2, parentNode, cursor, regionIndex);
+    }
+    return;
+  }
+  const node = parentNode.children[cursor.index++];
+  if (!node) {
+    return;
+  }
+  element.props.jsonUIx = node.layout.x;
+  element.props.jsonUIy = node.layout.y;
+  element.props.jsonUIWidth = node.layout.width;
+  element.props.jsonUIHeight = node.layout.height;
+  element.props.region = regionIndex;
+  const ch = element.props.children;
+  const childCursor = { index: 0 };
+  if (Array.isArray(ch)) {
+    ch.filter(isElement).forEach((c) => {
+      applyToTree(c, node, childCursor, regionIndex);
+    });
+  } else if (isElement(ch)) {
+    applyToTree(ch, node, childCursor, regionIndex);
+  }
+}
+function asNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : void 0;
+}
+function scrollAxis(slot) {
+  return slot.props.__axis === "x" ? "x" : "y";
+}
+var HORIZONTAL_EXTENT_BOUND = CANONICAL_SCREEN.width * 64;
+function scrollFlexStyle(slot) {
+  const style = { ...slot.props.__layout ?? {} };
+  const positioned = style.position === "absolute";
+  const sized = style.width !== void 0 || style.height !== void 0;
+  const grows = style.flex !== void 0 || style.flexGrow !== void 0 || style.flexShrink !== void 0 || style.flexBasis !== void 0;
+  if (!positioned && !sized && !grows) {
+    style.flexGrow = 1;
+  }
+  return style;
+}
+function findScrolls(element, out) {
+  if (Array.isArray(element)) {
+    element.forEach((c) => findScrolls(c, out));
+    return;
+  }
+  if (!isElement(element)) {
+    return;
+  }
+  if (element.type === SCROLL_SLOT_TYPE) {
+    out.push(element);
+    return;
+  }
+  findScrolls(element.props.children, out);
+}
+function layoutScrollContent(slot, axis, viewportWidth, viewportHeight, index) {
+  const rawChildren = slot.props.children;
+  const roots = Array.isArray(rawChildren) ? rawChildren.flatMap((c) => collectConcrete(c)) : collectConcrete(rawChildren);
+  let syntheticRoot;
+  let extent;
+  if (axis === "x") {
+    const childNodes = roots.map((r) => buildNode(r));
+    syntheticRoot = createNode(
+      { flexDirection: "row", width: HORIZONTAL_EXTENT_BOUND, height: viewportHeight },
+      childNodes
+    );
+    computeLayout(syntheticRoot, viewportWidth, viewportHeight);
+    extent = syntheticRoot.children.reduce((max, c) => Math.max(max, c.layout.x + c.layout.width), 0);
+  } else {
+    const childNodes = roots.map((r) => buildNode(r));
+    syntheticRoot = createNode({ flexDirection: "column", width: viewportWidth }, childNodes);
+    computeLayout(syntheticRoot, viewportWidth, viewportHeight);
+    extent = syntheticRoot.layout.height;
+  }
+  const cursor = { index: 0 };
+  roots.forEach((r) => {
+    applyToTree(r, syntheticRoot, cursor, index);
+  });
+  return extent;
+}
+function dumpLayoutTree(element, depth = 0) {
+  if (!isElement(element)) {
+    return;
+  }
+  const p = element.props;
+  const indent = "  ".repeat(depth);
+  const type = typeof element.type === "string" ? element.type : element.type.name;
+  const text = valueText(p.value) !== "" ? ` "${valueText(p.value).slice(0, 20)}"` : "";
+  console.warn(`${indent}[${type}${text}] x=${p.jsonUIx} y=${p.jsonUIy} w=${p.jsonUIWidth} h=${p.jsonUIHeight}`);
+  const ch = p.children;
+  if (Array.isArray(ch)) {
+    ch.forEach((c) => dumpLayoutTree(c, depth + 1));
+  } else if (isElement(ch)) {
+    dumpLayoutTree(ch, depth + 1);
+  }
+}
+function dumpLayoutNode(node, depth = 0) {
+  const indent = "  ".repeat(depth);
+  const s = node.style;
+  const styleHints = [
+    s.flexDirection ? `dir=${s.flexDirection}` : "",
+    s.wrap ? `wrap=${s.wrap}` : "",
+    s.width !== void 0 ? `sw=${s.width}` : "",
+    s.height !== void 0 ? `sh=${s.height}` : ""
+  ].filter(Boolean).join(" ");
+  console.warn(`${indent}node [${styleHints}] → x=${node.layout.x} y=${node.layout.y} w=${node.layout.width} h=${node.layout.height}`);
+  for (const child of node.children) {
+    dumpLayoutNode(child, depth + 1);
+  }
+}
+function resolveDerivedProps(element) {
+  if (Array.isArray(element)) {
+    element.forEach(resolveDerivedProps);
+    return;
+  }
+  if (!isElement(element)) {
+    return;
+  }
+  if (element.type === MODAL_SLIDER_SLOT_TYPE) {
+    const width = asNumber(element.props.jsonUIWidth) ?? 0;
+    const thumbWidth = asNumber(element.props.thumbWidth) ?? 0;
+    element.props.travelWidth = Math.max(0, width - thumbWidth);
+  }
+  if (isTextElementType(element.type)) {
+    const td = extractTextMetrics(element.props);
+    const width = asNumber(element.props.jsonUIWidth) ?? 0;
+    if (hasOverflowProps(td) && width > 0) {
+      const metrics = element.props.__textMetrics;
+      const isLocalizationKey = metrics && typeof metrics === "object" && !Array.isArray(metrics) && Reflect.get(metrics, "isKey") === true;
+      if (!isLocalizationKey) {
+        element.props.value = { tail: safeLabelText(processOverflowText(td, width)) };
+      }
+    }
+  }
+  resolveDerivedProps(element.props.children);
+}
+function computeLayout2(tree) {
+  const slots = [];
+  findScrolls(tree, slots);
+  if (slots.length > MAX_POOLED_SCROLLS) {
+    throw new ScrollLimitError(
+      `Too many <Scroll>s: found ${slots.length}, but a render supports at most ${MAX_POOLED_SCROLLS} (plus the implicit root scroll). Scrolls beyond the ${MAX_POOLED_SCROLLS}th would not render.`
+    );
+  }
+  const concreteRoots = collectConcrete(tree);
+  let mainContentHeight;
+  if (concreteRoots.length > 1) {
+    const root = createNode(
+      { flexDirection: "column", width: CANONICAL_SCREEN.width },
+      concreteRoots.map((c) => buildNode(c))
+    );
+    computeLayout(root);
+    if (DEBUG_LAYOUT) {
+      dumpLayoutNode(root);
+    }
+    tree.props.jsonUIx = 0;
+    tree.props.jsonUIy = 0;
+    tree.props.jsonUIWidth = root.layout.width;
+    tree.props.jsonUIHeight = root.layout.height;
+    mainContentHeight = root.layout.height;
+    const rootCursor = { index: 0 };
+    concreteRoots.forEach((c) => applyToTree(c, root, rootCursor, 0));
+  } else {
+    const concreteTree = concreteRoots[0] ?? tree;
+    const root = buildNode(concreteTree);
+    computeLayout(root);
+    if (DEBUG_LAYOUT) {
+      dumpLayoutNode(root);
+    }
+    mainContentHeight = root.layout.height;
+    concreteTree.props.jsonUIx = root.layout.x;
+    concreteTree.props.jsonUIy = root.layout.y;
+    concreteTree.props.jsonUIWidth = root.layout.width;
+    concreteTree.props.jsonUIHeight = root.layout.height;
+    if (concreteTree !== tree) {
+      tree.props.jsonUIx = root.layout.x;
+      tree.props.jsonUIy = root.layout.y;
+      tree.props.jsonUIWidth = root.layout.width;
+      tree.props.jsonUIHeight = root.layout.height;
+    }
+    const ch = concreteTree.props.children;
+    const cursor = { index: 0 };
+    if (Array.isArray(ch)) {
+      ch.filter(isElement).forEach((c) => {
+        applyToTree(c, root, cursor, 0);
+      });
+    } else if (isElement(ch)) {
+      applyToTree(ch, root, cursor, 0);
+    }
+  }
+  const scrolls = [{
+    axis: "y",
+    x: 0,
+    y: 0,
+    width: CANONICAL_SCREEN.width,
+    height: CANONICAL_SCREEN.height,
+    extent: mainContentHeight
+  }];
+  slots.forEach((slot, k) => {
+    const index = k + 1;
+    const axis = scrollAxis(slot);
+    const x = asNumber(slot.props.jsonUIx) ?? 0;
+    const y = asNumber(slot.props.jsonUIy) ?? 0;
+    const width = asNumber(slot.props.jsonUIWidth) ?? CANONICAL_SCREEN.width;
+    const height = asNumber(slot.props.jsonUIHeight) ?? CANONICAL_SCREEN.height;
+    const extent = layoutScrollContent(slot, axis, width, height, index);
+    scrolls[index] = { axis, x, y, width, height, extent };
+  });
+  tree.props.jsonUIScrolls = scrolls;
+  tree.props.jsonUIHeight = scrolls[0].height;
+  resolveDerivedProps(tree);
+  if (DEBUG_LAYOUT) {
+    dumpLayoutTree(tree);
+  }
+  return tree;
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/validateForm.ts
+var ACTION_ONLY_INTERACTIVE_TYPES = /* @__PURE__ */ new Set(["button", "item_renderer"]);
+var MODAL_CONTROL_TYPE_SET = /* @__PURE__ */ new Set([
+  MODAL_TOGGLE_SLOT_TYPE,
+  MODAL_SLIDER_SLOT_TYPE,
+  MODAL_DROPDOWN_SLOT_TYPE,
+  MODAL_INLINE_SELECT_SLOT_TYPE,
+  MODAL_INPUT_SLOT_TYPE,
+  MODAL_FORM_BUTTON_SLOT_TYPE
+]);
+function validateForm(tree) {
+  walk(tree, false);
+}
+function walk(node, insideModal) {
+  if (!isElement(node)) {
+    return;
+  }
+  const type = node.type;
+  if (typeof type === "string") {
+    if (type === MODAL_FORM_SLOT_TYPE) {
+      if (insideModal) {
+        throw new ModalFormError(
+          "A `<Form>` cannot be nested inside another `<Form>`. A screen renders a single modal; compose multiple forms across separate render() calls (e.g. via navigation) instead of nesting them."
+        );
+      }
+      visitChildren(node, true);
+      return;
+    }
+    if (insideModal && ACTION_ONLY_INTERACTIVE_TYPES.has(type)) {
+      throw new ModalFormError(
+        `\`${describe(type)}\` is not allowed inside a \`<Form>\`. A modal form accepts only the Form.* field controls (Toggle/Slider/Dropdown/Input) plus decorative nodes (Image/Panel/Text); its only buttons are the hardcoded submit + esc, surfaced as Form's onSubmit / onCancel.`
+      );
+    }
+    if (!insideModal && MODAL_CONTROL_TYPE_SET.has(type)) {
+      throw new ModalFormError(
+        `\`${describe(type)}\` is a modal-only control and must be rendered inside a \`<Form>\`. For an ActionForm screen use the standard Button / Input / Slider / Dropdown components.`
+      );
+    }
+  }
+  visitChildren(node, insideModal);
+}
+function visitChildren(node, insideModal) {
+  const { children } = node.props;
+  const childArray = Array.isArray(children) ? children : [children];
+  for (const child of childArray) {
+    walk(child, insideModal);
+  }
+}
+function describe(type) {
+  switch (type) {
+    case "button":
+      return "Button";
+    case "item_renderer":
+      return "ItemRenderer";
+    case "modal-toggle":
+      return "Form.Toggle";
+    case "modal-slider":
+      return "Form.Slider";
+    case "modal-dropdown":
+      return "Form.Dropdown";
+    case "modal-inline-select":
+      return "Form.Radio / Form.ToggleButton";
+    case "modal-input":
+      return "Form.Input";
+    case "modal-form-button":
+      return "Form.Button";
+    default:
+      return type;
+  }
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/tree.ts
+function buildTree(element, player) {
+  const context = createInitialContext();
+  const existing = getFibersForPlayer(player);
+  for (const f of existing) {
+    f.parent = void 0;
+    f.child = void 0;
+    f.sibling = void 0;
+    f.index = -1;
+  }
+  let result = expandAndResolveContexts(element, context, player);
+  result = computeLayout2(result);
+  const rootContext = createRootContext(context);
+  result = applyInheritance(result, rootContext);
+  validateForm(result);
+  return result;
+}
+function cleanupComponentTree(player) {
+  const fiberIds = getFibersForPlayer(player);
+  const sortedFibers = fiberIds.sort((a, b) => {
+    const depthA = (a.id.match(/\//g) || []).length;
+    const depthB = (b.id.match(/\//g) || []).length;
+    return depthB - depthA;
+  });
+  for (const fiber of sortedFibers) {
+    deleteFiber(fiber.id);
+  }
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/session.ts
+var sessions = /* @__PURE__ */ new Map();
+var nextChainId = 1;
+function getOrCreate(player) {
+  const id = player.id;
+  let session = sessions.get(id);
+  if (!session) {
+    session = { pending: false, suppress: false, swapPending: false };
+    sessions.set(id, session);
+  }
+  return session;
+}
+function setPlayerRoot(player, root) {
+  const session = getOrCreate(player);
+  session.root = root;
+}
+function getPlayerRoot(player) {
+  return sessions.get(player.id)?.root;
+}
+function setBuildRunner(player, runBuild) {
+  const session = getOrCreate(player);
+  session.runBuild = runBuild;
+}
+function clearPlayerRoot(player) {
+  const session = sessions.get(player.id);
+  if (!session) {
+    return;
+  }
+  session.root = void 0;
+  session.runBuild = void 0;
+  session.pending = false;
+  session.suppress = false;
+  session.activeChain = void 0;
+  session.swapPending = false;
+}
+function beginPresentChain(player) {
+  const session = getOrCreate(player);
+  const token = nextChainId++;
+  session.activeChain = token;
+  session.swapPending = false;
+  return token;
+}
+function isChainCurrent(player, token) {
+  return sessions.get(player.id)?.activeChain === token;
+}
+function endPresentChain(player, token) {
+  const session = sessions.get(player.id);
+  if (session?.activeChain === token) {
+    session.activeChain = void 0;
+    session.swapPending = false;
+  }
+}
+function hasLiveChain(player) {
+  return sessions.get(player.id)?.activeChain !== void 0;
+}
+function requestSwap(player) {
+  const session = sessions.get(player.id);
+  if (session?.activeChain !== void 0) {
+    session.swapPending = true;
+  }
+}
+function consumeSwap(player) {
+  const session = sessions.get(player.id);
+  if (session?.swapPending) {
+    session.swapPending = false;
+    return true;
+  }
+  return false;
+}
+function isSwapPending(player) {
+  return sessions.get(player.id)?.swapPending ?? false;
+}
+function scheduleLogicPass(player) {
+  const session = getOrCreate(player);
+  if (session.suppress) {
+    return;
+  }
+  if (session.swapPending) {
+    return;
+  }
+  if (session.pending) {
+    return;
+  }
+  if (!session.root || !session.runBuild) {
+    return;
+  }
+  const exiting = getFibersForPlayer(player).some((f) => !f.shouldRender);
+  if (exiting) {
+    return;
+  }
+  session.pending = true;
+  Promise.resolve().then(() => {
+    session.pending = false;
+    const state = sessions.get(player.id);
+    if (!(state?.root && state?.runBuild)) {
+      return;
+    }
+    if (state.suppress) {
+      return;
+    }
+    if (state.swapPending) {
+      return;
+    }
+    const exitingNow = getFibersForPlayer(player).some((f) => !f.shouldRender);
+    if (exitingNow) {
+      return;
+    }
+    try {
+      state.runBuild();
+    } catch (err) {
+      console.warn(`[ui-runtime] background build error: ${String(err)}`);
+    }
+  });
+}
+function beginInteractiveTransaction(player) {
+  const session = getOrCreate(player);
+  session.suppress = true;
+  session.pending = false;
+}
+function endInteractiveTransaction(player) {
+  const session = getOrCreate(player);
+  session.suppress = false;
+}
+function isInInteractiveTransaction(player) {
+  const session = sessions.get(player.id);
+  return session?.suppress ?? false;
+}
+function triggerCleanup(player, shouldClose = false) {
+  stopInputLock(player);
+  cleanupComponentTree(player);
+  clearPlayerRoot(player);
+  if (shouldClose) {
+    uiManager.closeAllForms(player);
+  }
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/fabric/utils.ts
+function invariant(condition, message) {
+  if (!condition) {
+    throw new Error(`[fiber] ${message} called outside an active fiber`);
+  }
+}
+function nextHookSlot(fiber, tag) {
+  const idx = fiber.hookIndex++;
+  let slot = fiber.hookStates[idx];
+  if (!slot) {
+    slot = { value: void 0, tag };
+    fiber.hookStates[idx] = slot;
+  } else if (slot.tag !== tag) {
+    slot.tag = tag;
+  }
+  return slot;
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/fabric/dispatcher.ts
+var MountDispatcher = {
+  useState(initial) {
+    const [fiber] = getCurrentFiber();
+    invariant(fiber, "useState");
+    const slot = nextHookSlot(fiber, "state");
+    const value = isFunction(initial) ? initial() : initial;
+    slot.value = value;
+    slot.initial = value;
+    slot.resolved = false;
+    const setter = (v) => {
+      const prevVal = slot.value;
+      const nextVal = isFunction(v) ? v(prevVal) : v;
+      if (!Object.is(nextVal, prevVal)) {
+        slot.value = nextVal;
+        if (!slot.resolved && !Object.is(nextVal, slot.initial)) {
+          slot.resolved = true;
+        }
+        scheduleLogicPass(fiber.player);
+      }
+    };
+    return [slot.value, setter];
+  },
+  useEffect(effect, deps) {
+    const [fiber] = getCurrentFiber();
+    invariant(fiber, "useEffect");
+    const slotIndex = fiber.hookIndex;
+    const slot = nextHookSlot(fiber, "effect");
+    slot.deps = deps;
+    fiber.pendingEffects.push({ slotIndex, effect, deps });
+  },
+  useRef(initial) {
+    const [fiber] = getCurrentFiber();
+    invariant(fiber, "useRef");
+    const slot = nextHookSlot(fiber, "ref");
+    if (!slot.value) {
+      slot.value = { current: initial };
+    }
+    return slot.value;
+  },
+  useContext(ctx) {
+    const [fiber] = getCurrentFiber();
+    invariant(fiber, "useContext");
+    const slot = nextHookSlot(fiber, "context");
+    const value = fiber.contextSnapshot?.get(ctx) ?? ctx.defaultValue;
+    slot.value = value;
+    return value;
+  },
+  useReducer(reducer, initial) {
+    const [fiber] = getCurrentFiber();
+    invariant(fiber, "useReducer");
+    const slot = nextHookSlot(fiber, "reducer");
+    slot.value = initial;
+    slot.initial = initial;
+    slot.resolved = false;
+    const dispatch = (action) => {
+      const prevVal = slot.value;
+      const nextVal = reducer(prevVal, action);
+      if (!Object.is(nextVal, prevVal)) {
+        slot.value = nextVal;
+        if (!slot.resolved && !Object.is(nextVal, slot.initial)) {
+          slot.resolved = true;
+        }
+        scheduleLogicPass(fiber.player);
+      }
+    };
+    return [slot.value, dispatch];
+  },
+  usePlayer() {
+    const [fiber] = getCurrentFiber();
+    invariant(fiber, "usePlayer");
+    return fiber.player;
+  },
+  useExit() {
+    const [fiber] = getCurrentFiber();
+    invariant(fiber, "useExit");
+    return () => {
+      fiber.shouldRender = false;
+      if (!isInInteractiveTransaction(fiber.player)) {
+        triggerCleanup(fiber.player, true);
+      }
+    };
+  },
+  useEvent(signal, callback, options, deps) {
+    const allDeps = deps ? [...deps, signal, callback, options] : [signal, callback, options];
+    return this.useEffect(() => {
+      signal.subscribe(callback, options);
+      return () => {
+        signal.unsubscribe(callback);
+      };
+    }, allDeps);
+  }
+};
+var UpdateDispatcher = {
+  useState(initial) {
+    const [fiber] = getCurrentFiber();
+    invariant(fiber, "useState");
+    const slot = nextHookSlot(fiber, "state");
+    if (slot.value === void 0) {
+      slot.value = isFunction(initial) ? initial() : initial;
+      if (slot.initial === void 0) {
+        slot.initial = slot.value;
+        slot.resolved = false;
+      }
+    }
+    const setter = (v) => {
+      const prevVal = slot.value;
+      const nextVal = isFunction(v) ? v(prevVal) : v;
+      if (!Object.is(nextVal, prevVal)) {
+        slot.value = nextVal;
+        if (!slot.resolved && !Object.is(nextVal, slot.initial)) {
+          slot.resolved = true;
+        }
+        scheduleLogicPass(fiber.player);
+      }
+    };
+    return [slot.value, setter];
+  },
+  useEffect(effect, deps) {
+    const [fiber] = getCurrentFiber();
+    invariant(fiber, "useEffect");
+    const slotIndex = fiber.hookIndex;
+    const slot = nextHookSlot(fiber, "effect");
+    if (deps === void 0) {
+      slot.deps = void 0;
+      fiber.pendingEffects.push({ slotIndex, effect, deps });
+      return;
+    }
+    const prevDeps = slot.deps;
+    let changed = false;
+    if (!prevDeps) {
+      changed = true;
+    } else if (prevDeps.length !== deps.length) {
+      changed = true;
+    } else {
+      for (let i = 0; i < deps.length; i++) {
+        if (!Object.is(prevDeps[i], deps[i])) {
+          changed = true;
+          break;
+        }
+      }
+    }
+    if (changed) {
+      slot.deps = deps;
+      fiber.pendingEffects.push({ slotIndex, effect, deps });
+    }
+  },
+  useRef(initial) {
+    const [fiber] = getCurrentFiber();
+    invariant(fiber, "useRef");
+    const slot = nextHookSlot(fiber, "ref");
+    if (!slot.value) {
+      slot.value = { current: initial };
+    }
+    return slot.value;
+  },
+  useContext(ctx) {
+    const [fiber] = getCurrentFiber();
+    invariant(fiber, "useContext");
+    const slot = nextHookSlot(fiber, "context");
+    const value = fiber.contextSnapshot?.get(ctx) ?? ctx.defaultValue;
+    slot.value = value;
+    return value;
+  },
+  useReducer(reducer, initial) {
+    const [fiber] = getCurrentFiber();
+    invariant(fiber, "useReducer");
+    const slot = nextHookSlot(fiber, "reducer");
+    if (slot.value === void 0) {
+      slot.value = initial;
+      if (slot.initial === void 0) {
+        slot.initial = slot.value;
+        slot.resolved = false;
+      }
+    }
+    const dispatch = (action) => {
+      const prevVal = slot.value;
+      const nextVal = reducer(prevVal, action);
+      if (!Object.is(nextVal, prevVal)) {
+        slot.value = nextVal;
+        if (!slot.resolved && !Object.is(nextVal, slot.initial)) {
+          slot.resolved = true;
+        }
+        scheduleLogicPass(fiber.player);
+      }
+    };
+    return [slot.value, dispatch];
+  },
+  usePlayer() {
+    const [fiber] = getCurrentFiber();
+    invariant(fiber, "usePlayer");
+    return fiber.player;
+  },
+  useExit() {
+    const [fiber] = getCurrentFiber();
+    invariant(fiber, "useExit");
+    return () => {
+      fiber.shouldRender = false;
+      if (!isInInteractiveTransaction(fiber.player)) {
+        triggerCleanup(fiber.player, true);
+      }
+    };
+  },
+  useEvent(signal, callback, options, deps) {
+    const allDeps = deps ? [...deps, signal, callback, options] : [signal, callback, options];
+    return this.useEffect(() => {
+      signal.subscribe(callback, options);
+      return () => {
+        signal.unsubscribe(callback);
+      };
+    }, allDeps);
+  }
+};
+
+// node_modules/@bedrock-core/ui-runtime/src/core/fabric/fiber.ts
+function createFiber(id, player) {
+  const fiber = {
+    id,
+    hookStates: [],
+    hookIndex: 0,
+    dispatcher: MountDispatcher,
+    player,
+    pendingEffects: [],
+    shouldRender: true,
+    parent: void 0,
+    child: void 0,
+    sibling: void 0,
+    index: -1
+  };
+  FiberRegistry.set(id, fiber);
+  return fiber;
+}
+function getFiber(id) {
+  return FiberRegistry.get(id);
+}
+function deleteFiber(id) {
+  const fiber = FiberRegistry.get(id);
+  if (!fiber) {
+    return;
+  }
+  const parent = fiber.parent;
+  if (parent) {
+    if (parent.child === fiber) {
+      parent.child = fiber.sibling;
+    } else {
+      let prev = parent.child;
+      while (prev?.sibling && prev.sibling !== fiber) {
+        prev = prev.sibling;
+      }
+      if (prev?.sibling === fiber) {
+        prev.sibling = fiber.sibling;
+      }
+    }
+  }
+  fiber.parent = void 0;
+  fiber.sibling = void 0;
+  for (let i = 0; i < fiber.hookStates.length; i++) {
+    const slot = fiber.hookStates[i];
+    if (slot.cleanup) {
+      try {
+        slot.cleanup();
+      } catch {
+      }
+      slot.cleanup = void 0;
+    }
+  }
+  FiberRegistry.delete(id);
+}
+function getFibersForPlayer(player) {
+  const fibers = [];
+  FiberRegistry.forEach((element) => {
+    if (element.player.id === player.id) {
+      fibers.push(element);
+    }
+  });
+  return fibers;
+}
+function activateFiber(fiber, fn) {
+  const [prevFiber, prevDispatcher] = getCurrentFiber();
+  fiber.hookIndex = 0;
+  fiber.pendingEffects = [];
+  setCurrentFiber(fiber, fiber.dispatcher);
+  try {
+    const result = fn();
+    fiber.dispatcher = UpdateDispatcher;
+    flushPendingEffects(fiber);
+    return result;
+  } finally {
+    setCurrentFiber(prevFiber, prevDispatcher);
+  }
+}
+function flushPendingEffects(fiber) {
+  const pending = fiber.pendingEffects.splice(0, fiber.pendingEffects.length);
+  for (const { slotIndex, effect } of pending) {
+    const slot = fiber.hookStates[slotIndex];
+    if (slot.cleanup) {
+      try {
+        slot.cleanup();
+      } catch {
+      }
+      slot.cleanup = void 0;
+    }
+    let cleanup = void 0;
+    try {
+      cleanup = effect();
+    } catch {
+      cleanup = void 0;
+    }
+    if (typeof cleanup === "function") {
+      slot.cleanup = cleanup;
+    }
+  }
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/fabric/guards.ts
+function isContextProvider(element) {
+  return element.type === "context-provider" && element.props && "__context" in element.props;
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/presenters/shared.ts
+function findModalConfig(node) {
+  if (!isElement(node)) {
+    return void 0;
+  }
+  if (node.type === MODAL_FORM_SLOT_TYPE) {
+    const config = node.props.__formConfig;
+    return config && typeof config === "object" ? config : void 0;
+  }
+  const { children } = node.props;
+  const childArray = Array.isArray(children) ? children : [children];
+  for (const child of childArray) {
+    const found = findModalConfig(child);
+    if (found) {
+      return found;
+    }
+  }
+  return void 0;
+}
+function findBackground(node) {
+  if (!isElement(node)) {
+    return "";
+  }
+  if (node.type === BACKGROUND_SLOT_TYPE) {
+    const texture = node.props.__background;
+    return typeof texture === "string" ? texture : "";
+  }
+  const { children } = node.props;
+  const childArray = Array.isArray(children) ? children : [children];
+  for (const child of childArray) {
+    const found = findBackground(child);
+    if (found !== "") {
+      return found;
+    }
+  }
+  return "";
+}
+async function runInteractiveCallback(player, callback) {
+  beginInteractiveTransaction(player);
+  return Promise.resolve().then(() => callback()).finally(() => {
+    endInteractiveTransaction(player);
+  }).then(() => {
+    const shouldClose = getFibersForPlayer(player).some((fiber) => !fiber.shouldRender);
+    return shouldClose ? "cleanup" : "present";
+  });
+}
+function sane(value, fallback, allowNonPositive = false) {
+  return typeof value === "number" && Number.isFinite(value) && (allowNonPositive || value > 0) ? value : fallback;
+}
+function resolveScrolls(tree) {
+  const rawScrolls = tree.props.jsonUIScrolls;
+  const rawHeight = tree.props.jsonUIHeight;
+  delete tree.props.jsonUIScrolls;
+  delete tree.props.jsonUIHeight;
+  const scrollsSource = Array.isArray(rawScrolls) && rawScrolls.length > 0 ? rawScrolls : [{
+    axis: "y",
+    x: 0,
+    y: 0,
+    width: CANONICAL_SCREEN.width,
+    height: CANONICAL_SCREEN.height,
+    extent: sane(rawHeight, CANONICAL_SCREEN.height)
+  }];
+  return scrollsSource.map((scroll) => ({
+    axis: scroll?.axis === "x" ? "x" : "y",
+    x: sane(scroll?.x, 0, true),
+    y: sane(scroll?.y, 0, true),
+    width: sane(scroll?.width, CANONICAL_SCREEN.width),
+    height: sane(scroll?.height, CANONICAL_SCREEN.height),
+    extent: sane(scroll?.extent, CANONICAL_SCREEN.height)
+  }));
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/presenters/presentAction.ts
+async function presentAction(player, tree) {
+  const context = { mode: "action", buttonCallbacks: /* @__PURE__ */ new Map(), buttonIndex: 0 };
+  const form = new ActionFormData();
+  form.title(serializeScrollMetadata(resolveScrolls(tree), findBackground(tree)));
+  serialize(tree, form, context);
+  return form.show(player).then((response) => {
+    if (response.canceled) {
+      return "cleanup";
+    }
+    if (response.selection !== void 0) {
+      const callback = context.buttonCallbacks.get(response.selection);
+      if (callback) {
+        return runInteractiveCallback(player, callback);
+      }
+    }
+    return "none";
+  });
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/presenters/presentModal.ts
+import { ModalFormData } from "@minecraft/server-ui";
+async function presentModal(player, tree, config) {
+  const context = { mode: "modal", modalControls: /* @__PURE__ */ new Map(), modalControlIndex: 0 };
+  const form = new ModalFormData();
+  const { submit, exit } = collectFormButtons(tree);
+  form.title(serializeModalTitle(resolveScrolls(tree), {
+    ...formButtonTitleFields("submit", submit),
+    ...formButtonTitleFields("exit", exit)
+  }, findBackground(tree)));
+  serialize(tree, form, context);
+  return form.show(player).then((response) => {
+    if (response.canceled) {
+      if (isSwapPending(player)) {
+        return "none";
+      }
+      if (config.onCancel) {
+        return runInteractiveCallback(player, () => config.onCancel?.());
+      }
+      return "cleanup";
+    }
+    const values = collectValues(context, response.formValues);
+    if (config.onSubmit) {
+      return runInteractiveCallback(player, () => config.onSubmit?.(values));
+    }
+    return "none";
+  });
+}
+function collectValues(context, formValues) {
+  const values = {};
+  if (!formValues) {
+    return values;
+  }
+  for (const [ordinal, entry] of context.modalControls) {
+    if (entry.name !== "") {
+      values[entry.name] = formValues[ordinal];
+    }
+  }
+  return values;
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/presenters/present.ts
+async function present(player, tree) {
+  const modalConfig = findModalConfig(tree);
+  if (modalConfig) {
+    return presentModal(player, tree, modalConfig);
+  }
+  return presentAction(player, tree);
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/core/render/lifecycle.ts
+function render(root, player) {
+  registerNativeComponents();
+  const userRoot = typeof root === "function" ? { type: root, props: {} } : root;
+  const rootElement = {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the expander invokes the wrapper with exactly these props
+    type: DefaultTranslations,
+    props: { player, children: userRoot }
+  };
+  if (hasLiveChain(player)) {
+    cleanupComponentTree(player);
+    if (hasLiveChain(player)) {
+      setPlayerRoot(player, rootElement);
+      setBuildRunner(player, () => {
+        buildTree(rootElement, player);
+      });
+      requestSwap(player);
+      uiManager2.closeAllForms(player);
+      return;
+    }
+  }
+  startInputLock(player);
+  cleanupComponentTree(player);
+  setPlayerRoot(player, rootElement);
+  setBuildRunner(player, () => {
+    buildTree(rootElement, player);
+  });
+  const token = beginPresentChain(player);
+  const presentOnce = () => {
+    if (!isChainCurrent(player, token)) {
+      return;
+    }
+    const rootNow = getPlayerRoot(player);
+    if (!rootNow) {
+      endPresentChain(player, token);
+      return;
+    }
+    if (consumeSwap(player)) {
+      cleanupComponentTree(player);
+    }
+    let tree;
+    try {
+      tree = buildTree(rootNow, player);
+    } catch (err) {
+      console.error(`[ui-runtime] buildTree error: ${String(err)}`);
+      endPresentChain(player, token);
+      triggerCleanup(player);
+      return;
+    }
+    present(player, tree).then((result) => {
+      if (!isChainCurrent(player, token)) {
+        return;
+      }
+      if (isSwapPending(player)) {
+        presentOnce();
+        return;
+      }
+      if (result === "present") {
+        presentOnce();
+        return;
+      }
+      endPresentChain(player, token);
+      if (result === "cleanup") {
+        triggerCleanup(player);
+      }
+    }).catch((err) => {
+      console.error(`[ui-runtime] present error: ${String(err)}`);
+      if (!isChainCurrent(player, token)) {
+        return;
+      }
+      endPresentChain(player, token);
+      try {
+        triggerCleanup(player);
+      } catch {
+      }
+    });
+  };
+  presentOnce();
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Fragment.ts
+var Fragment = ({ children }) => ({
+  type: "fragment",
+  props: { children }
+});
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Image.ts
+var imageWriter = (payload, form, ctx) => {
+  emitHeader(payload, form, ctx);
+};
+
+// node_modules/@bedrock-core/ui-runtime/src/components/ItemRenderer.ts
+import { ItemComponentTypes } from "@minecraft/server";
+var itemRendererWriter = (payload, form, ctx, callbacks, props) => {
+  emitButton(payload, form, ctx, callbacks, String(props?.aux ?? 0));
+};
+
+// node_modules/@bedrock-core/ui-runtime/src/components/Panel.ts
+var Panel = ({ children, ...rest }) => ({
+  type: "panel",
+  props: {
+    ...withControl(rest),
+    children
+  }
+});
+var panelWriter = (payload, form, ctx) => {
+  emitLabel(payload, form, ctx);
+};
+
+// node_modules/@bedrock-core/ui-runtime/src/components/index.ts
+var registered = false;
+function registerNativeComponents() {
+  if (registered) {
+    return;
+  }
+  registered = true;
+  registerComponent("button", { writer: buttonWriter });
+  registerComponent("panel", { writer: panelWriter });
+  registerComponent("text", { writer: textWriter });
+  registerComponent(TEXT_SHADOW_TYPE, { writer: textWriter });
+  registerComponent(TEXT_WRAP_TYPE, { writer: textWriter });
+  registerComponent(TEXT_SHADOW_WRAP_TYPE, { writer: textWriter });
+  registerComponent("image", { writer: imageWriter });
+  registerComponent("item_renderer", { writer: itemRendererWriter });
+  registerComponent("fragment", { transparent: true });
+  registerComponent("context-provider", { transparent: true });
+  registerComponent(SCROLL_SLOT_TYPE, { transparent: true });
+  registerComponent(MODAL_FORM_SLOT_TYPE, { transparent: true });
+  registerComponent(BACKGROUND_SLOT_TYPE, { transparent: true });
+  registerComponent(MODAL_TOGGLE_SLOT_TYPE, { writer: formToggleWriter });
+  registerComponent(MODAL_SLIDER_SLOT_TYPE, { writer: formSliderWriter });
+  registerComponent(MODAL_DROPDOWN_SLOT_TYPE, { writer: formDropdownWriter });
+  registerComponent(MODAL_INLINE_SELECT_SLOT_TYPE, { writer: formInlineSelectWriter });
+  registerComponent(MODAL_INPUT_SLOT_TYPE, { writer: formInputWriter });
+  registerComponent(MODAL_FORM_BUTTON_SLOT_TYPE, { writer: formButtonWriter });
+}
 
 // node_modules/@bedrock-oss/bedrock-boost/dist/index.mjs
 import {
@@ -719,11 +5091,11 @@ import { Direction as Direction4 } from "@minecraft/server";
 import { Direction as Direction3 } from "@minecraft/server";
 import { BlockPermutation, world as world22 } from "@minecraft/server";
 import { world as world3 } from "@minecraft/server";
-import { Player } from "@minecraft/server";
+import { Player as Player2 } from "@minecraft/server";
 import { system as system22 } from "@minecraft/server";
 import { system as system3 } from "@minecraft/server";
 import { system as system4, world as world4 } from "@minecraft/server";
-import { Player as Player2, system as system5, world as world5 } from "@minecraft/server";
+import { Player as Player22, system as system5, world as world5 } from "@minecraft/server";
 import { system as system6 } from "@minecraft/server";
 import { Direction as Direction5 } from "@minecraft/server";
 import { StructureSaveMode, world as world6 } from "@minecraft/server";
@@ -1037,13 +5409,13 @@ var MutVec3 = class _MutVec3 {
       return this;
     const dot = this.dot(v);
     const theta = Math.acos(dot) * t;
-    const relative = _MutVec3.from(v).subtract(this.copy().multiply(dot)).normalize();
+    const relative2 = _MutVec3.from(v).subtract(this.copy().multiply(dot)).normalize();
     const cosT = Math.cos(theta);
     const sinT = Math.sin(theta);
     this.multiply(cosT);
-    this.x += relative.x * sinT;
-    this.y += relative.y * sinT;
-    this.z += relative.z * sinT;
+    this.x += relative2.x * sinT;
+    this.y += relative2.y * sinT;
+    this.z += relative2.z * sinT;
     return this;
   }
   dot(x, y, z) {
@@ -2164,8 +6536,8 @@ var Logger = class _Logger {
    * Set the tag visibility for the logger. When true, tags will be printed in the log. Disabled by default.
    * @param visible
    */
-  static setTagsOutputVisibility(visible) {
-    loggingSettings.outputTags = visible;
+  static setTagsOutputVisibility(visible2) {
+    loggingSettings.outputTags = visible2;
   }
   /**
    * Set the timestamp formatter for the logger.
@@ -2796,9 +7168,9 @@ var Vec3 = class _Vec3 {
       return _Vec3.from(this);
     const dot = this.dot(v);
     const theta = Math.acos(dot) * t;
-    const relative = _Vec3.from(v).subtract(this.multiply(dot)).normalize();
+    const relative2 = _Vec3.from(v).subtract(this.multiply(dot)).normalize();
     return this.multiply(Math.cos(theta)).add(
-      relative.multiply(Math.sin(theta))
+      relative2.multiply(Math.sin(theta))
     );
   }
   dot(x, y, z) {
@@ -3414,12 +7786,12 @@ var MutVec2 = class _MutVec2 {
       return this;
     const dot = this.dot(v);
     const theta = Math.acos(dot) * t;
-    const relative = _MutVec2.from(v).subtract(this.copy().multiply(dot)).normalize();
+    const relative2 = _MutVec2.from(v).subtract(this.copy().multiply(dot)).normalize();
     const cosT = Math.cos(theta);
     const sinT = Math.sin(theta);
     this.multiply(cosT);
-    this.x += relative.x * sinT;
-    this.y += relative.y * sinT;
+    this.x += relative2.x * sinT;
+    this.y += relative2.y * sinT;
     return this;
   }
   dot(x, y) {
@@ -3843,9 +8215,9 @@ var Vec2 = class _Vec2 {
       return _Vec2.from(this);
     const dot = this.dot(v);
     const theta = Math.acos(dot) * t;
-    const relative = _Vec2.from(v).subtract(this.multiply(dot)).normalize();
+    const relative2 = _Vec2.from(v).subtract(this.multiply(dot)).normalize();
     return this.multiply(Math.cos(theta)).add(
-      relative.multiply(Math.sin(theta))
+      relative2.multiply(Math.sin(theta))
     );
   }
   dot(x, y) {
@@ -4246,63 +8618,89 @@ var logTerr = Logger.getLogger("NaLandia", "territories");
 var logMod = Logger.getLogger("NaLandia", "moderation");
 var logPerm = Logger.getLogger("NaLandia", "permissions");
 
-// src/ui/tiles.ts
-var TILE_MENUS_JSON = (
-  // @ui-contract-begin (extrait par scripts/build_ui.py — ne pas renommer)
-  {
-    "indexed": {
-      "Classes": {
-        "actions": ["class_0", "class_1", "class_2", "back"],
-        "data": ["desc_0", "desc_1", "desc_2"]
-      },
-      "Mon clan": {
-        "actions": ["bio", "claim", "members", "flag", "quit", "back"],
-        "data": ["flag_id", "flag_name"]
-      },
-      "Menu": {
-        "actions": ["states", "infos", "quests", "world", "moderation", "admin", "back"],
-        "data": []
-      },
-      "Administration": {
-        "actions": ["roles", "players", "modules", "db", "classes", "states", "back"],
-        "data": []
-      },
-      "Nations": {
-        "actions": ["clan_0", "clan_1", "clan_2", "prev", "next", "create", "back"],
-        "data": []
-      },
-      "Mes infos": {
-        "actions": ["classe", "jobs", "clan", "states", "quests", "gifts", "back"],
-        "data": []
-      },
-      "Le Monde": {
-        "actions": ["overworld", "mines", "ores", "where", "help", "close", "back"],
-        "data": []
-      }
-    },
-    "generic": [
-      "Mines",
-      "Moderation",
-      "Bans",
-      "Mutes",
-      "Roles",
-      "Joueurs",
-      "Membres",
-      "Membre",
-      "Modules",
-      "Metiers",
-      "Quetes",
-      "Drapeau",
-      "Dissoudre",
-      "Base de donnees"
-    ]
-  }
-);
-var TILE_MENUS = TILE_MENUS_JSON;
-var TITLE_PREFIX = "NaLandia » ";
-function tileTitleFor(section) {
-  return `${TITLE_PREFIX}${section}`;
+// node_modules/@bedrock-core/ui-runtime/src/jsx/jsx-runtime.ts
+function renderJSX(tag, props) {
+  return {
+    type: tag,
+    props: props || {}
+  };
 }
+var jsx = renderJSX;
+var jsxs = renderJSX;
+var Fragment2 = Fragment;
+
+// src/ui/kit.tsx
+var TEX = {
+  window: "textures/ui/om_window",
+  band: "textures/ui/om_header_band",
+  card: "textures/ui/om_card",
+  cardHover: "textures/ui/om_card_hover",
+  cardPress: "textures/ui/om_card_press",
+  btn: "textures/ui/om_btn",
+  btnHover: "textures/ui/om_btn_hover",
+  btnPress: "textures/ui/om_btn_press",
+  plate: "textures/ui/om_plate"
+};
+function Window(props) {
+  return /* @__PURE__ */ jsx(
+    Panel,
+    {
+      width: props.width,
+      height: props.height,
+      background: TEX.window,
+      padding: 6,
+      flexDirection: "column",
+      children: props.children
+    }
+  );
+}
+function TitleBar(props) {
+  return /* @__PURE__ */ jsxs(Panel, { height: 20, flexDirection: "column", gap: 0, children: [
+    /* @__PURE__ */ jsx(Panel, { height: 18, background: TEX.band, children: /* @__PURE__ */ jsx(Panel, { flexDirection: "row", justifyContent: "center", alignItems: "center", width: "100%", height: "100%", children: /* @__PURE__ */ jsx(Text, { children: `§6§l${props.title}§r` }) }) }),
+    props.subtitle !== void 0 ? /* @__PURE__ */ jsx(Text, { children: `§8${props.subtitle}` }) : null
+  ] });
+}
+function TileButton(props) {
+  return /* @__PURE__ */ jsx(
+    Button,
+    {
+      width: props.width ?? 180,
+      height: props.height ?? 24,
+      background: TEX.card,
+      backgroundHover: TEX.cardHover,
+      backgroundPressed: TEX.cardPress,
+      onPress: props.onPress,
+      enabled: props.enabled ?? true,
+      children: /* @__PURE__ */ jsx(Text, { children: props.label })
+    }
+  );
+}
+function Plate(props) {
+  return /* @__PURE__ */ jsx(Panel, { background: TEX.plate, padding: 8, flexDirection: "column", gap: 4, flex: props.flex, ...props, children: props.children });
+}
+function SidebarLayout(props) {
+  return /* @__PURE__ */ jsxs(Window, { width: props.width ?? 330, height: props.height ?? 236, children: [
+    /* @__PURE__ */ jsx(TitleBar, { title: props.title }),
+    /* @__PURE__ */ jsxs(Panel, { flexDirection: "row", gap: 6, height: "100%", paddingTop: 4, children: [
+      /* @__PURE__ */ jsx(Scroll, { width: 150, children: /* @__PURE__ */ jsx(Panel, { flexDirection: "column", gap: 4, children: props.nav }) }),
+      /* @__PURE__ */ jsx(Plate, { flex: 1, children: props.content })
+    ] })
+  ] });
+}
+function ScrollList(props) {
+  return /* @__PURE__ */ jsx(Scroll, { width: props.width ?? "100%", height: props.height, children: /* @__PURE__ */ jsx(Panel, { flexDirection: "column", gap: 3, children: props.items.map((item) => /* @__PURE__ */ jsx(
+    TileButton,
+    {
+      label: item.label,
+      onPress: item.onPress,
+      enabled: item.enabled ?? true,
+      width: "100%"
+    }
+  )) }) });
+}
+
+// src/ui/labels.ts
+var PANEL_TILE_CAPACITY = 8;
 function pageSlice(items, page, perPage) {
   const pageCount = Math.max(1, Math.ceil(items.length / Math.max(1, perPage)));
   const current = Math.min(Math.max(0, Math.trunc(page)), pageCount - 1);
@@ -4313,8 +8711,8 @@ function pageSlice(items, page, perPage) {
   };
 }
 function fitLabel(text, max) {
-  const visible = text.replace(/§./g, "");
-  if (visible.length <= max) return text;
+  const visible2 = text.replace(/§./g, "");
+  if (visible2.length <= max) return text;
   let kept = 0;
   let out = "";
   for (let index = 0; index < text.length; index++) {
@@ -4359,14 +8757,14 @@ function wrapLabel(text, width, lines) {
   return kept.join("\n");
 }
 
-// src/ui/theme.ts
+// src/ui/theme.tsx
 var RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
+function windowTitle(section) {
+  return section;
+}
 var uiDesignEnabled = true;
 function setUiDesign(enabled) {
   uiDesignEnabled = enabled;
-}
-function windowTitle(section) {
-  return tileTitleFor(section);
 }
 var ObservableString = class {
   constructor(value) {
@@ -4555,7 +8953,7 @@ var OMForm = class {
             element.onClick();
           });
         } else if (element.kind === "image") {
-          form.image(element.path, RP_PACK_ID, { width: element.width });
+          form.image(element.path, "33ca6e1c-4f30-46ae-8b56-1510382e3f61", { width: element.width });
         } else if (element.kind === "header") {
           form.header(element.text);
         } else if (element.kind === "body" || element.kind === "label") {
@@ -4610,7 +9008,7 @@ function buildAndShow(player, title, build) {
   });
 }
 function openWindow(player, section, build) {
-  return buildAndShow(player, windowTitle(section), build).catch((error) => {
+  return buildAndShow(player, section, build).catch((error) => {
     logMod.warn(`openWindow(${section}) : ${error instanceof Error ? error.message : String(error)}`);
     return "ServerClosed";
   });
@@ -4618,20 +9016,56 @@ function openWindow(player, section, build) {
 function openWindowRaw(player, title, build) {
   return buildAndShow(player, title, build);
 }
+function TileScreen({ title, bodyText, ordered, capacity }) {
+  const visible2 = ordered.slice(0, capacity);
+  return /* @__PURE__ */ jsx(
+    SidebarLayout,
+    {
+      title,
+      nav: visible2.map((action) => /* @__PURE__ */ jsx(
+        TileButton,
+        {
+          label: fitLabel(action.label, 24),
+          width: "100%",
+          onPress: action.onClick
+        }
+      )),
+      content: /* @__PURE__ */ jsx(BodyText, { text: bodyText })
+    }
+  );
+}
+function ListScreen(props) {
+  return /* @__PURE__ */ jsx(
+    SidebarLayout,
+    {
+      title: props.title,
+      nav: /* @__PURE__ */ jsx(
+        ScrollList,
+        {
+          width: "100%",
+          items: props.ordered.map((action) => ({
+            label: fitLabel(action.label, 24),
+            onPress: action.onClick
+          }))
+        }
+      ),
+      content: /* @__PURE__ */ jsx(BodyText, { text: props.bodyText })
+    }
+  );
+}
+function BodyText(props) {
+  const lines = props.text.length > 0 ? props.text.split("\n") : [];
+  return /* @__PURE__ */ jsx(Fragment2, { children: lines.map((line) => /* @__PURE__ */ jsx(Text, { children: line })) });
+}
 function openTileMenu(player, section, build) {
-  const actions = /* @__PURE__ */ new Map();
   const ordered = [];
-  const data = /* @__PURE__ */ new Map();
   let bodyText = "";
   const builder = {
-    action(key, label, onClick) {
-      const entry = { label, onClick };
-      actions.set(key, entry);
-      ordered.push(entry);
+    action(_key, label, onClick) {
+      ordered.push({ label, onClick });
       return builder;
     },
-    data(key, text) {
-      data.set(key, text);
+    data(_key, _text) {
       return builder;
     },
     body(text) {
@@ -4646,60 +9080,34 @@ function openTileMenu(player, section, build) {
     logMod.warn(`Construction du menu « ${section} » : ${message}`);
     return;
   }
-  scheduleTileForm(player, section, actions, ordered, data, bodyText, 0);
-}
-function scheduleTileForm(player, section, actions, ordered, data, bodyText, attempt) {
   system7.runTimeout(() => {
-    void presentTileForm(player, section, actions, ordered, data, bodyText, attempt);
-  }, attempt === 0 ? 1 : 10);
-}
-function layoutOf(section) {
-  return TILE_MENUS.indexed[section];
-}
-async function presentTileForm(player, section, actions, ordered, data, bodyText, attempt) {
-  const layout = layoutOf(section);
-  const sequential = layout === void 0;
-  const form = new (await import("@minecraft/server-ui")).ActionFormData();
-  form.title(tileTitleFor(section));
-  if (bodyText.trim().length > 0) form.body(bodyText);
-  if (sequential) {
-    for (const entry of ordered) form.button(fitLabel(entry.label, 32));
-  } else {
-    for (const key2 of layout.actions) {
-      form.button(actions.get(key2)?.label ?? "§8—");
+    try {
+      const isLongList = ordered.length > PANEL_TILE_CAPACITY;
+      if (isLongList) {
+        render(
+          /* @__PURE__ */ jsx(ListScreen, { title: section, bodyText, ordered }),
+          player
+        );
+      } else {
+        render(
+          /* @__PURE__ */ jsx(
+            TileScreen,
+            {
+              title: section,
+              bodyText,
+              ordered,
+              capacity: PANEL_TILE_CAPACITY
+            }
+          ),
+          player
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logMod.warn(`Menu « ${section} » : ${message}`);
+      player.sendMessage(`§c[NaLandia] Le menu « ${section} » n'a pas pu s'afficher : §f${message}`);
     }
-    for (const key2 of layout.data) {
-      form.button(data.get(key2) ?? " ");
-    }
-  }
-  let selection;
-  try {
-    const response = await form.show(player);
-    if (response.selection === void 0 && response.cancelationReason === FormCancelationReason.UserBusy && attempt < 3) {
-      scheduleTileForm(player, section, actions, ordered, data, bodyText, attempt + 1);
-      return;
-    }
-    selection = response.selection;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (attempt < 3) {
-      scheduleTileForm(player, section, actions, ordered, data, bodyText, attempt + 1);
-      return;
-    }
-    logMod.warn(`Menu « ${section} » : ${message}`);
-    player.sendMessage(`§c[NaLandia] Le menu « ${section} » n'a pas pu s'afficher : §f${message}`);
-    return;
-  }
-  if (selection === void 0) return;
-  const action = sequential ? ordered[selection] : actions.get(layout.actions[selection]);
-  if (action === void 0) return;
-  const key = sequential ? String(selection) : layout.actions[selection];
-  try {
-    action.onClick();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    logMod.warn(`Action « ${section}/${key} » : ${message}`);
-  }
+  }, 1);
 }
 
 // src/db/menu.ts

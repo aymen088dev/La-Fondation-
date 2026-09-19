@@ -1,7 +1,24 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v2.8.1 — routage « wrappeur » (pattern des packs pro) : repli vanilla masqué correctement + suppression de la propriété invalide `button_up` (boutons morts / labels orphelins)**.
+> Dernière mise à jour : **v3.0.0 — Migration complète vers le framework JSX `@bedrock-core/ui` : menus rendus en flexbox avec scroll natif, plus aucun JSON UI maison**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v3.0.0 — Un vrai framework UI : `@bedrock-core/ui` (sept. 2026)
+
+**Décision** : après trois générations de JSON UI maison (routing par titre, contrat d'index, pipeline de génération), chaque itération révélait une nouvelle classe de bugs (duplicates vanilla, doubles rendus, propriétés invalides). **Tout le moteur maison est supprimé** au profit du framework communautaire `@bedrock-core/ui` v0.11 :
+
+- **Menus en JSX** (syntaxe React) : layout libre **flexbox**, **scroll natif** des listes longues (plus de pagination forcée), boutons 3 états aux textures or du serveur, hooks (`useState`, `usePlayer`, `useExit`) — le rendu est décodé côté client par le **render pack CoreUI** vendu dans `RP/ui/core-ui/` et déclaré comme dépendance dans `BP/manifest.json`.
+- **Kit visuel** (`src/ui/kit.tsx`) : Window (cuir/or `om_window`), TitleBar (bandeau), TileButton (3 états `om_card`), SidebarLayout (colonne nav scrollable + plaque de contenu), Sheet, ScrollList — l'identité NaLandia concentrée en un seul fichier.
+- **Moteur** (`src/ui/theme.tsx`) : `openTileMenu` garde son API builder (`menu.action/data/body`) — les 12 écrans existants n'ont pas changé une ligne ; `OMForm` reste **natif** (CustomForm : input texte/slider/dropdown garantis).
+- **Supprimé** : `scripts/build_ui.py` (pipeline), le contrat `@ui-contract` de `tiles.ts`, le `server_form.json` généré, `vanilla_cache/`, `sheets.ts` déjà parti. Les helpers purs survivent dans `src/ui/labels.ts` (compat `tiles.ts` = réexport).
+- **Compat** : si le render pack manque, le framework affiche son habillage « unstyled » — tout reste lisible et cliquable (dégradation gracieuse, comme avant).
+
+### Vérifié
+Typecheck OK · **69/69 tests** (dont render pack vendu complet, dépendance BP, textures du kit) · bundle recompilé (462 ko, JSX inclus) · packs **3.0.0** · `agent.md` réécrit pour le framework.
+
+**En jeu** : copier `BP/`, `RP/` + les 2 JSON de `serveur/` (le render pack est DANS le RP désormais — plus de .mcpack séparé à installer).
 
 ---
 

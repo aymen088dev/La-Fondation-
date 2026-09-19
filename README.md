@@ -4,7 +4,7 @@
 
 > **NaLandia** (anciennement « OpenMontage ») : l'add-on de serveur avec territoires/États, clans, rôles, modération, classes, métiers et une dimension minière dédiée — avec des menus robustes basés sur les formulaires officiels Bedrock.
 
-**Packs actuels : 2.8.0** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
+**Packs actuels : 3.0.0** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
 
 ## C'est quoi ce repo ?
 
@@ -51,35 +51,16 @@ Persistée dans le monde via les Dynamic Properties Bedrock :
 - **Night vision sans particules**, ré-appliquée toutes les 30 s dans la mine et retirée au retour
 - `/sn:monde` — menu « Le Monde » (Monde normal / Mine) ; **le retour au monde normal te ramène à ta dernière position** mémorisée
 
-### UI — deux moteurs, un seul thème
+### UI — un vrai framework JSX (`@bedrock-core/ui`), un seul thème
 
-**1. Formulaires natifs (`CustomForm`)** — champs texte, curseurs, listes déroulantes et fiches de lecture. C'est le moteur par défaut : tactile, manette et clavier natifs, aucun framework communautaire.
+**1. Menus à tuiles (`@bedrock-core/ui`)** — le moteur v3 rend les menus avec un **framework JSX** (syntaxe React) : layout libre en **flexbox**, **scroll natif** des longues listes, boutons aux 3 états (normal/survol/appui) aux textures or du serveur. Le rendu est décodé par le **render pack CoreUI** vendu dans `RP/ui/core-ui/` (dépendance officielle déclarée dans `BP/manifest.json`). Fini le JSON UI écrit/generated maison : plus de routage par titre, plus de contrat d'index fragile.
+   - **Menu / Administration** : colonne de tuiles à gauche (scrollable), panneau d'état à droite ;
+   - **Classes / Mon clan / Nations / Mes infos / Le Monde** : même structure, sections librement composables ;
+   - Les listes longues (Joueurs, Rôles, Bans…) scrollent — la pagination manuelle devient optionnelle.
 
-**2. Menus à tuiles (`ActionFormData` + JSON UI)** — le script envoie un formulaire à boutons NUMÉROTÉS, et `RP/ui/server_form.json` remplace le rendu `long_form` par un panneau dessiné à la main, SANS le cadre gris vanilla :
-   - **Classes** : trois cartes verticales, une par voie, de la couleur de la classe (nom en haut de carte, texte borné) ;
-   - **Mon clan** : banque en haut à gauche, drapeau en haut à droite, bio au centre, actions en bas ;
-   - **Menu / Administration** : même géométrie (colonne de tuiles à gauche, panneau d'état à droite) ;
-   - **Nations** : liste paginée des États (3 par page) + fonder / fermer ;
-   - **Mes infos** : fiche du joueur à droite, actions à gauche ;
-   - **Le Monde** : destinations et repères à gauche, état du joueur à droite.
+**2. Formulaires natifs (`CustomForm`)** — champs texte, curseurs, listes déroulantes et fiches de lecture : input natif garanti par Mojang (tactile, manette, clavier).
 
-Les **formulaires à champs** (créations, sanctions, réglages…) gardent les champs natifs mais héritent du **même habillage or & argent** : `custom_form` est réécrit dans le JSON UI, donc plus aucun cadre gris Mojang nulle part.
-
-### Pipeline UI — le JSON est GÉNÉRÉ, jamais édité à la main
-
-`RP/ui/server_form.json` est produit par `scripts/build_ui.py` :
-
-1. **Base vanilla officielle** (Mojang/bedrock-samples, cache dans `scripts/vanilla_cache/`) — ses définitions sont recopiées telles quelles ;
-2. **4 points de contact seulement** : `$custom_background` de `custom_form`, textures de `dynamic_button`, widgets `om_*` ajoutés, routing de `long_form` ;
-3. **Repli vanilla** conservé et masqué dès qu'un titre OM matche (les formulaires des autres add-ons restent natifs) ;
-4. **Validation stricte** : duplicate `X`/`X@parent`, référence non résolue ou texture absente = échec du build.
-
-La source de vérité du contrat des menus est le bloc `@ui-contract-begin/end` de `src/ui/tiles.ts` : le pipeline le lit directement — aucune table dupliquée. Voir **`agent.md`** pour la méthode complète et le dépannage.
-
-> ⚠️ **Titres sans accent** : le JSON UI route par comparaison littérale du titre (`NaLandia » Nations`). Un titre accentué était routé vers rien du tout (menu rendu en cadre vanilla) — c'est le test `tiles.test.ts` qui garde cette règle.
-   - **Menu (hub) et Administration** : même fenêtre or, six tuiles en colonne à gauche et état dans le panneau de droite.
-
-L'ordre des boutons est un contrat partagé (`src/ui/tiles.ts` ↔ `RP/ui/server_form.json`) vérifié par les tests : un index qui se décale, une texture manquante ou un titre mal filtré fait échouer la suite de tests.
+Le **kit** (`src/ui/kit.tsx`) porte l'identité (fenêtre cuir/or `om_window`, bandeau `om_header_band`, boutons `om_card`/`om_btn`, plaque `om_plate`) : aucun écran ne pose de texture à la main. Voir **`agent.md`** pour la méthode complète et le dépannage.
 
 - **Gameplay** : bandeau et carte visuelle pour Classes, Métiers, Monde, Mines, États et Quêtes.
 - **Fiches** : panneau et texture de contenu pour Clan, Mon clan, Membres, Drapeau et Mes infos.
@@ -109,7 +90,8 @@ L'ordre des boutons est un contrat partagé (`src/ui/tiles.ts` ↔ `RP/ui/server
 |---|---|
 | TypeScript 5 + esbuild | Code source → bundle unique `BP/scripts/main.js` |
 | `@minecraft/server` 2.11.0-beta (1.26.50) | API script (commandes, events, protections, dimensions) |
-| `@minecraft/server-ui` 2.3.0-beta | Formulaires in-game (ActionForm / ModalForm) |
+| `@minecraft/server-ui` 2.3.0-beta | Formulaires in-game (champs natifs) |
+| `@bedrock-core/ui` 0.11.0 | Framework UI JSX (menus) + render pack CoreUI (décodage) |
 | `@bedrock-oss/bedrock-boost` | Logger filtrable en jeu, Timings, ColorJSON |
 | Bun | Tests (`bun test`) et scripts |
 | Python 3 (stdlib) | Génération des textures du Resource Pack |
@@ -123,9 +105,9 @@ L'ordre des boutons est un contrat partagé (`src/ui/tiles.ts` ↔ `RP/ui/server
 │   └── scripts/main.js      #   ← généré par le build, NE PAS éditer
 ├── RP/                      # Resource Pack (JSON UI + textures)
 │   ├── manifest.json
-│   ├── ui/                  #   hud_screen.json + server_form.json (menus à tuiles)
-│   ├── texts/               #   (aucun : le pack ne ship pas de .lang)
-│   └── textures/ui/         #   cadres, tuiles, cartes, flèche retour, fonds (générés) + textures Ore UI du render pack
+│   ├── ui/                  #   hud_screen.json + core-ui/ (render pack du framework)
+│   ├── texts/               #   langues du render pack
+│   └── textures/ui/         #   cadres, tuiles, cartes (générés) + textures du render pack
 ├── src/                     # Code source TypeScript
 │   ├── main.ts              # Point d'entrée (branchement de tout)
 │   ├── db/                  # Base JSON locale (CRUD, migrations, autosave, menu admin)
@@ -136,7 +118,7 @@ L'ordre des boutons est un contrat partagé (`src/ui/tiles.ts` ↔ `RP/ui/server
 │   ├── jobs/                # Métiers (bases)
 │   ├── mines/               # Dimension minière (générateur déterministe) + menus Monde/Mines
 │   ├── modules/             # Activation/désactivation à chaud
-│   ├── ui/                  # Adaptateur des formulaires natifs (theme.ts) + contrat de navigation (sheets.ts)
+│   ├── ui/                  # Moteur UI : framework JSX (theme.tsx), kit visuel (kit.tsx), helpers (labels.ts)
 │   ├── players.ts           # Index joueurs (id stable, sessions, grades)
 │   └── lib/                 # Loggers
 ├── serveur/                 # Monde de test (packs activés)

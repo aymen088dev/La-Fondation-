@@ -1,6 +1,29 @@
 {
   "ui_defs": [
     "ui/hud_screen.json",
-    "ui/server_form.json"
+    "ui/core-ui/animations/screen_events.json",
+    "ui/core-ui/common/control.json",
+    "ui/core-ui/common/state.json",
+    "ui/core-ui/common/action_container.json",
+    "ui/core-ui/common/modal_container.json",
+    "ui/core-ui/common/form_background.json",
+    "ui/core-ui/common/label_router.json",
+    "ui/core-ui/common/button_router.json",
+    "ui/core-ui/common/header_router.json",
+    "ui/core-ui/common/dropdown_router.json",
+    "ui/core-ui/common/cursor.json",
+    "ui/core-ui/screens/scroll.json",
+    "ui/core-ui/screens/scroll_pool.json",
+    "ui/core-ui/components/button.json",
+    "ui/core-ui/components/text.json",
+    "ui/core-ui/components/image.json",
+    "ui/core-ui/components/item_renderer.json",
+    "ui/core-ui/form_components/toggle.json",
+    "ui/core-ui/form_components/input.json",
+    "ui/core-ui/form_components/slider.json",
+    "ui/core-ui/form_components/form_shared.json",
+    "ui/core-ui/form_components/dropdown.json",
+    "ui/core-ui/form_components/inline_select.json",
+    "ui/core-ui/form_components/label.json"
   ]
 }
