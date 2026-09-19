@@ -698,7 +698,6 @@ import { CustomCommandParamType, CustomCommandStatus, CommandPermissionLevel, sy
 // src/ui/theme.ts
 import { system as system7 } from "@minecraft/server";
 import {
-  ActionFormData as NativeActionForm,
   CustomForm as NativeCustomForm,
   FormCancelationReason,
   ObservableBoolean as NativeObservableBoolean,
@@ -4247,123 +4246,63 @@ var logTerr = Logger.getLogger("NaLandia", "territories");
 var logMod = Logger.getLogger("NaLandia", "moderation");
 var logPerm = Logger.getLogger("NaLandia", "permissions");
 
-// src/ui/sheets.ts
-var CARD_SECTIONS = [
-  "Classes",
-  "Classe",
-  "Ma voie",
-  "Confirmer",
-  "États",
-  "Le Monde",
-  "Mines",
-  "Métiers"
-];
-var PARCHMENT_SECTIONS = [
-  "Clan",
-  "Mon clan",
-  "Bio du clan",
-  "Membres du clan",
-  "Membre",
-  "Inviter",
-  "Drapeau",
-  "Dissoudre le clan",
-  "Créer un clan",
-  "Mes infos"
-];
-var SHEET_SECTIONS = [...CARD_SECTIONS, ...PARCHMENT_SECTIONS];
+// src/ui/tiles.ts
+var TILE_MENUS_JSON = (
+  // @ui-contract-begin (extrait par scripts/build_ui.py — ne pas renommer)
+  {
+    "indexed": {
+      "Classes": {
+        "actions": ["class_0", "class_1", "class_2", "back"],
+        "data": ["desc_0", "desc_1", "desc_2"]
+      },
+      "Mon clan": {
+        "actions": ["bio", "claim", "members", "flag", "quit", "back"],
+        "data": ["flag_id", "flag_name"]
+      },
+      "Menu": {
+        "actions": ["states", "infos", "quests", "world", "moderation", "admin", "back"],
+        "data": []
+      },
+      "Administration": {
+        "actions": ["roles", "players", "modules", "db", "classes", "states", "back"],
+        "data": []
+      },
+      "Nations": {
+        "actions": ["clan_0", "clan_1", "clan_2", "prev", "next", "create", "back"],
+        "data": []
+      },
+      "Mes infos": {
+        "actions": ["classe", "jobs", "clan", "states", "quests", "gifts", "back"],
+        "data": []
+      },
+      "Le Monde": {
+        "actions": ["overworld", "mines", "ores", "where", "help", "close", "back"],
+        "data": []
+      }
+    },
+    "generic": [
+      "Mines",
+      "Moderation",
+      "Bans",
+      "Mutes",
+      "Roles",
+      "Joueurs",
+      "Membres",
+      "Membre",
+      "Modules",
+      "Metiers",
+      "Quetes",
+      "Drapeau",
+      "Dissoudre",
+      "Base de donnees"
+    ]
+  }
+);
+var TILE_MENUS = TILE_MENUS_JSON;
 var TITLE_PREFIX = "NaLandia » ";
-function sheetTitleFor(section) {
+function tileTitleFor(section) {
   return `${TITLE_PREFIX}${section}`;
 }
-function designForSection(section) {
-  if (CARD_SECTIONS.includes(section)) return "cards";
-  if (PARCHMENT_SECTIONS.includes(section)) return "parchment";
-  return "console";
-}
-function designForTitle(title) {
-  const clean2 = title.startsWith(TITLE_PREFIX) ? title.slice(TITLE_PREFIX.length) : title;
-  return designForSection(clean2.trim());
-}
-
-// src/ui/tiles.ts
-var TILE_MENUS = {
-  /**
-   * Classes : trois grandes cartes verticales (une par voie) + la barre de
-   * retour. Les descriptions sont transportées par des boutons invisibles
-   * placés SOUS les cartes dans la collection, afin que chaque texte reste
-   * une ligne indépendante (pas de texte multi-lignes dans un bouton).
-   */
-  Classes: {
-    actions: ["class_0", "class_1", "class_2", "back"],
-    data: ["desc_0", "desc_1", "desc_2"]
-  },
-  /**
-   * Mon clan : emplacement banque (haut gauche), drapeau (haut droite) puis
-   * les actions en bas. Le drapeau est transporté par deux boutons invisibles :
-   * son identifiant (pour choisir la bannière affichée) et son nom lisible.
-   */
-  "Mon clan": {
-    actions: ["bio", "claim", "members", "flag", "quit", "back"],
-    data: ["flag_id", "flag_name"]
-  },
-  /**
-   * Hub : six sections en colonne à gauche, l'accueil (rôle, classe, clan,
-   * statistiques) dans le panneau de droite. Les sections indisponibles pour
-   * le joueur restent affichées en grisé plutôt que de décaler la colonne.
-   */
-  Menu: {
-    actions: ["states", "infos", "quests", "world", "moderation", "admin", "back"],
-    data: []
-  },
-  /**
-   * Admin : même géométrie que le hub (demandé « hub et admin similaires »),
-   * donc même nombre de boutons — la dernière entrée est la barre de retour.
-   */
-  Administration: {
-    actions: ["roles", "players", "modules", "db", "classes", "states", "back"],
-    data: []
-  },
-  /**
-   * Nations : liste paginée des États/clans. Trois nations par page (plus de
-   * place pour la fiche), puis page précédente, page suivante, et fondation.
-   */
-  Nations: {
-    actions: ["clan_0", "clan_1", "clan_2", "prev", "next", "create", "back"],
-    data: []
-  },
-  /** Mes infos : fiche du joueur à droite, actions de navigation à gauche. */
-  "Mes infos": {
-    actions: ["classe", "jobs", "clan", "states", "quests", "gifts", "back"],
-    data: []
-  },
-  /**
-   * Le Monde : deux GRANDES cartes (monde normal / mine) puis les repères et
-   * les outils rangés SOUS les cartes, et la fermeture en bas.
-   */
-  "Le Monde": {
-    actions: ["overworld", "mines", "ores", "where", "help", "close", "back"],
-    data: []
-  },
-  /* ------------------------------------------------------------------------
-   * Menus à LISTE GÉNÉRIQUE : contrat VIDE, volontairement. Le panneau est une
-   * factory : il rend une tuile par bouton envoyé, dans l'ordre, et l'index de
-   * sélection EST l'index d'envoi. Rien à synchroniser ici, donc rien à casser.
-   * ---------------------------------------------------------------------- */
-  Mines: { actions: [], data: [] },
-  Moderation: { actions: [], data: [] },
-  Bans: { actions: [], data: [] },
-  Mutes: { actions: [], data: [] },
-  Roles: { actions: [], data: [] },
-  Joueurs: { actions: [], data: [] },
-  Membres: { actions: [], data: [] },
-  Membre: { actions: [], data: [] },
-  Modules: { actions: [], data: [] },
-  Metiers: { actions: [], data: [] },
-  Quetes: { actions: [], data: [] },
-  Drapeau: { actions: [], data: [] },
-  Dissoudre: { actions: [], data: [] },
-  "Base de donnees": { actions: [], data: [] }
-};
 function pageSlice(items, page, perPage) {
   const pageCount = Math.max(1, Math.ceil(items.length / Math.max(1, perPage)));
   const current = Math.min(Math.max(0, Math.trunc(page)), pageCount - 1);
@@ -4373,8 +4312,23 @@ function pageSlice(items, page, perPage) {
     pageCount
   };
 }
-function tileTitleFor(section) {
-  return sheetTitleFor(section);
+function fitLabel(text, max) {
+  const visible = text.replace(/§./g, "");
+  if (visible.length <= max) return text;
+  let kept = 0;
+  let out = "";
+  for (let index = 0; index < text.length; index++) {
+    const pair = text.slice(index, index + 2);
+    if (/^§./.test(pair)) {
+      out += pair;
+      index++;
+      continue;
+    }
+    if (kept >= max - 1) break;
+    out += text[index];
+    kept++;
+  }
+  return `${out}…`;
 }
 function wrapLabel(text, width, lines) {
   const words = text.split(/\s+/);
@@ -4404,24 +4358,6 @@ function wrapLabel(text, width, lines) {
   }
   return kept.join("\n");
 }
-function fitLabel(text, max) {
-  const visible = text.replace(/§./g, "");
-  if (visible.length <= max) return text;
-  let kept = 0;
-  let out = "";
-  for (let index = 0; index < text.length; index++) {
-    const pair = text.slice(index, index + 2);
-    if (/^§./.test(pair)) {
-      out += pair;
-      index++;
-      continue;
-    }
-    if (kept >= max - 1) break;
-    out += text[index];
-    kept++;
-  }
-  return `${out}…`;
-}
 
 // src/ui/theme.ts
 var RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
@@ -4430,7 +4366,7 @@ function setUiDesign(enabled) {
   uiDesignEnabled = enabled;
 }
 function windowTitle(section) {
-  return `${TITLE_PREFIX}${section}`;
+  return tileTitleFor(section);
 }
 var ObservableString = class {
   constructor(value) {
@@ -4496,17 +4432,15 @@ function clean(text) {
   return text.replace(/§h/g, "").replace(/[■≡⬥✦╔╗╚╝█░▓━→←↔·]/g, "").trim();
 }
 var OMForm = class {
-  constructor(player, title, _hero, design) {
+  constructor(player, title, _hero) {
     this.player = player;
     this.titleText = title.replace(/§./g, "").trim();
-    this.design = design ?? designForTitle(this.titleText);
   }
   elements = [];
   titleText;
   backAction;
   activeForm;
   resolveShow;
-  design;
   hero(_kind) {
     return this;
   }
@@ -4556,13 +4490,19 @@ var OMForm = class {
   slider(label, observable, min, max, options) {
     const value = new NativeObservableNumber(observable.getData());
     value.subscribe((next) => observable.setData(next));
-    this.elements.push({ kind: "field", add: (form) => form.slider(label, value, min, max, options?.step === void 0 ? void 0 : { step: options.step }) });
+    this.elements.push({
+      kind: "field",
+      add: (form) => form.slider(label, value, min, max, options?.step === void 0 ? void 0 : { step: options.step })
+    });
     return this;
   }
   dropdown(label, observable, items) {
     const value = new NativeObservableNumber(observable.getData());
     value.subscribe((next) => observable.setData(next));
-    const data = items.map((item, index) => ({ label: typeof item === "string" ? item : item.label, value: typeof item === "string" ? index : item.value }));
+    const data = items.map((item, index) => ({
+      label: typeof item === "string" ? item : item.label,
+      value: typeof item === "string" ? index : item.value
+    }));
     this.elements.push({ kind: "field", add: (form) => form.dropdown(label, value, data) });
     return this;
   }
@@ -4590,12 +4530,9 @@ var OMForm = class {
     });
   }
   /**
-   * Ouvre le formulaire, en RÉESSAYANT si le client refuse encore la demande.
-   *
-   * C'est indispensable depuis les menus à tuiles : le client termine de fermer
-   * le formulaire à tuiles au moment où le suivant arrive, et il répondait
-   * « UserBusy » (ou levait une erreur) — le menu ne s'ouvrait alors JAMAIS,
-   * ce qui donnait l'impression d'un menu mort (liste des nations, sous-menus).
+   * Ouvre le formulaire en RÉESSAYANT si le client refuse encore la demande :
+   * le client termine parfois de fermer le formulaire précédent au moment où
+   * le suivant arrive (UserBusy) — sans retry, le menu ne s'ouvrait JAMAIS.
    */
   retryPresent(delay, attempt) {
     system7.runTimeout(() => {
@@ -4611,26 +4548,23 @@ var OMForm = class {
     try {
       const form = new NativeCustomForm(this.player, this.titleText);
       this.activeForm = form;
-      if (this.design === "cards") {
-        form.image("textures/ui/om_header_band", RP_PACK_ID, { width: 1 });
-        form.image("textures/ui/om_card", RP_PACK_ID, { width: 0.82 });
-      } else if (this.design === "parchment") {
-        form.image("textures/ui/om_sheet_pane", RP_PACK_ID, { width: 1 });
-        form.image("textures/ui/om_content_bg", RP_PACK_ID, { width: 0.9 });
-      } else {
-        form.image("textures/ui/om_header_band", RP_PACK_ID, { width: 1 });
-      }
       for (const element of this.elements) {
         if (element.kind === "button") {
           form.button(element.text, () => {
             if (form.isShowing()) form.close();
             element.onClick();
           });
-        } else if (element.kind === "image") form.image(element.path, RP_PACK_ID, { width: element.width });
-        else if (element.kind === "header") form.header(element.text);
-        else if (element.kind === "body" || element.kind === "label") form.label(element.text);
-        else if (element.kind === "divider") form.divider();
-        else if (element.kind === "field") element.add(form);
+        } else if (element.kind === "image") {
+          form.image(element.path, RP_PACK_ID, { width: element.width });
+        } else if (element.kind === "header") {
+          form.header(element.text);
+        } else if (element.kind === "body" || element.kind === "label") {
+          form.label(element.text);
+        } else if (element.kind === "divider") {
+          form.divider();
+        } else if (element.kind === "field") {
+          element.add(form);
+        }
       }
       if (this.backAction !== void 0) {
         form.button("Retour", () => {
@@ -4645,7 +4579,7 @@ var OMForm = class {
         this.retryPresent(10, attempt + 1);
         return;
       }
-      this.finish(reason === "UserBusy" ? "UserBusy" : reason === "ServerClosed" ? "ServerClosed" : "UserClosed");
+      this.finish(reason === "ServerClosed" ? "ServerClosed" : reason === "UserBusy" ? "UserBusy" : "UserClosed");
     } catch (error) {
       this.activeForm = void 0;
       const message = error instanceof Error ? error.message : String(error);
@@ -4655,16 +4589,18 @@ var OMForm = class {
         return;
       }
       logMod.warn(`Menu « ${this.titleText} » : ${message}`);
-      this.player.sendMessage(`§c[NaLandia] Le menu « ${this.titleText} » n'a pas pu s'afficher : §f${message}`);
+      this.player.sendMessage(
+        `§c[NaLandia] Le menu « ${this.titleText} » n'a pas pu s'afficher : §f${message}`
+      );
       this.finish("ServerClosed");
     }
   }
 };
-function buildAndShow(player, title, build, design, hero) {
+function buildAndShow(player, title, build) {
   return new Promise((resolve, reject) => {
     system7.runTimeout(() => {
       try {
-        const form = new OMForm(player, title, hero, design);
+        const form = new OMForm(player, title);
         build(form);
         form.show().then(resolve, reject);
       } catch (error) {
@@ -4673,11 +4609,14 @@ function buildAndShow(player, title, build, design, hero) {
     }, 1);
   });
 }
-function openWindow(player, section, build, hero) {
-  return buildAndShow(player, sheetTitleFor(section), build, designForSection(section), hero);
+function openWindow(player, section, build) {
+  return buildAndShow(player, windowTitle(section), build).catch((error) => {
+    logMod.warn(`openWindow(${section}) : ${error instanceof Error ? error.message : String(error)}`);
+    return "ServerClosed";
+  });
 }
 function openWindowRaw(player, title, build) {
-  return buildAndShow(player, title, build, designForTitle(title.replace(/§./g, "").trim()));
+  return buildAndShow(player, title, build);
 }
 function openTileMenu(player, section, build) {
   const actions = /* @__PURE__ */ new Map();
@@ -4714,10 +4653,13 @@ function scheduleTileForm(player, section, actions, ordered, data, bodyText, att
     void presentTileForm(player, section, actions, ordered, data, bodyText, attempt);
   }, attempt === 0 ? 1 : 10);
 }
+function layoutOf(section) {
+  return TILE_MENUS.indexed[section];
+}
 async function presentTileForm(player, section, actions, ordered, data, bodyText, attempt) {
-  const layout = TILE_MENUS[section];
-  const sequential = layout.actions.length === 0;
-  const form = new NativeActionForm();
+  const layout = layoutOf(section);
+  const sequential = layout === void 0;
+  const form = new (await import("@minecraft/server-ui")).ActionFormData();
   form.title(tileTitleFor(section));
   if (bodyText.trim().length > 0) form.body(bodyText);
   if (sequential) {
@@ -4726,9 +4668,9 @@ async function presentTileForm(player, section, actions, ordered, data, bodyText
     for (const key2 of layout.actions) {
       form.button(actions.get(key2)?.label ?? "§8—");
     }
-  }
-  for (const key2 of layout.data) {
-    form.button(data.get(key2) ?? " ");
+    for (const key2 of layout.data) {
+      form.button(data.get(key2) ?? " ");
+    }
   }
   let selection;
   try {

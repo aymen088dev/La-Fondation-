@@ -4,7 +4,7 @@
 
 > **NaLandia** (anciennement « OpenMontage ») : l'add-on de serveur avec territoires/États, clans, rôles, modération, classes, métiers et une dimension minière dédiée — avec des menus robustes basés sur les formulaires officiels Bedrock.
 
-**Packs actuels : 2.7.1** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
+**Packs actuels : 2.8.0** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
 
 ## C'est quoi ce repo ?
 
@@ -64,6 +64,17 @@ Persistée dans le monde via les Dynamic Properties Bedrock :
    - **Le Monde** : destinations et repères à gauche, état du joueur à droite.
 
 Les **formulaires à champs** (créations, sanctions, réglages…) gardent les champs natifs mais héritent du **même habillage or & argent** : `custom_form` est réécrit dans le JSON UI, donc plus aucun cadre gris Mojang nulle part.
+
+### Pipeline UI — le JSON est GÉNÉRÉ, jamais édité à la main
+
+`RP/ui/server_form.json` est produit par `scripts/build_ui.py` :
+
+1. **Base vanilla officielle** (Mojang/bedrock-samples, cache dans `scripts/vanilla_cache/`) — ses définitions sont recopiées telles quelles ;
+2. **4 points de contact seulement** : `$custom_background` de `custom_form`, textures de `dynamic_button`, widgets `om_*` ajoutés, routing de `long_form` ;
+3. **Repli vanilla** conservé et masqué dès qu'un titre OM matche (les formulaires des autres add-ons restent natifs) ;
+4. **Validation stricte** : duplicate `X`/`X@parent`, référence non résolue ou texture absente = échec du build.
+
+La source de vérité du contrat des menus est le bloc `@ui-contract-begin/end` de `src/ui/tiles.ts` : le pipeline le lit directement — aucune table dupliquée. Voir **`agent.md`** pour la méthode complète et le dépannage.
 
 > ⚠️ **Titres sans accent** : le JSON UI route par comparaison littérale du titre (`NaLandia » Nations`). Un titre accentué était routé vers rien du tout (menu rendu en cadre vanilla) — c'est le test `tiles.test.ts` qui garde cette règle.
    - **Menu (hub) et Administration** : même fenêtre or, six tuiles en colonne à gauche et état dans le panneau de droite.

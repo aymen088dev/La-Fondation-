@@ -1,7 +1,38 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v2.7.1 — GRANDE ANALYSE : cause racine des formulaires vides/incohérents réparée (fusion des 23 définitions vanilla effacées) + DB éditable pour de vrai + débordements de texte finis**.
+> Dernière mise à jour : **v2.8.0 — UI reconstruite de zéro : pipeline JSON UI généré (style EasyUIBuilder, modifications ciblées sur base vanilla) + contrat unique tiles.ts + agent.md (méthode documentée)**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v2.8.0 — Reconstruire l'UI sur des bases saines : pipeline + contrat + doc (sept. 2026)
+
+**Contexte** : après la récupération de la v2.7.0, le JSON UI était à nouveau en cause (formulaires vides, repli vanilla qui se dessinait sous les panneaux OM). Décision : **repartir de zéro** avec la méthode éprouvée des générateurs communautaires (EasyUIBuilder) — vanilla d'abord, modifications ciblées, validation stricte.
+
+### Le pipeline (`scripts/build_ui.py`)
+- **Fetch vanilla officiel** (Mojang/bedrock-samples) mis en cache dans `scripts/vanilla_cache/` — la base est TOUJOURS le vrai fichier Mojang, jamais un habillage partiel.
+- **4 points de contact** et rien d'autre : `$custom_background` de `custom_form` (en place, pas de duplicate), textures des 3 états de `dynamic_button`, widgets `om_*` ajoutés, routing de `long_form` (vanilla muté en place).
+- **Repli vanilla** (`om_default_form`) : copie profonde intacte, visible UNIQUEMENT si aucun titre OM ne matche — binding généré `(!(#title_text = 'X')) && ...`. Fini le formulaire vanilla qui se dessinait SOUS nos panneaux (artefacts « en bas des menus »).
+- **Validation stricte** (exit 1) : duplicate `X`/`X@parent` (LE bug historique, désormais impossible), référence `server_form.X` non résolue, texture `om_*` absente.
+- **Écriture conditionnelle** : le fichier n'est réécrit que s'il change.
+
+### Le contrat unique (`src/ui/tiles.ts`)
+- Bloc `@ui-contract-begin/end` : du JSON pur, extrait DIRECTEMENT par le pipeline — **aucune table dupliquée** entre TS et Python.
+- `indexed` (menus dessinés : Classes, Mon clan, Menu, Administration, Nations, Mes infos, Le Monde) et `generic` (14 listes à factory).
+- Titre préfixe `NaLandia » `, helpers `pageSlice`/`fitLabel`/`wrapLabel` conservés.
+
+### Le moteur (`src/ui/theme.ts`)
+- Réécrit : un seul flux `openTileMenu` (l'ordre des boutons = contrat, mapping clé→index automatique) + `OMForm` (CustomForm habillé) ; la couche `sheets.ts` (3 familles de design, specs de textures) est SUPPRIMÉE — l'habillage est dans le JSON généré.
+- Retry `UserBusy` conservé (menus qui « ne s'ouvraient jamais »).
+
+### Drapeau du clan
+- Le rendu des 11 drapeaux (textures `om_flag_*`, visibles par token `FLAG:<couleur>` sur le bouton data `flag_id`) est généré par le pipeline (`clan_panel_decoration`), index dérivé du contrat.
+
+### Documentation
+- **`agent.md`** : architecture, méthode, règles immuables, comment ajouter un menu, dépannage — pour tout agent (ou humain) qui reprend le projet.
+
+### ✔️ Vérifié
+Typecheck OK · **81/81 tests** (dont validation du JSON généré : duplicates interdits, vanilla présent, repli masqué, contrat↔JSON en accord) · bundle recompilé · packs **2.8.0** (BP, RP, `serveur/*.json`, README)
 
 ---
 
