@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v3.0.2 — Kit UI refait sur le design system officiel `@bedrock-core/ore-styled` (Header breadcrumb + MenuRow + Card + tokens) en écrans plein viewport : fini les boutons terne aux textures maison dans des fenêtres trop petites. Doublon de textures `ore-styled/ore-styled` supprimé.** — Migration complète vers le framework JSX `@bedrock-core/ui` : menus rendus en flexbox avec scroll natif, plus aucun JSON UI maison**.
+> Dernière mise à jour : **v3.0.3 — Correctif critique « menus qui ne s'ouvrent plus » : esbuild compilait les .tsx de node_modules (ore-styled) avec React.createElement → `ReferenceError: React is not defined` au premier rendu. `jsx: "automatic"` imposé dans build.mjs ; un test interdit désormais tout React.createElement dans le bundle.** — Migration complète vers le framework JSX `@bedrock-core/ui` : menus rendus en flexbox avec scroll natif, plus aucun JSON UI maison**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---

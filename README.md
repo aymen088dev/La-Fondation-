@@ -4,7 +4,7 @@
 
 > **NaLandia** (anciennement « OpenMontage ») : l'add-on de serveur avec territoires/États, clans, rôles, modération, classes, métiers et une dimension minière dédiée — avec des menus robustes basés sur les formulaires officiels Bedrock.
 
-**Packs actuels : 3.0.2** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
+**Packs actuels : 3.0.3** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
 
 ## C'est quoi ce repo ?
 

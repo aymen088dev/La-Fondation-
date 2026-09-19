@@ -19,6 +19,12 @@ const options = {
   // Les modules @minecraft/* sont fournis par le jeu au runtime :
   // on ne les bundle pas, on garde les imports tels quels.
   external: ["@minecraft/*"],
+  // JSX : runtime automatique partout, y compris pour les .tsx de node_modules
+  // (@bedrock-core/ore-styled) dont le pragma @jsxImportSource doit être honoré
+  // — sinon esbuild émet React.createElement et le jeu plante avec
+  // « ReferenceError: React is not defined » au premier rendu de menu.
+  jsx: "automatic",
+  jsxImportSource: "@bedrock-core/ui",
   format: "esm",
   target: "es2022",
   charset: "utf8",

@@ -8855,19 +8855,30 @@ var oreTheme = {
 };
 var theme = oreTheme;
 
+// node_modules/@bedrock-core/ui-runtime/src/jsx/jsx-runtime.ts
+function renderJSX(tag, props) {
+  return {
+    type: tag,
+    props: props || {}
+  };
+}
+var jsx = renderJSX;
+var jsxs = renderJSX;
+var Fragment2 = Fragment;
+
 // node_modules/@bedrock-core/ore-styled/src/Card.tsx
 function Card({ children, variant = "raised", ...layout }) {
   const v = theme.components.card.variants[variant];
-  return /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ jsx(
     Panel,
     {
       background: v.textures.background,
       padding: theme.components.card.padding,
       gap: theme.components.card.gap,
       flexDirection: "column",
-      ...layout
-    },
-    children
+      ...layout,
+      children
+    }
   );
 }
 
@@ -8879,7 +8890,7 @@ function Header({ title, breadcrumbs, onBack, onClose, ...layout }) {
   const resolve = (segment) => resolveDisplay(resolver, segment);
   const head = resolve(title);
   const trail = (breadcrumbs ?? []).map(resolve).join(`${separator} > ${color}`);
-  return /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ jsxs(
     Panel,
     {
       flexDirection: "row",
@@ -8890,11 +8901,13 @@ function Header({ title, breadcrumbs, onBack, onClose, ...layout }) {
       marginLeft: 1,
       marginRight: 1,
       background: h.textures.background,
-      ...layout
-    },
-    onBack ? /* @__PURE__ */ React.createElement(Button, { width: h.iconSize, height: h.iconSize, background: h.textures.back, backgroundHover: h.textures.backHover, backgroundPressed: h.textures.backPressed, onPress: onBack }) : /* @__PURE__ */ React.createElement(Panel, { width: h.iconSize, height: h.iconSize }),
-    /* @__PURE__ */ React.createElement(Panel, { flexGrow: 1, flexShrink: 1, justifyContent: "center", alignItems: "center" }, /* @__PURE__ */ React.createElement(Text, { font: h.textStyle.font, scale: h.textStyle.scale, maxLines: 1 }, trail ? `${color}${head}${separator} > ${color}${trail}` : `${color}${head}`)),
-    onClose ? /* @__PURE__ */ React.createElement(Button, { width: h.iconSize, height: h.iconSize, background: h.textures.close, backgroundHover: h.textures.closeHover, backgroundPressed: h.textures.closePressed, onPress: onClose }) : /* @__PURE__ */ React.createElement(Panel, { width: h.iconSize, height: h.iconSize })
+      ...layout,
+      children: [
+        onBack ? /* @__PURE__ */ jsx(Button, { width: h.iconSize, height: h.iconSize, background: h.textures.back, backgroundHover: h.textures.backHover, backgroundPressed: h.textures.backPressed, onPress: onBack }) : /* @__PURE__ */ jsx(Panel, { width: h.iconSize, height: h.iconSize }),
+        /* @__PURE__ */ jsx(Panel, { flexGrow: 1, flexShrink: 1, justifyContent: "center", alignItems: "center", children: /* @__PURE__ */ jsx(Text, { font: h.textStyle.font, scale: h.textStyle.scale, maxLines: 1, children: trail ? `${color}${head}${separator} > ${color}${trail}` : `${color}${head}` }) }),
+        onClose ? /* @__PURE__ */ jsx(Button, { width: h.iconSize, height: h.iconSize, background: h.textures.close, backgroundHover: h.textures.closeHover, backgroundPressed: h.textures.closePressed, onPress: onClose }) : /* @__PURE__ */ jsx(Panel, { width: h.iconSize, height: h.iconSize })
+      ]
+    }
   );
 }
 
@@ -8918,7 +8931,7 @@ function MenuRow({
   const resolver = useTranslationResolver();
   const line = (source, color, shadow) => {
     const literal = typeof source === "string" && (source === "" || resolver?.(source) === void 0);
-    return /* @__PURE__ */ React.createElement(Text, { font, scale, shadow, maxLines: 1, overflow: "ellipsis" }, literal ? `${color}${source}` : source);
+    return /* @__PURE__ */ jsx(Text, { font, scale, shadow, maxLines: 1, overflow: "ellipsis", children: literal ? `${color}${source}` : source });
   };
   const lines = [line(title, titleColor, true)];
   if (subtitle) {
@@ -8926,13 +8939,13 @@ function MenuRow({
   }
   const children = [];
   if (icon !== void 0) {
-    children.push(/* @__PURE__ */ React.createElement(Image, { texture: icon, width: iconSize ?? row.iconSize, height: iconSize ?? row.iconSize }));
+    children.push(/* @__PURE__ */ jsx(Image, { texture: icon, width: iconSize ?? row.iconSize, height: iconSize ?? row.iconSize }));
   }
-  children.push(/* @__PURE__ */ React.createElement(Panel, { flexDirection: "column", flexGrow: 1, flexShrink: 1, justifyContent: "center", gap: 0 }, lines));
+  children.push(/* @__PURE__ */ jsx(Panel, { flexDirection: "column", flexGrow: 1, flexShrink: 1, justifyContent: "center", gap: 0, children: lines }));
   if (chevron) {
-    children.push(/* @__PURE__ */ React.createElement(Text, null, `${subtitleColor}>`));
+    children.push(/* @__PURE__ */ jsx(Text, { children: `${subtitleColor}>` }));
   }
-  return /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ jsx(
     Button,
     {
       background: selected ? row.textures.backgroundSelected : row.textures.background,
@@ -8945,22 +8958,11 @@ function MenuRow({
       justifyContent: "flex-start",
       enabled,
       onPress,
-      ...layout
-    },
-    /* @__PURE__ */ React.createElement(Panel, { flexDirection: "row", alignItems: "center", gap: row.gap, width: "100%" }, children)
+      ...layout,
+      children: /* @__PURE__ */ jsx(Panel, { flexDirection: "row", alignItems: "center", gap: row.gap, width: "100%", children })
+    }
   );
 }
-
-// node_modules/@bedrock-core/ui-runtime/src/jsx/jsx-runtime.ts
-function renderJSX(tag, props) {
-  return {
-    type: tag,
-    props: props || {}
-  };
-}
-var jsx = renderJSX;
-var jsxs = renderJSX;
-var Fragment2 = Fragment;
 
 // src/ui/kit.tsx
 var { spacing } = theme.tokens;

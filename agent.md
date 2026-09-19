@@ -106,6 +106,10 @@ main dans un écran.
 
 ```bash
 bun tsc --noEmit                    # typecheck (JSX : jsx=react-jsx, import source @bedrock-core/ui)
+node build.mjs                      # bundle (IMPOSE jsx:"automatic" — sans lui,
+                                    # esbuild compile les .tsx de node_modules avec
+                                    # React.createElement → « React is not defined »
+                                    # en jeu → AUCUN menu ne s'ouvre. Test anti-régression.)
 bun test                            # tests
 node build.mjs                      # bundle esbuild -> BP/scripts/main.js
 python3 scripts/make_ui_textures.py # textures du thème

@@ -85,6 +85,14 @@ describe("Moteur UI (@bedrock-core/ui)", () => {
     ).toBeUndefined();
   });
 
+  it("n'embarque AUCUN transform JSX classique (React.createElement) dans le bundle", () => {
+    // esbuild sans jsx:"automatic" compile les .tsx de node_modules avec
+    // React.createElement → ReferenceError: React is not defined au premier
+    // rendu → TOUS les menus refusent de s'ouvrir. Ça ne doit jamais revenir.
+    const bundle = readFileSync(join(ROOT, "BP/scripts/main.js"), "utf8");
+    expect(bundle).not.toContain("React.createElement");
+  });
+
   it("garde les utilitaires de libellés", () => {
     const labels = readFileSync(join(ROOT, "src/ui/labels.ts"), "utf8");
     expect(labels).toContain("export function pageSlice");
