@@ -8,6 +8,7 @@
     "watch": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
+    "ui": "python3 scripts/build_server_form.py",
     "textures": "python3 scripts/make_ui_textures.py"
   },
   "devDependencies": {
@@ -19,7 +20,6 @@
     "typescript": "^5.7.0"
   },
   "dependencies": {
-    "@bedrock-core/ui": "^0.11.0",
     "@bedrock-oss/bedrock-boost": "^2.2.0"
   }
 }

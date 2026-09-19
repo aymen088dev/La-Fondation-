@@ -1,35 +1,37 @@
 /**
- * Moteur UI NaLandia — @bedrock-core/ui (JSX) pour les MENUS, formulaires
- * NATIFS pour les champs.
+ * Moteur UI NaLandia — TRANSPORT INVISIBLE + JSON UI À NOUS (v3.1).
  *
- *  - `openTileMenu` : menus à tuiles. Le builder (`menu.action/data/body`)
- *    construit un arbre de composants rendu par le framework : layout libre
- *    (flexbox), scroll natif, textures om_*, tactile/manette/clavier gérés
- *    par le render pack CoreUI (vendu dans RP/ui/core-ui).
- *  - `OMForm` : formulaires à champs (`CustomForm` natif). L'input texte,
- *    slider, dropdown restent natifs : qualité d'input garantie par Mojang.
+ * Architecture (décision produit du 2026-09-19) :
+ *   - Le TRANSPORT est l'API native `@minecraft/server-ui`. C'est le seul
+ *     pont d'écran que Bedrock expose au script : il porte les données et les
+ *     clics, il n'est jamais visible.
+ *       · menus à tuiles → `ActionFormData` (liste verticale de boutons) ;
+ *       · fiches/écrans à champs → `CustomForm` (champs natifs : la qualité
+ *         d'input texte/slider/dropdown est garantie par Mojang).
+ *   - L'APPARENCE vient de `RP/ui/server_form.json` — NOTRE fichier, généré
+ *     par `scripts/build_server_form.py` (vanilla 1.26.50 + dalles om_btn,
+ *     titre doré, fenêtres élargies). Le script n'envoie JAMAIS de texture :
+ *     il envoie du texte, le RP habille.
  *
- * Dégradation gracieuse : si le render pack est absent, le framework affiche
- * son habillage « unstyled » — tout reste lisible et cliquable.
+ * Plus aucun framework JSX (@bedrock-core), plus de render pack, plus de
+ * routage par titre côté script : un seul thème signature, porté par le RP.
  */
 import { system } from "@minecraft/server";
 import type { Player } from "@minecraft/server";
 import {
+  ActionFormData,
   CustomForm as NativeCustomForm,
   ObservableBoolean as NativeObservableBoolean,
   ObservableNumber as NativeObservableNumber,
   ObservableString as NativeObservableString,
 } from "@minecraft/server-ui";
 import type {
-  ActionFormData,
-  CustomForm,
+  ActionFormResponse,
   ModalFormData,
   MessageFormResponse,
 } from "@minecraft/server-ui";
-import { render } from "@bedrock-core/ui";
 import { logMod } from "../lib/log";
-import { SidebarLayout, BodyLines } from "./kit";
-import { PANEL_TILE_CAPACITY, fitLabel } from "./labels";
+import { PANEL_TILE_CAPACITY, pageSlice } from "./labels";
 
 export const RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
 
@@ -44,10 +46,14 @@ export function windowTitle(section: string): string {
   return section;
 }
 
-/** Interrupteur global d'habillage (conservé pour /sn:config côté main). */
+/**
+ * Interrupteur d'habillage conservé pour /sn:config : avec l'architecture
+ * « transport invisible », l'habillage JSON UI ne peut plus être coupé par
+ * le script (il vit dans le RP). L'option reste sans effet et sans erreur.
+ */
 let uiDesignEnabled = true;
-export function setUiDesign(enabled: boolean): void {
-  uiDesignEnabled = enabled;
+export function setUiDesign(_enabled: boolean): void {
+  uiDesignEnabled = _enabled;
 }
 export function isUiDesignEnabled(): boolean {
   return uiDesignEnabled;
@@ -118,7 +124,7 @@ export function obToggle(value: boolean, callback: (value: boolean) => void): Ob
 }
 
 // ---------------------------------------------------------------------------
-// OMForm — formulaires à champs (CustomForm) et fiches.
+// OMForm — formulaires à champs (CustomForm natif) et fiches de lecture.
 // ---------------------------------------------------------------------------
 
 export type DataDrivenScreenClosedReason = "UserClosed" | "UserBusy" | "ServerClosed";
@@ -146,6 +152,12 @@ type Element =
   | { kind: "image"; path: string; width: number }
   | { kind: "field"; add: (form: NativeCustomForm) => void };
 
+/**
+ * Nettoyage des décorations ASCII héritées des anciens designs : le JSON UI
+ * maison les rendait jolies, le rendu natif les affiche telles quelles —
+ * on retire les blocs/bordures qui n'ont plus de sens (les codes § sont
+ * conservés : le jeu les colore nativement).
+ */
 function clean(text: string): string {
   return text
     .replace(/§h/g, "")
@@ -305,7 +317,7 @@ export class OMForm {
             element.onClick();
           });
         } else if (element.kind === "image") {
-          form.image(element.path, "33ca6e1c-4f30-46ae-8b56-1510382e3f61", { width: element.width });
+          form.image(element.path, RP_PACK_ID, { width: element.width });
         } else if (element.kind === "header") {
           form.header(element.text);
         } else if (element.kind === "body" || element.kind === "label") {
@@ -389,18 +401,23 @@ export function closeOpenForm(_player: Player): void {
 }
 
 export type { MessageFormResponse };
-export type NativeFormData = ActionFormData | ModalFormData | CustomForm;
+export type NativeFormData = ActionFormResponse | ModalFormData | MessageFormResponse;
 
 // ---------------------------------------------------------------------------
-// MENUS À TUILES — rendus par @bedrock-core/ui (JSX + render pack CoreUI).
+// MENUS À TUILES — ActionFormData, transport invisible.
+//
+// `menu.action(key, label, onClick)` suit l'API historique. Les menus
+// DYNAMIQUES (paginés) basculent automatiquement en pagination par pages de
+// PANEL_TILE_CAPACITY entrées : la colonne native n'affiche de toute façon
+// qu'une liste scrollable, on garde le découpage pour préserver les repères.
 // ---------------------------------------------------------------------------
 
 export interface TileMenuBuilder {
   /** Tuile cliquable. */
   action(key: string, label: string, onClick: () => void): TileMenuBuilder;
-  /** Texte affiché dans la plaque latérale du panneau. */
+  /** Plaque latérale (ancien design) : conservé pour la compat call sites. */
   data(key: string, text: string): TileMenuBuilder;
-  /** Texte affiché dans la plaque latérale du panneau. */
+  /** Texte d'en-tête du menu, affiché comme premier libellé. */
   body(text: string): TileMenuBuilder;
 }
 
@@ -409,47 +426,12 @@ interface TileAction {
   onClick: () => void;
 }
 
-interface TileScreenProps {
-  title: string;
-  bodyText: string;
-  ordered: TileAction[];
-  capacity: number;
-}
-
-/** Ligne de nav : libellé brut (le MenuRow colore lui-même). */
-function toNavItem(action: TileAction) {
-  return {
-    title: fitLabel(action.label.replace(/§./g, "").trim(), 28),
-    onPress: action.onClick,
-  };
-}
-
-/** Écran générique : colonne de tuiles à gauche, carte de texte à droite. */
-function TileScreen({ title, bodyText, ordered, capacity }: TileScreenProps) {
-  const visible = ordered.slice(0, capacity);
-  return (
-    <SidebarLayout
-      title={title}
-      nav={visible.map(toNavItem)}
-      content={<BodyLines text={bodyText} />}
-    />
-  );
-}
-
-/** Liste étendue : TOUTE la liste est scrollable (plus de pagination forcée). */
-function ListScreen(props: { title: string; bodyText: string; ordered: TileAction[] }) {
-  return (
-    <SidebarLayout
-      title={props.title}
-      nav={props.ordered.map(toNavItem)}
-      content={<BodyLines text={props.bodyText} />}
-    />
-  );
-}
-
 /**
- * Ouvre un menu à tuiles rendu par le framework. L'API builder est identique
+ * Ouvre un menu à tuiles via le transport natif. L'API builder est identique
  * à l'ancien moteur : les call sites ne changent pas.
+ *
+ * Les listes longues sont automatiquement paginées (‹ Page précédente /
+ * Page suivante ›) pour rester lisibles dans la colonne native.
  */
 export function openTileMenu(
   player: Player,
@@ -482,25 +464,14 @@ export function openTileMenu(
   }
 
   // Un petit délai : l'ouverture d'un écran juste après la fermeture du
-  // précédent peut être refusée par le client (UserBusy côté framework).
+  // précédent peut être refusée par le client (UserBusy).
   system.runTimeout(() => {
     try {
       const isLongList = ordered.length > PANEL_TILE_CAPACITY;
       if (isLongList) {
-        render(
-          <ListScreen title={section} bodyText={bodyText} ordered={ordered} />,
-          player,
-        );
+        openPagedList(player, section, bodyText, ordered);
       } else {
-        render(
-          <TileScreen
-            title={section}
-            bodyText={bodyText}
-            ordered={ordered}
-            capacity={PANEL_TILE_CAPACITY}
-          />,
-          player,
-        );
+        showActionMenu(player, section, bodyText, ordered);
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -508,4 +479,85 @@ export function openTileMenu(
       player.sendMessage(`§c[NaLandia] Le menu « ${section} » n'a pas pu s'afficher : §f${message}`);
     }
   }, 1);
+}
+
+/**
+ * Liste étendue : pagination automatique par PANEL_TILE_CAPACITY entrées.
+ * Les deux tuiles de navigation restent visibles en fin de colonne ; désactivées
+ * (§8, action vide) quand la page correspondante n'existe pas.
+ */
+function openPagedList(
+  player: Player,
+  section: string,
+  bodyText: string,
+  ordered: TileAction[],
+): void {
+  let page = 0;
+  const showPage = (): void => {
+    const { items, page: current, pageCount } = pageSlice(ordered, page, PANEL_TILE_CAPACITY);
+    const nav: TileAction[] = [
+      ...items,
+      {
+        label: current > 0 ? "§7‹ Page précédente" : "§8—",
+        onClick: () => {
+          if (page > 0) {
+            page--;
+            showPage();
+          }
+        },
+      },
+      {
+        label: current < pageCount - 1 ? "§7Page suivante ›" : "§8—",
+        onClick: () => {
+          if (page < pageCount - 1) {
+            page++;
+            showPage();
+          }
+        },
+      },
+    ];
+    showActionMenu(player, section, bodyText, nav);
+  };
+  showPage();
+}
+
+/** Presente la liste dans un ActionFormData avec retry UserBusy. */
+function showActionMenu(
+  player: Player,
+  section: string,
+  bodyText: string,
+  ordered: TileAction[],
+): void {
+  const title = section.replace(/§./g, "").trim();
+  const present = (attempt: number): void => {
+    system.runTimeout(() => {
+      void (async () => {
+        try {
+          const form = new ActionFormData();
+          form.title(title);
+          if (bodyText.trim().length > 0) form.body(clean(bodyText));
+          for (const action of ordered) form.button(action.label);
+          const response = await form.show(player);
+          if (response.cancelationReason === "UserBusy" && attempt < 4) {
+            present(attempt + 1);
+            return;
+          }
+          if (response.cancelationReason === "UserClosed" || response.selection === undefined) return;
+          // Fermer avant d'ouvrir le suivant (sinon l'écran précédent reste).
+          const action = ordered[response.selection];
+          action?.onClick();
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (attempt < 4) {
+            logMod.warn(`Menu « ${title} » : ${message} (nouvel essai)`);
+            present(attempt + 1);
+            return;
+          }
+          logMod.warn(`Menu « ${title} » : ${message}`);
+          player.sendMessage(`§c[NaLandia] Le menu « ${title} » n'a pas pu s'afficher : §f${message}`);
+        }
+      })();
+    }, attempt === 0 ? 1 : 10);
+  };
+  present(0);
 }

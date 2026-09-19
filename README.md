@@ -51,16 +51,15 @@ Persistée dans le monde via les Dynamic Properties Bedrock :
 - **Night vision sans particules**, ré-appliquée toutes les 30 s dans la mine et retirée au retour
 - `/sn:monde` — menu « Le Monde » (Monde normal / Mine) ; **le retour au monde normal te ramène à ta dernière position** mémorisée
 
-### UI — un vrai framework JSX (`@bedrock-core/ui`), un seul thème
+### UI — transport invisible + JSON UI à nous (un seul thème)
 
-**1. Menus à tuiles (`@bedrock-core/ui`)** — le moteur v3 rend les menus avec un **framework JSX** (syntaxe React) : layout libre en **flexbox**, **scroll natif** des longues listes, boutons aux 3 états (normal/survol/appui) aux textures or du serveur. Le rendu est décodé par le **render pack CoreUI** vendu dans `RP/ui/core-ui/` (dépendance officielle déclarée dans `BP/manifest.json`). Fini le JSON UI écrit/generated maison : plus de routage par titre, plus de contrat d'index fragile.
-   - **Menu / Administration** : colonne de tuiles à gauche (scrollable), panneau d'état à droite ;
-   - **Classes / Mon clan / Nations / Mes infos / Le Monde** : même structure, sections librement composables ;
-   - Les listes longues (Joueurs, Rôles, Bans…) scrollent — la pagination manuelle devient optionnelle.
+**1. Menus (`openTileMenu` → `ActionFormData`)** — le script envoie des libellés via l'API native `@minecraft/server-ui` : c'est le **transport invisible** (données + clics, jamais visible). L'**apparence** vient de `RP/ui/server_form.json`, **généré** par `scripts/build_server_form.py` depuis la base vanilla officielle de Mojang (1.26.50) avec nos modifications ciblées : fenêtres élargies, titre doré, boutons re-texturés avec les dalles or `om_btn` (3 états), navigation clavier/manette. Fini les frameworks JSX, les render packs et le routage par titre : **un seul fichier, un seul thème signature**.
+   - Au-delà de 8 entrées, les longues listes basculent en **pagination automatique** (‹ Page précédente / Page suivante ›) ;
+   - Les réessais intégrés (UserBusy) garantissent l'ouverture des menus enchaînés.
 
-**2. Formulaires natifs (`CustomForm`)** — champs texte, curseurs, listes déroulantes et fiches de lecture : input natif garanti par Mojang (tactile, manette, clavier).
+**2. Formulaires natifs (`OMForm` → `CustomForm`)** — champs texte, curseurs, listes déroulantes et fiches de lecture : input natif garanti par Mojang (tactile, manette, clavier), soumis avec le même habillage or.
 
-Le **kit** (`src/ui/kit.tsx`) porte l'identité (fenêtre cuir/or `om_window`, bandeau `om_header_band`, boutons `om_card`/`om_btn`, plaque `om_plate`) : aucun écran ne pose de texture à la main. Voir **`agent.md`** pour la méthode complète et le dépannage.
+L'identité visuelle vit dans le JSON UI généré : le moteur (`src/ui/theme.ts`) n'envoie **jamais** de texture, le RP habille tout. Pour changer l'apparence : éditer le générateur, `bun run ui`, bumper RP+BP. Voir **`agent.md`** pour la méthode complète et le dépannage.
 
 - **Gameplay** : bandeau et carte visuelle pour Classes, Métiers, Monde, Mines, États et Quêtes.
 - **Fiches** : panneau et texture de contenu pour Clan, Mon clan, Membres, Drapeau et Mes infos.
@@ -90,8 +89,7 @@ Le **kit** (`src/ui/kit.tsx`) porte l'identité (fenêtre cuir/or `om_window`, b
 |---|---|
 | TypeScript 5 + esbuild | Code source → bundle unique `BP/scripts/main.js` |
 | `@minecraft/server` 2.11.0-beta (1.26.50) | API script (commandes, events, protections, dimensions) |
-| `@minecraft/server-ui` 2.3.0-beta | Formulaires in-game (champs natifs) |
-| `@bedrock-core/ui` 0.11.0 | Framework UI JSX (menus) + render pack CoreUI (décodage) |
+| `@minecraft/server-ui` 2.3.0-beta | Transport UI natif (menus ActionForm + formulaires CustomForm) |
 | `@bedrock-oss/bedrock-boost` | Logger filtrable en jeu, Timings, ColorJSON |
 | Bun | Tests (`bun test`) et scripts |
 | Python 3 (stdlib) | Génération des textures du Resource Pack |
@@ -105,7 +103,7 @@ Le **kit** (`src/ui/kit.tsx`) porte l'identité (fenêtre cuir/or `om_window`, b
 │   └── scripts/main.js      #   ← généré par le build, NE PAS éditer
 ├── RP/                      # Resource Pack (JSON UI + textures)
 │   ├── manifest.json
-│   ├── ui/                  #   hud_screen.json + core-ui/ (render pack du framework)
+│   ├── ui/                  #   hud_screen.json + server_form.json (généré) + _ui_defs.json
 │   ├── texts/               #   langues du render pack
 │   └── textures/ui/         #   cadres, tuiles, cartes (générés) + textures du render pack
 ├── src/                     # Code source TypeScript
@@ -118,11 +116,11 @@ Le **kit** (`src/ui/kit.tsx`) porte l'identité (fenêtre cuir/or `om_window`, b
 │   ├── jobs/                # Métiers (bases)
 │   ├── mines/               # Dimension minière (générateur déterministe) + menus Monde/Mines
 │   ├── modules/             # Activation/désactivation à chaud
-│   ├── ui/                  # Moteur UI : framework JSX (theme.tsx), kit visuel (kit.tsx), helpers (labels.ts)
+│   ├── ui/                  # Moteur UI : transport natif (theme.ts), helpers (labels.ts)
 │   ├── players.ts           # Index joueurs (id stable, sessions, grades)
 │   └── lib/                 # Loggers
 ├── serveur/                 # Monde de test (packs activés)
-├── scripts/                 # make_ui_textures.py
+├── scripts/                 # build_server_form.py (JSON UI) + make_ui_textures.py
 ├── build.mjs                # Script de build (esbuild)
 └── tsconfig.json
 ```

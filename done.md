@@ -1,7 +1,25 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v3.0.4 — Retraite complète des réponses des commandes `/sn:*` : préfixes et couleurs homogènes, erreurs renvoyées en Failure, bug de statut `/sn:invite` corrigé, mutations de DB différées dans `system.run`.** — v3.0.3 : correctif critique « menus qui ne s'ouvrent plus » (`jsx: "automatic"` imposé dans build.mjs).
+> Dernière mise à jour : **v3.1.0 — Refonte UI complète : architecture « transport invisible + JSON UI à nous ».** Framework `@bedrock-core/ui` et render pack CoreUI supprimés ; apparence portée par `RP/ui/server_form.json` généré depuis la base vanilla officielle (1.26.50). — v3.0.4 : réponses des commandes `/sn:*` retraitées.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v3.1.0 — Transport invisible + JSON UI à nous (sept. 2026)
+
+**La décision** : « Utiliser JSON UI + Script API sans utiliser server-ui » s'est révélée techniquement impossible (aucun pont JSON UI → script n'existe : pas de script_event sur boutons, pas de bindings alimentables par un BP, et les écrans natifs interactifs non-formulaires n'ont aucune API d'ouverture). Architecture retenue à la place — celle des packs de production : **le transport natif `@minecraft/server-ui` porte les données et les clics (jamais visible), le RP habille 100 % de l'apparence** via `server_form.json`.
+
+- [x] **Générateur `scripts/build_server_form.py`** (méthode vanilla-first) : la base est le `server_form.json` officiel de Mojang 1.26.50 (caché dans `scripts/vanilla_server_form.json`), on n'applique QUE des modifications ciblées — fenêtres élargies (430×252), titre doré, boutons vanilla re-texturés avec nos dalles `om_btn` (3 états), contrôle `om_focus_button` (navigation clavier/manette), submit des formulaires sur le même habillage. Validation stricte (exit 1) : définitions vanilla présentes, héritages internes résolus, textures existantes, zéro doublon. **Bug corrigé au passage** : le `namespace: server_form` était retiré du fichier généré (JSON UI invalide) — désormais réécrit en première clé.
+- [x] **Moteur `src/ui/theme.ts` réécrit sans framework** (plus de JSX/kit/render) : `openTileMenu` → `ActionFormData` avec pagination automatique au-delà de 8 entrées ; `OMForm` → `CustomForm` natif inchangé ; réessais UserBusy (4 tentatives) des deux côtés ; API publique 100 % conservée — les 12 écrans du serveur n'ont pas changé une ligne.
+- [x] **Supprimé** : `@bedrock-core/ui` (dépendance), `src/ui/kit.tsx`, `src/ui/theme.tsx`, `RP/ui/core-ui/` (26 fichiers), les 190 textures ore-styled/config du framework, `jsx`/`jsxImportSource` de tsconfig et build.mjs.
+- [x] **`_ui_defs.json` réécrit** : une seule entrée, `ui/server_form.json` en tête.
+- [x] **Tests réécrits comme gardes d'architecture** (14) : zéro framework dans le code, transport natif utilisé, définitions vanilla présentes dans le JSON généré, textures `om_btn` vendues, aucune trace CoreUI, câblage BP → RP correct, versions BP/RP synchrones.
+- [x] `agent.md` réécrit pour la nouvelle architecture.
+
+### ✔️ Vérifié
+Typecheck OK · **74/74 tests** · bundle recompilé · packs **3.1.0** (BP, RP, `serveur/*.json`).
+
+**En jeu** : re-copier `BP/`, `RP/` + les 2 JSON de `serveur/` — l'habillage or/argent est désormais porté par le JSON UI généré (menus et fiches uniformes, inputs natifs garantis).
 
 ---
 
