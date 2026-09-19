@@ -1,70 +1,80 @@
-/** Registre des métiers : catalogue, métiers actifs et progression. */
+/** Registre des métiers — MENU À TUILES (panneau émeraude, liste paginée). */
 import type { Player } from "@minecraft/server";
 import { JobManager, JOB_XP_PER_LEVEL, jobLevel } from "./manager";
-import { openWindow } from "../ui/theme";
+import { openTileMenu } from "../ui/theme";
+import { pageSlice } from "../ui/tiles";
+
+/** Nombre de disciplines affichées par page. */
+export const JOBS_PER_PAGE = 5;
 
 function xpBar(xp: number, perLevel: number): string {
   const filled = Math.min(10, Math.floor((xp / perLevel) * 10));
-  return `§a[${"|".repeat(filled)}§8${".".repeat(10 - filled)}§a]§r`;
+  const bar = "|".repeat(filled);
+  const empty = ".".repeat(10 - filled);
+  return `§a[${bar}§8${empty}§a]§r`;
 }
 
-export function openJobsMenu(player: Player, jobs: JobManager): void {
-  void openWindow(player, "Métiers", (form) => {
-    const mine = jobs.jobsOf(player.name);
-    form.header("§b§lAtelier des métiers");
-    form.body(
+/**
+ * Atelier des métiers — une tuile par discipline (catalogue), paginée.
+ *
+ * Un clic DÉMARRE la discipline si elle n'est pas exercée, la QUITTE sinon :
+ * c'est le même geste dans les deux sens, l'état est écrit dans le libellé.
+ */
+export function openJobsMenu(player: Player, jobs: JobManager, page = 0): void {
+  const catalog = jobs.catalog();
+  const mine = jobs.jobsOf(player.name);
+  const { items, page: current, pageCount } = pageSlice(catalog, page, JOBS_PER_PAGE);
+
+  openTileMenu(player, "Metiers", (menu) => {
+    menu.body(
       [
-        "§7Les métiers sont des disciplines parallèles à ta classe.",
-        "§7Chaque métier possède sa propre progression et son propre rythme.",
-        `§7Disciplines actives : §f${mine.length}/${jobs.catalog().length}`,
+        "§b§lAtelier des métiers§r",
+        "§7Les métiers sont des disciplines parallèles à ta classe :",
+        "§7chacun a sa propre progression et son propre rythme.",
+        "",
+        `§7Disciplines actives : §f${mine.length}§7/${catalog.length}`,
+        ...mine.map((job) => {
+          const info = catalog.find((candidate) => candidate.id === job.jobId);
+          return `§8- ${info?.color ?? "§f"}${info?.name ?? job.jobId}§8 niv. §f${jobLevel(job.xp)}§8 ${xpBar(
+            job.xp % JOB_XP_PER_LEVEL,
+            JOB_XP_PER_LEVEL,
+          )}`;
+        }),
+        "",
+        `§8Page §f${current + 1}§8/§f${pageCount}§8 — un clic démarre ou quitte la discipline.`,
       ].join("\n"),
     );
-    form.divider();
 
-    if (mine.length > 0) {
-      form.header("§e§lMétiers actifs");
-      for (const job of mine) {
-        const info = jobs.catalog().find((candidate) => candidate.id === job.jobId);
-        const jobName = info?.name ?? job.jobId;
-        form.header(`${info?.color ?? "§f"}§l${jobName}§r`);
-        form.label(
-          [
-            `§7Niveau §f${jobLevel(job.xp)}`,
-            `§7Progression ${xpBar(job.xp % JOB_XP_PER_LEVEL, JOB_XP_PER_LEVEL)}`,
-          ].join("\n"),
-        );
-        form.button(`§cQuitter ${jobName}`, () => {
-          if (jobs.quitJob(player.name, job.jobId)) {
-            player.sendMessage(`§e[Métiers] Tu quittes le métier ${jobName}.`);
+    for (let slot = 0; slot < JOBS_PER_PAGE; slot++) {
+      const info = items[slot];
+      if (info === undefined) continue;
+      const active = mine.find((job) => job.jobId === info.id);
+      menu.action(
+        `job_${slot}`,
+        active !== undefined
+          ? `§cQuitter ${info.name} §7(niv. ${jobLevel(active.xp)})`
+          : `§aCommencer ${info.name}`,
+        () => {
+          if (active !== undefined) {
+            if (jobs.quitJob(player.name, info.id)) {
+              player.sendMessage(`§e[Métiers] Tu quittes le métier ${info.name}.`);
+            }
+          } else if (jobs.startJob(player.name, info.id)) {
+            player.sendMessage(`§a[Métiers] Métier commencé : ${info.name}.`);
           }
-          openJobsMenu(player, jobs);
-        });
-        form.divider();
-      }
-      form.divider();
+          openJobsMenu(player, jobs, current);
+        },
+      );
     }
 
-    form.header("§6§lChoisir une discipline");
-    for (const info of jobs.catalog()) {
-      if (jobs.hasJob(player.name, info.id)) continue;
-      form.header(`${info.color}§l${info.name}§r`);
-      form.label(`§7${info.description}`);
-      form.button(`§aCommencer ${info.name}`, () => {
-        if (jobs.startJob(player.name, info.id)) {
-          player.sendMessage(`§a[Métiers] Métier commencé : ${info.name}.`);
-        }
-        openJobsMenu(player, jobs);
-      });
-      form.divider();
-    }
-
-    form.divider();
-    form.header("§e§lOutils du parcours");
-    form.button("§eVoir ma progression", () => {
-      player.sendMessage("§e[Métiers] Ta progression détaillée est affichée sur chaque discipline active.");
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openJobsMenu(player, jobs, current - 1);
     });
-    form.button("§6Classement des métiers", () => {
-      player.sendMessage("§6[Métiers] Le classement sera alimenté quand les actions de métier seront branchées.");
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openJobsMenu(player, jobs, current + 1);
     });
-  }).catch((error: unknown) => console.warn(`[Métiers] ${error instanceof Error ? error.message : String(error)}`));
+    menu.action("back", `§7Fermer`, () => {
+      /* appuyer sur une tuile ferme déjà le formulaire */
+    });
+  });
 }

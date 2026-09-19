@@ -1,89 +1,95 @@
 /**
- * Menus Monde & Mines.
+ * Menus Monde & Mines — TOUS DEUX EN TUILES (v2.8).
  *
- * - /sn:monde → « Le Monde » : DESIGN DIFFÉRENCIÉ façon « portes » — deux
- *   grandes cartes (Monde normal en vert doux, Mine en bleu acier) avec
- *   encarts « vous êtes ici », filet, liste des minerais. Volontairement
- *   différent du hub/admin.
- * - Menu Mines (entrée hub) : présentation de la dimension minière.
+ * - `/sn:monde` → « Le Monde » : DEUX GRANDES CARTES (monde normal en argent
+ *   teinté émeraude, mine en argent teinté acier), cadre or, puis les outils
+ *   rangés SOUS les cartes (strates, position, aide…) et la fermeture.
+ * - Menu Mines (entrée du hub) : atelier minier, liste générique à gauche.
  *
  * v19.1 : la mine est un BLOC DE PIERRE PLEIN (plus de salles/galeries
  * pré-creusées) — le joueur creuse lui-même, comme un vrai minage.
  */
 
 import type { Player } from "@minecraft/server";
-import { openWindow, openWindowRaw, windowTitle } from "../ui/theme";
+import { openTileMenu } from "../ui/theme";
 import type { MinesManager } from "./manager";
 import { ORES_PUBLIC } from "./manager";
 
+/** Phrase courte listant les strates (réutilisée par les deux menus). */
+function oreLine(): string {
+  return ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join("§8, ");
+}
+
 // ---------------------------------------------------------------------------
-// /sn:monde — « Le Monde » (portes du monde)
+// /sn:monde — « Le Monde » (deux grandes cartes + outils dessous)
 // ---------------------------------------------------------------------------
 
 /**
- * Choix de monde : deux cartes stylisées avec repère « vous êtes ici ».
- * Le retour depuis la mine téléporte à la DERNIÈRE position connue du
- * joueur dans le monde normal.
+ * Choix de monde. Le panneau est dessiné par le Resource Pack
+ * (`om_world_panel`) : les index 0 et 1 sont les DEUX CARTES cliquables, les
+ * index 2 à 5 les tuiles d'outils, l'index 6 la fermeture.
+ *
+ * Le retour depuis la mine téléporte à la DERNIÈRE position connue du joueur
+ * dans le monde normal.
  */
 export function openWorldMenu(player: Player, mines: MinesManager, back?: () => void): void {
   const inMines = mines.isInMines(player);
+  const oreList = oreLine();
 
-  void openWindowRaw(player, windowTitle("Le Monde"), (form) => {
-    if (back !== undefined) form.back(back);
+  const notifier = (message: string): void => {
+    player.sendMessage(message);
+  };
 
-    form.header(`§b§lLes portes du monde§r`);
-    form.label(
-      inMines
-        ? `§7Tu es actuellement dans §b§lLa Mine§r`
-        : `§7Tu es actuellement dans le §a§lMonde normal§r`,
-    );
-    form.divider();
-
-    // --- Carte 1 : Monde normal (vert doux) ---
-    form.header(`§l§aMONDE NORMAL§r`);
-    form.label(
+  openTileMenu(player, "Le Monde", (menu) => {
+    menu.body(
       [
-        `§7La surface : biomes, constructions, tes clans…`,
         inMines
-          ? `§eAller : §fte téléporte à ta DERNIÈRE position§e ici.`
-          : `§aTu y es déjà.`,
+          ? "§7Tu es actuellement dans §b§lLa Mine§r §7— clique une carte pour changer de monde."
+          : "§7Tu es actuellement dans le §a§lMonde normal§r §7— clique une carte pour changer de monde.",
+        `§8Strates : ${oreList}`,
       ].join("\n"),
     );
-    form.button(`§a§lAller au monde normal`, () => {
+
+    // ---- Les deux grandes cartes (index 0 et 1) ----
+    menu.action("overworld", inMines ? "§aAller au monde normal" : "§8Monde normal (tu y es)", () => {
       if (!inMines) {
-        player.sendMessage("§7[Mines] Tu es déjà dans le monde normal.");
+        notifier("§7[Mines] Tu es déjà dans le monde normal.");
         return;
       }
-      player.sendMessage(mines.goNormal(player));
+      notifier(mines.goNormal(player));
     });
-
-    form.divider();
-
-    // --- Carte 2 : Mine (bleu acier) ---
-    form.header(`§l§bLA MINE§r`);
-    form.label(
-      [
-        `§7Un monde §fentièrement massé dans la pierre§7, en profondeur :`,
-        `§8- §f70 couches§8 à miner entre deux lits de bedrock`,
-        `§8- à toi de creuser tes galeries, façon vrai minage`,
-        `§8- minerais §fplus riches qu'en surface§8, sans excès`,
-      ].join("\n"),
-    );
-    form.button(`§b§lDescendre dans la Mine`, () => {
+    menu.action("mines", inMines ? "§8La Mine (tu y es)" : "§bDescendre dans la Mine", () => {
       if (inMines) {
-        player.sendMessage("§7[Mines] Tu es déjà dans la mine.");
+        notifier("§7[Mines] Tu es déjà dans la mine.");
         return;
       }
-      player.sendMessage(mines.goMines(player));
+      notifier(mines.goMines(player));
     });
 
-    form.divider();
-    form.label(
-      `§8Strates : ${ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join("§8 - ")}`,
+    // ---- Outils rangés sous les cartes ----
+    menu.action("ores", "§6Strates et minerais", () =>
+      notifier(`§7[Mines] À cette profondeur, cherche : ${oreList}§7.`),
     );
-  }).catch((error: unknown) =>
-    console.warn(`[Mines] Erreur menu monde : ${error instanceof Error ? error.message : String(error)}`),
-  );
+    menu.action("where", "§eOù suis-je ?", () => {
+      const { x, y, z } = player.location;
+      notifier(
+        `§7[Mines] Position §f${Math.floor(x)}§7, §f${Math.floor(y)}§7, §f${Math.floor(z)}§7 — §f${player.dimension.id}§7.`,
+      );
+    });
+    menu.action("help", "§7Aide minage", () =>
+      notifier(
+        "§7[Mines] §f/sn:mine§7 descend ou remonte instantanément. La mine est un bloc de pierre plein : à toi de creuser.",
+      ),
+    );
+    menu.action("close", "§7Fermer", () => {
+      /* appuyer sur une tuile ferme déjà le formulaire */
+    });
+
+    // ---- Fermeture / retour (index 6) ----
+    menu.action("back", back !== undefined ? "§7Retour au menu" : "§7Fermer", () => {
+      if (back !== undefined) back();
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -91,45 +97,51 @@ export function openWorldMenu(player: Player, mines: MinesManager, back?: () => 
 // ---------------------------------------------------------------------------
 
 /**
- * Menu Mines (entrée hub) : présentation + aller/retour.
+ * Menu Mines (entrée hub) — LISTE GÉNÉRIQUE (panneau émeraude) : les actions
+ * sont les tuiles de gauche, la présentation est dans le panneau de droite.
+ *
  * @param back callback de retour (hub) — absent (commande /sn:mine), on
  *             indique simplement la commande.
  */
 export function openMineMenu(player: Player, mines: MinesManager, back?: () => void): void {
   const inMines = mines.isInMines(player);
 
-  void openWindow(player, "Mines", (form) => {
-    form.header("§b§lAtelier minier");
-    form.label(
+  openTileMenu(player, "Mines", (menu) => {
+    menu.body(
       [
-        `§7Un monde entièrement massé dans la pierre.`,
-        `§7Soixante-dix couches à creuser entre deux lits de bedrock.`,
-        `§7Les minerais deviennent plus rares et précieux en profondeur.`,
+        "§6§lAtelier minier§r",
+        "§7Un monde entièrement massé dans la pierre : §f70 couches§7 à creuser,",
+        "§7entre deux lits de bedrock. Les minerais deviennent plus rares",
+        "§7et plus précieux en profondeur.",
+        "",
+        "§fSurface §7: charbon et fer",
+        "§fProfondeur §7: cuivre, or et redstone",
+        "§fDernières couches §7: lapis, émeraude et diamant",
+        "",
+        `§7Strates : ${oreLine()}`,
       ].join("\n"),
     );
-    form.divider();
 
-    form.header("§6§lLe parcours");
-    form.label(
-      [
-        `§fSurface §7: charbon et fer`,
-        `§fProfondeur §7: cuivre, or et redstone`,
-        `§fDernières couches §7: lapis, émeraude et diamant`,
-      ].join("\n"),
+    menu.action("toggle", inMines ? "§aRevenir au monde normal" : "§bDescendre aux mines", () => {
+      player.sendMessage(inMines ? mines.goNormal(player) : mines.goMines(player));
+    });
+    menu.action("world", "§bMenu Le Monde", () => openWorldMenu(player, mines, back));
+    menu.action("where", "§eOù suis-je ?", () => {
+      const { x, y, z } = player.location;
+      player.sendMessage(
+        `§7[Mines] Position §f${Math.floor(x)}§7, §f${Math.floor(y)}§7, §f${Math.floor(z)}§7 — §f${player.dimension.id}§7.`,
+      );
+    });
+    menu.action("ores", "§6Strates et minerais", () =>
+      player.sendMessage(`§7[Mines] Minerais par profondeur : ${oreLine()}§7.`),
     );
-    form.divider();
-
-    if (back !== undefined) form.back(back);
-    if (inMines) {
-      form.button(`§a§lRevenir au monde normal`, () => {
-        player.sendMessage(mines.goNormal(player));
-      });
-    } else {
-      form.button(`§b§lDescendre aux mines`, () => {
-        player.sendMessage(mines.goMines(player));
-      });
-    }
-  }).catch((error: unknown) =>
-    console.warn(`[Mines] ${error instanceof Error ? error.message : String(error)}`),
-  );
+    menu.action("help", "§7Aide minage", () =>
+      player.sendMessage(
+        "§7[Mines] §f/sn:mine§7 descend ou remonte instantanément ; la mine se creuse à la pioche.",
+      ),
+    );
+    menu.action("back", back !== undefined ? "§7Retour au menu" : "§7Fermer", () => {
+      if (back !== undefined) back();
+    });
+  });
 }

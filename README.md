@@ -4,7 +4,7 @@
 
 > **NaLandia** (anciennement « OpenMontage ») : l'add-on de serveur avec territoires/États, clans, rôles, modération, classes, métiers et une dimension minière dédiée — avec des menus robustes basés sur les formulaires officiels Bedrock.
 
-**Packs actuels : 2.6.0** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
+**Packs actuels : 2.7.0** (Behavior Pack + Resource Pack + monde de test dans `serveur/`).
 
 ## C'est quoi ce repo ?
 
@@ -56,8 +56,16 @@ Persistée dans le monde via les Dynamic Properties Bedrock :
 **1. Formulaires natifs (`CustomForm`)** — champs texte, curseurs, listes déroulantes et fiches de lecture. C'est le moteur par défaut : tactile, manette et clavier natifs, aucun framework communautaire.
 
 **2. Menus à tuiles (`ActionFormData` + JSON UI)** — le script envoie un formulaire à boutons NUMÉROTÉS, et `RP/ui/server_form.json` remplace le rendu `long_form` par un panneau dessiné à la main, SANS le cadre gris vanilla :
-   - **Classes** : trois cartes verticales, une par voie, de la couleur de la classe ;
+   - **Classes** : trois cartes verticales, une par voie, de la couleur de la classe (nom en haut de carte, texte borné) ;
    - **Mon clan** : banque en haut à gauche, drapeau en haut à droite, bio au centre, actions en bas ;
+   - **Menu / Administration** : même géométrie (colonne de tuiles à gauche, panneau d'état à droite) ;
+   - **Nations** : liste paginée des États (3 par page) + fonder / fermer ;
+   - **Mes infos** : fiche du joueur à droite, actions à gauche ;
+   - **Le Monde** : destinations et repères à gauche, état du joueur à droite.
+
+Les **formulaires à champs** (créations, sanctions, réglages…) gardent les champs natifs mais héritent du **même habillage or & argent** : `custom_form` est réécrit dans le JSON UI, donc plus aucun cadre gris Mojang nulle part.
+
+> ⚠️ **Titres sans accent** : le JSON UI route par comparaison littérale du titre (`NaLandia » Nations`). Un titre accentué était routé vers rien du tout (menu rendu en cadre vanilla) — c'est le test `tiles.test.ts` qui garde cette règle.
    - **Menu (hub) et Administration** : même fenêtre or, six tuiles en colonne à gauche et état dans le panneau de droite.
 
 L'ordre des boutons est un contrat partagé (`src/ui/tiles.ts` ↔ `RP/ui/server_form.json`) vérifié par les tests : un index qui se décale, une texture manquante ou un titre mal filtré fait échouer la suite de tests.

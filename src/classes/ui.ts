@@ -22,6 +22,7 @@ import {
 } from "./manager";
 import type { ClassInfo } from "./manager";
 import { openTileMenu, openWindowRaw, windowTitle } from "../ui/theme";
+import { wrapLabel } from "../ui/tiles";
 
 /** Barre de progression ASCII (10 crans) colorée. */
 function xpBar(xp: number, perLevel: number): string {
@@ -166,15 +167,16 @@ export function openClassesMenu(
         classCard(player, classes, info, false, () => openClassesMenu(player, classes, isAdmin, back));
       });
 
-      // Le texte de carte est COURT : la boîte fait 92 x 62 pixels dans le
-      // panneau, et un texte trop long débordait sous la carte. Nom sur la
-      // carte (bouton), description + état ici.
+      // Le texte de carte est COURT et BORNÉ : la boîte de description fait
+      // 92 x 60 pixels dans la carte (nom en haut, texte en dessous), et un
+      // texte trop long débordait hors de la carte. On limite donc à deux
+      // lignes de 22 caractères visibles, plus une ligne d'état.
       menu.data(
         `desc_${index}`,
         [
-          info.description,
+          wrapLabel(info.description, 22, 2),
           isCurrent
-            ? `§6Voie actuelle — niveau ${classLevel(selection?.xp ?? 0)}`
+            ? `§6Ta voie — niv. ${classLevel(selection?.xp ?? 0)}`
             : selection === undefined
               ? `§aDisponible`
               : `§8Choix définitif`,

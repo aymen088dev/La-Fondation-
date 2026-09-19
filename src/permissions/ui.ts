@@ -1,32 +1,56 @@
 import type { Player } from "@minecraft/server";
-import { windowTitle, openWindow, openWindowRaw, obString, obNumber } from "../ui/theme";
+import { windowTitle, openWindow, openWindowRaw, obString, obNumber, openTileMenu } from "../ui/theme";
+import { pageSlice } from "../ui/tiles";
 import { ROLE_COLORS } from "./manager";
 import type { PermissionManager } from "./manager";
 import type { RoleData } from "./manager";
 import type { StoredDocument } from "../db";
+
+/** Nombre de rôles affichés par page (plus la création, la pagination et le retour). */
+export const ROLES_PER_PAGE = 4;
 
 /** Garde-fou : un non-admin ne peut pas ouvrir la GUI d'admin. */
 export function isAdmin(playerName: string, permissions: PermissionManager): boolean {
   return permissions.levelOf(playerName) >= 100;
 }
 
-/** Menu principal des rôles (admin). */
-export function openRolesMenu(player: Player, permissions: PermissionManager): void {
+/** Menu principal des rôles (admin) — LISTE GÉNÉRIQUE (panneau bleu nuit). */
+export function openRolesMenu(player: Player, permissions: PermissionManager, page = 0): void {
   const roles = permissions.allRoles();
+  const { items, page: current, pageCount } = pageSlice(roles, page, ROLES_PER_PAGE);
 
-  void openWindow(player, "Rôles", (form) => {
-    form.header(`§6§lRôles du serveur`);
-    form.label(`§7${roles.length} rôle(s). Clique pour configurer :`);
-    form.divider();
-    form.button(`§a§lCréer un rôle`, () => openCreateRoleMenu(player, permissions));
+  openTileMenu(player, "Roles", (menu) => {
+    menu.body(
+      [
+        "§6§lRôles du serveur§r",
+        `§7${roles.length} rôle(s) — page §f${current + 1}§7/§f${pageCount}`,
+        "",
+        "§8Clique un rôle pour changer sa couleur, son préfixe,",
+        "§8son niveau, voir ses membres ou le supprimer.",
+      ].join("\n"),
+    );
 
-    for (const role of roles) {
-      form.button(
-        `${role.data.color}[${role.data.name}]§r §7— niv. ${role.data.level} · ${permissions.membersWithRole(role.data.name).length} membre(s)`,
+    for (let slot = 0; slot < ROLES_PER_PAGE; slot++) {
+      const role = items[slot];
+      if (role === undefined) continue;
+      menu.action(
+        `role_${slot}`,
+        `${role.data.color}[${role.data.name}] §7niv. ${role.data.level}`,
         () => openRoleConfigMenu(player, role, permissions),
       );
     }
-  }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+
+    menu.action("create", `§aCréer un rôle`, () => openCreateRoleMenu(player, permissions));
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openRolesMenu(player, permissions, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openRolesMenu(player, permissions, current + 1);
+    });
+    menu.action("back", `§7Fermer`, () => {
+      /* appuyer sur une tuile ferme déjà le formulaire */
+    });
+  });
 }
 
 /** Création d'un rôle : nom + couleur + niveau. */
@@ -109,27 +133,49 @@ function openLevelMenu(player: Player, role: StoredDocument<RoleData>, permissio
   }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
 }
 
-/** Membres d'un rôle : clic pour retirer. */
+/**
+ * Membres d'un rôle : clic pour retirer. MÊME PANNEAU que la liste des rôles
+ * (le titre est fixe « Roles » — c'est le corps qui annonce le rôle affiché).
+ */
 function openRoleMembersMenu(
   player: Player,
   role: StoredDocument<RoleData>,
   permissions: PermissionManager,
+  page = 0,
 ): void {
-  void openWindow(player, `Membres ${role.data.color}[${role.data.name}]`, (form) => {
-    const members = permissions.membersWithRole(role.data.name);
-    if (members.length === 0) {
-      form.label("§7Aucun membre dans ce rôle.");
-    } else {
-      form.label("§7Clique sur un membre pour lui retirer le rôle :");
-      for (const member of members) {
-        form.button(`§f${member.data.name}`, () => {
-          permissions.removeRole(member.data.name);
-          player.sendMessage(`§a[Rôles] ${member.data.name} ne fait plus partie du rôle.`);
-          openRoleMembersMenu(player, role, permissions);
-        });
-      }
+  const members = permissions.membersWithRole(role.data.name);
+  const { items, page: current, pageCount } = pageSlice(members, page, 5);
+
+  openTileMenu(player, "Roles", (menu) => {
+    menu.body(
+      [
+        `§6§lMembres ${role.data.color}[${role.data.name}]§r`,
+        members.length === 0
+          ? "§7Aucun membre dans ce rôle."
+          : `§7${members.length} membre(s) — page §f${current + 1}§7/§f${pageCount}`,
+        "",
+        "§8Clique un membre pour lui retirer ce rôle.",
+      ].join("\n"),
+    );
+
+    for (let slot = 0; slot < 5; slot++) {
+      const member = items[slot];
+      if (member === undefined) continue;
+      menu.action(`member_${slot}`, `§f${member.data.name}`, () => {
+        permissions.removeRole(member.data.name);
+        player.sendMessage(`§a[Rôles] ${member.data.name} ne fait plus partie du rôle.`);
+        openRoleMembersMenu(player, role, permissions, current);
+      });
     }
-  }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openRoleMembersMenu(player, role, permissions, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openRoleMembersMenu(player, role, permissions, current + 1);
+    });
+    menu.action("back", `§7Retour aux rôles`, () => openRolesMenu(player, permissions));
+  });
 }
 
 /**

@@ -3,7 +3,8 @@ import type { Player } from "@minecraft/server";
 import { ROLE_COLORS } from "./manager";
 import type { PermissionManager } from "./manager";
 import { openPrefixMenu } from "./ui";
-import { windowTitle, openWindow, openWindowRaw, obString } from "../ui/theme";
+import { windowTitle, openWindow, openWindowRaw, obString, openTileMenu } from "../ui/theme";
+import { pageSlice } from "../ui/tiles";
 import { allKnownPlayers } from "../players";
 import type { JsonDatabase } from "../db/database";
 import { resetClassOf } from "../db/menu";
@@ -14,56 +15,87 @@ export function confirmDialog(_player: Player, _title: string, _body: string): P
 }
 
 /**
- * Menu Joueurs (admin) — deux onglets :
- *  - En ligne : les joueurs connectés en ce moment
- *  - Hors ligne : tout l'index DB (firstSeen, sessions), gérable pareil
+ * Nombre de joueurs affichés par page : 4 joueurs + recherche + pagination +
+ * retour = 8 tuiles, soit exactement la capacité de la colonne
+ * (`PANEL_TILE_CAPACITY` dans `src/ui/tiles.ts`).
  */
-export function openPlayersMenu(player: Player, permissions: PermissionManager, db?: JsonDatabase): void {
-  void openWindow(player, "Joueurs", (form) => {
-    const online = world.getAllPlayers();
-    form.header(`§b§lJoueurs`);
-    form.label(
-      `§aEn ligne : §f${online.length}\n§7Connus (DB) : §f${db !== undefined ? allKnownPlayers(db).length : "?"}`,
-    );
-    form.divider();
+export const PLAYERS_PER_PAGE = 4;
 
-    // --- Onglet 1 : joueurs en ligne ---
-    form.label(`§a§lEn ligne§r §7(${online.length})`);
-    if (online.length === 0) {
-      form.label("§7Personne d'autre n'est connecté.");
-    }
-    for (const target of online) {
+/** Une entrée de la liste des joueurs (en ligne ou vu dans l'index). */
+interface PlayerEntry {
+  name: string;
+  online: boolean;
+  /** Libellé de gauche (rôle, sessions, dernière vue…). */
+  detail: string;
+}
+
+/**
+ * Menu Joueurs (admin) — LISTE GÉNÉRIQUE (panneau bleu nuit).
+ *
+ * Les joueurs EN LIGNE passent en premier (§a), puis l'index DB (§8), le tout
+ * paginé : une tuile par joueur, un clic ouvre sa fiche. La recherche par
+ * pseudo reste disponible pour un joueur que la liste ne montre pas.
+ */
+export function openPlayersMenu(
+  player: Player,
+  permissions: PermissionManager,
+  db?: JsonDatabase,
+  page = 0,
+): void {
+  const online = world.getAllPlayers();
+  const known = db !== undefined ? allKnownPlayers(db) : [];
+  const offline = known.filter((record) => !online.some((target) => target.name === record.data.name));
+
+  const entries: PlayerEntry[] = [
+    ...online.map((target): PlayerEntry => {
       const member = permissions.getMember(target.name);
-      const role = permissions.getRole(member?.data.role ?? "");
-      form.button(
-        `${role?.data.color ?? "§7"}${target.name}§r §7— ${member?.data.role ?? "aucun rôle"}`,
-        () => openPlayerConfigMenu(player, target.name, permissions, db),
-      );
-    }
+      return { name: target.name, online: true, detail: member?.data.role ?? "aucun rôle" };
+    }),
+    ...offline.map((record): PlayerEntry => {
+      const lastSeen = new Date(record.data.lastSeen);
+      const hh = `${String(lastSeen.getHours()).padStart(2, "0")}:${String(lastSeen.getMinutes()).padStart(2, "0")}`;
+      return {
+        name: record.data.name,
+        online: false,
+        detail: `${record.data.sessions} sess. · vu à ${hh}`,
+      };
+    }),
+  ];
 
-    form.divider();
+  const { items, page: current, pageCount } = pageSlice(entries, page, PLAYERS_PER_PAGE);
 
-    // --- Onglet 2 : joueurs hors ligne (index DB) ---
-    form.label(`§7§lHors ligne / historique§r §7(index complet)`);
-    form.button(`§a§lGérer un joueur hors ligne (saisir le pseudo)`, () =>
-      openPlayerLookupMenu(player, permissions, db),
+  openTileMenu(player, "Joueurs", (menu) => {
+    menu.body(
+      [
+        "§b§lJoueurs§r",
+        `§aEn ligne : §f${online.length}§r   §7Connus (DB) : §f${db !== undefined ? known.length : "?"}`,
+        "",
+        `§7Page §f${current + 1}§7/§f${pageCount}`,
+        "§8Une tuile par joueur — fiche, rôle, préfixe, classe.",
+      ].join("\n"),
     );
-    if (db !== undefined) {
-      const known = allKnownPlayers(db).filter(
-        (record) => !online.some((target) => target.name === record.data.name),
+
+    for (let slot = 0; slot < PLAYERS_PER_PAGE; slot++) {
+      const entry = items[slot];
+      if (entry === undefined) continue;
+      menu.action(
+        `player_${slot}`,
+        `${entry.online ? "§a" : "§8"}${entry.name}§r §8— §7${entry.detail}`,
+        () => openPlayerConfigMenu(player, entry.name, permissions, db),
       );
-      for (const record of known.slice(0, 15)) {
-        const role = permissions.getRole(record.data.grade);
-        const lastSeen = new Date(record.data.lastSeen);
-        const hh = `${String(lastSeen.getHours()).padStart(2, "0")}:${String(lastSeen.getMinutes()).padStart(2, "0")}`;
-        form.button(
-          `§8${record.data.name}§r §7— ${record.data.grade !== "" ? role?.data.color + record.data.grade + "§7 · " : ""}${record.data.sessions} session(s) · vu à ${hh}`,
-          () => openPlayerConfigMenu(player, record.data.name, permissions, db),
-        );
-      }
-      if (known.length > 15) form.label(`§8… et ${known.length - 15} autres (recherche par pseudo)`);
     }
-  }).catch((error: unknown) => console.warn(`[Roles] ${error instanceof Error ? error.message : String(error)}`));
+
+    menu.action("lookup", `§eGérer un joueur (pseudo)`, () => openPlayerLookupMenu(player, permissions, db));
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openPlayersMenu(player, permissions, db, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openPlayersMenu(player, permissions, db, current + 1);
+    });
+    menu.action("back", `§7Fermer`, () => {
+      /* appuyer sur une tuile ferme déjà le formulaire */
+    });
+  });
 }
 
 /** Saisie d'un pseudo pour gérer un joueur (même hors ligne). */

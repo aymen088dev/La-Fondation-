@@ -708,49 +708,212 @@ def flag_banners() -> None:
     write_png(RP_ROOT / "textures" / "ui" / "om_flag_blason.png", w, h, blason)
 
 
+def double_frame_card(
+    s: int,
+    accent: tuple[int, int, int],
+    body_top: tuple[int, int, int],
+    body_bottom: tuple[int, int, int],
+) -> list[list[tuple[int, int, int, int]]]:
+    """Socle commun des GRANDES CARTES : double cadre.
+
+    De l'extérieur vers l'intérieur :
+      0-1  marge transparente (respiration entre deux cartes)
+      2-6  CADRE OR — c'est LUI qui rattache la carte au thème NaLandia
+      7    filet sombre (séparation nette)
+      8-11 CADRE COULEUR — la teinte propre à la carte (voie de classe,
+           monde…), plus clair sur la première rangée (lumière)
+      12   ombre intérieure de la couleur
+      13+  corps en dégradé
+
+    Le texte est écrit par le JSON UI par-dessus : aucune lettre ici.
+    """
+    px: list[list[tuple[int, int, int, int]]] = [[(0, 0, 0, 0)] * s for _ in range(s)]
+    for y in range(s):
+        t = y / (s - 1)
+        base = lerp(body_top, body_bottom, t)
+        for x in range(s):
+            edge = min(x, y, s - 1 - x, s - 1 - y)
+            if edge <= 1:
+                continue
+            if edge <= 6:
+                # Or plus lumineux vers le haut-gauche : la carte "reçoit" la lumière.
+                px[y][x] = (*lerp(GOLD_LIGHT, GOLD, min(1.0, (x + y) / (s * 1.4))), 255)
+            elif edge == 7:
+                px[y][x] = (*INK, 255)
+            elif edge <= 11:
+                px[y][x] = (*lerp(accent, WHITE, 0.16 if edge == 8 else 0.0), 255)
+            elif edge == 12:
+                px[y][x] = (*lerp(accent, (0, 0, 0), 0.6), 255)
+            else:
+                g = ((x * 7 + y * 5) % 5) - 2
+                px[y][x] = (_clamp(base[0] + g), _clamp(base[1] + g), _clamp(base[2] + g), 255)
+    # Onglet à 45° dans les coins : le détail qui fait "cadre ouvragé".
+    draw_miter(px, s, s, [(3, GOLD_LIGHT), (9, WHITE)])
+    return px
+
+
 def class_card_textures() -> None:
-    """`om_class_guerrier` / `om_class_mage` / `om_class_archer` : grandes
-    cartes verticales du menu Classes. Même cadre OR que le reste du thème,
-    mais chaque voie possède SA couleur : onglet coloré en haut, barre
-    colorée à gauche, corps sombre teinté. Le texte (nom + description) est
-    écrit par le JSON UI par-dessus, donc aucune lettre n'est dessinée ici."""
-    s = 64
+    """`om_class_guerrier` / `om_class_mage` / `om_class_archer` : GRANDES
+    cartes du menu Classes — cadre OR à l'extérieur, cadre de LA COULEUR DE LA
+    VOIE à l'intérieur, corps sombre teinté. 96×96, nineslice 16 (le cadre
+    reste net quelle que soit la taille de la carte)."""
+    s = 96
     cards: dict[str, tuple[int, int, int]] = {
-        "guerrier": (140, 45, 45),
-        "mage": (95, 60, 145),
-        "archer": (45, 110, 65),
+        "guerrier": (168, 58, 54),
+        "mage": (124, 78, 186),
+        "archer": (58, 146, 84),
     }
 
-    def card(accent: tuple[int, int, int]) -> list[list[tuple[int, int, int, int]]]:
-        body = lerp((24, 23, 27), accent, 0.18)
-        px: list[list[tuple[int, int, int, int]]] = [[(0, 0, 0, 0)] * s for _ in range(s)]
+    for name, accent in cards.items():
+        px = double_frame_card(
+            s,
+            accent,
+            lerp((46, 43, 50), accent, 0.24),     # haut du corps : teinté, clair
+            lerp((20, 19, 23), accent, 0.10),     # bas du corps : sombre
+        )
+        write_png(RP_ROOT / "textures" / "ui" / f"om_class_{name}.png", s, s, px)
+        write_nineslice(f"om_class_{name}", [16, 16, 16, 16], [s, s])
+
+
+def world_card_textures() -> None:
+    """`om_world_surface` / `om_world_mine` : les DEUX GRANDES CARTES du menu
+    « Le Monde ». Même construction que les cartes de classes (cadre OR + cadre
+    couleur), mais le corps est cette fois un DÉGRADÉ ARGENTÉ : argent clair en
+    haut, acier sombre en bas — lisible pour un texte blanc avec ombre."""
+    s = 96
+    cards: dict[str, tuple[int, int, int]] = {
+        "surface": (74, 152, 112),      # monde normal : accent émeraude
+        "mine": (104, 138, 184),        # la mine : accent bleu acier
+    }
+
+    for name, accent in cards.items():
+        px = double_frame_card(
+            s,
+            accent,
+            lerp((118, 124, 136), accent, 0.16),   # argent clair (haut)
+            lerp((38, 40, 47), accent, 0.12),      # acier sombre (bas)
+        )
+        write_png(RP_ROOT / "textures" / "ui" / f"om_world_{name}.png", s, s, px)
+        write_nineslice(f"om_world_{name}", [16, 16, 16, 16], [s, s])
+
+
+# ---------------------------------------------------------------------------
+# MENUS À LISTE — un thème par menu (fenêtre + cartes colorées)
+# ---------------------------------------------------------------------------
+# Chaque menu de liste possède SA fenêtre et SES cartes : la teinte d'accent
+# change, le cadre OR reste commun (thème or & argent cohérent). Les clés DOIVENT
+# rester identiques à `MENU_THEMES` dans `src/ui/tiles.ts` (vérifié par test).
+MENU_THEMES: dict[str, tuple[int, int, int]] = {
+    "mines": (150, 116, 66),        # bronze des galeries
+    "moderation": (168, 58, 54),    # rouge de la sanction
+    "bans": (134, 38, 38),          # sang séché (bannissements)
+    "mutes": (150, 82, 140),        # améthyste (silences)
+    "roles": (110, 92, 182),        # indigo hiérarchique
+    "joueurs": (72, 126, 178),      # bleu acier (annuaire)
+    "membres": (66, 148, 136),      # turquoise (effectif)
+    "membre": (58, 132, 160),       # teal (fiche individuelle)
+    "modules": (172, 132, 70),      # or vieilli (interrupteurs)
+    "metiers": (162, 108, 58),      # cuivre (artisanat)
+    "quetes": (152, 140, 72),       # laiton (objectifs)
+    "drapeau": (140, 88, 158),      # pourpre (bannières)
+    "dissoudre": (158, 46, 46),     # rouge sang (avertissement)
+    "base": (104, 120, 142),        # acier (données)
+}
+
+
+def menu_theme_textures() -> None:
+    """`om_menu_<id>_bg` : fenêtre d'un menu de liste.
+
+    Même charpente que les autres fenêtres (contour noir, bande OR, joint
+    sombre) mais le filet INTERNE prend la couleur du menu : deux menus ne se
+    ressemblent donc plus, tout en restant visiblement du même monde.
+    """
+    s = 96
+    for theme_id, accent in MENU_THEMES.items():
+        px: list[list[tuple[int, int, int, int]]] = []
+        for y in range(s):
+            row: list[tuple[int, int, int, int]] = []
+            for x in range(s):
+                d = ((x - s / 2) ** 2 + (y - s / 2) ** 2) ** 0.5 / (s / 2)
+                base = lerp(lerp((28, 28, 32), accent, 0.14), lerp((13, 13, 16), accent, 0.08), min(1.0, d))
+                g = ((x * 7 + y * 11) % 5) - 2
+                row.append((_clamp(int(base[0]) + g), _clamp(int(base[1]) + g), _clamp(int(base[2]) + g), 232))
+            px.append(row)
         for y in range(s):
             for x in range(s):
                 edge = min(x, y, s - 1 - x, s - 1 - y)
-                if edge <= 1:
-                    continue                                  # marge transparente
-                if edge in (2, 3):
-                    px[y][x] = (*lerp(GOLD, GOLD_DIM, (x + y) / (s * 2)), 255)
-                elif edge == 4:
-                    px[y][x] = (*lerp(accent, SILVER_DIM, 0.4), 255)
+                if edge == 0:
+                    px[y][x] = (*INK, 250)
+                elif edge in (1, 2):
+                    px[y][x] = (*lerp(GOLD, GOLD_DIM, (x + y) / (s * 2)), 245)   # bande OR
+                elif edge == 3:
+                    px[y][x] = (*lerp(INK, accent, 0.25), 240)                   # joint sombre
+                elif edge in (4, 5):
+                    px[y][x] = (*lerp(accent, WHITE, 0.18 if edge == 4 else 0.0), 240)  # filet COULEUR
+                elif edge == 6:
+                    px[y][x] = (*lerp(accent, (0, 0, 0), 0.72), 235)              # ombre intérieure
+        draw_miter(px, s, s, [(2, GOLD_LIGHT), (5, lerp(accent, WHITE, 0.45))])
+        write_png(RP_ROOT / "textures" / "ui" / f"om_menu_{theme_id}_bg.png", s, s, px)
+        write_nineslice(f"om_menu_{theme_id}_bg", [14, 14, 14, 14], [s, s])
+
+
+def menu_card_textures() -> None:
+    """`om_menu_<id>_card` (+ _hover / _press) : cartes des menus de liste.
+
+    Même langage que les GRANDES CARTES de Classes / Monde — cadre OR à
+    l'extérieur, cadre DE LA COULEUR DU MENU à l'intérieur — mais en format
+    tuile (48x48, nineslice 10) pour que la colonne d'actions garde sa
+    capacité. Les trois états sont générés : or vif au survol, or clair enfoncé.
+    """
+    s = 48
+
+    def card(accent: tuple[int, int, int], top: tuple[int, int, int],
+             gold: tuple[int, int, int], glow: tuple[int, int, int] | None,
+             grain_mod: int) -> list[list[tuple[int, int, int, int]]]:
+        px: list[list[tuple[int, int, int, int]]] = [[(0, 0, 0, 0)] * s for _ in range(s)]
+        for y in range(s):
+            t = y / (s - 1)
+            base = lerp(top, lerp((18, 18, 21), accent, 0.16), t)
+            for x in range(s):
+                edge = min(x, y, s - 1 - x, s - 1 - y)
+                if edge == 0:
+                    continue                                   # marge transparente
+                if edge == 1:
+                    px[y][x] = (*INK, 255)                     # contour noir
+                elif edge == 2:
+                    px[y][x] = (*gold, 255)                    # CADRE OR
+                elif edge == 3:
+                    px[y][x] = (*lerp(INK, accent, 0.3), 255)   # joint sombre
+                elif edge <= 5:
+                    px[y][x] = (*lerp(accent, WHITE, 0.2 if edge == 4 else 0.0), 255)  # CADRE COULEUR
+                elif edge == 6:
+                    px[y][x] = (*lerp(accent, (0, 0, 0), 0.65), 255)  # ombre intérieure
                 else:
-                    g = ((x * 7 + y * 5) % 5) - 2
-                    px[y][x] = (_clamp(body[0] + g), _clamp(body[1] + g), _clamp(body[2] + g), 255)
-        # Onglet de couleur en haut (tranche fixe du nineslice).
-        for y in range(6, 12):
-            for x in range(6, s - 6):
-                px[y][x] = (*lerp(accent, WHITE, 0.12 if y == 6 else 0.0), 255)
-        # Barre de couleur à gauche (tranche fixe, continue sur toute la hauteur).
+                    g = ((x * 7 + y * 5) % grain_mod) - grain_mod // 2
+                    px[y][x] = (_clamp(int(base[0]) + g), _clamp(int(base[1]) + g), _clamp(int(base[2]) + g), 255)
+        draw_miter(px, s, s, [(2, lerp(gold, WHITE, 0.35)), (5, lerp(accent, WHITE, 0.5))])
+        if glow is not None:
+            for y in range(7, s - 7):
+                for x in range(7, s - 6):
+                    dx = (x - s * 0.5) / (s / 2)
+                    dy = (y - s / 2) / (s / 2)
+                    t = max(0.0, 1.0 - (dx * dx + dy * dy) * 2.2)
+                    if t > 0:
+                        px[y][x] = (*lerp(px[y][x][:3], glow, t * 0.40), 255)
+        # Barre d'accent (bord gauche) : le repère des cartes, dans la tranche fixe.
         for y in range(6, s - 6):
-            for x in range(6, 9):
-                px[y][x] = (*accent, 255)
-        # Petit retour d'angle doré : la carte reste dans le thème or/argent.
-        draw_miter(px, s, s, [(3, GOLD_LIGHT), (4, GOLD_DIM)])
+            px[y][6] = (*lerp(accent, WHITE, 0.25), 255)
         return px
 
-    for name, accent in cards.items():
-        write_png(RP_ROOT / "textures" / "ui" / f"om_class_{name}.png", s, s, card(accent))
-        write_nineslice(f"om_class_{name}", [12, 12, 12, 12], [64, 64])
+    for theme_id, accent in MENU_THEMES.items():
+        write_png(RP_ROOT / "textures" / "ui" / f"om_menu_{theme_id}_card.png", s, s,
+                  card(accent, lerp((44, 42, 48), accent, 0.22), GOLD_DIM, None, 4))
+        write_png(RP_ROOT / "textures" / "ui" / f"om_menu_{theme_id}_card_hover.png", s, s,
+                  card(lerp(accent, WHITE, 0.18), lerp((58, 56, 64), accent, 0.3), GOLD_LIGHT, GOLD_LIGHT, 3))
+        write_png(RP_ROOT / "textures" / "ui" / f"om_menu_{theme_id}_card_press.png", s, s,
+                  card(lerp(accent, (0, 0, 0), 0.25), lerp((26, 25, 29), accent, 0.14), GOLD, None, 3))
+        for suffix in ("", "_hover", "_press"):
+            write_nineslice(f"om_menu_{theme_id}_card{suffix}", [10, 10, 10, 10], [s, s])
 
 
 def main() -> None:
@@ -766,6 +929,9 @@ def main() -> None:
     clan_slot_textures()
     flag_banners()
     class_card_textures()
+    world_card_textures()
+    menu_theme_textures()
+    menu_card_textures()
     pack_icon()
     print("Terminé.")
 

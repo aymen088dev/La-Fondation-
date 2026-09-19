@@ -2,12 +2,12 @@ import type { Player } from "@minecraft/server";
 import { world } from "@minecraft/server";
 import {
   windowTitle,
-  openWindow,
   openWindowRaw,
   openTileMenu,
   obString,
   obNumber,
 } from "../ui/theme";
+import { fitLabel, pageSlice } from "../ui/tiles";
 import { TERRITORY_COLORS, getColor } from "./types";
 import type { StoredDocument } from "../db";
 import type { TerritoryData } from "./types";
@@ -139,56 +139,84 @@ export function openCreateMenu(player: Player, manager: TerritoryManager): void 
 // Menu « États » (/sn:menu → section, /sn:info)
 // ---------------------------------------------------------------------------
 
-/** Menu États : liste des clans (cliquables) + infos du clan où l'on se trouve. */
-export function openStatesMenu(player: Player, manager: TerritoryManager): void {
+/** Nombre de nations affichées par page dans le menu États. */
+export const STATES_PER_PAGE = 3;
+
+/**
+ * Menu « Nations » — MENU À TUILES paginé (liste des États/clans).
+ *
+ * Une nation par ligne de tuile (nom + chef + territoire), trois par page,
+ * puis page précédente / page suivante et fondation. Le panneau est un
+ * `form_buttons` classique, donc les clics restent natifs et le tactile
+ * fonctionne comme sur un formulaire normal.
+ *
+ * ⚠️ Le titre est « Nations », SANS ACCENT : c'est lui que le panneau JSON UI
+ * compare (`NaLandia » Nations`). La version accentuée (« États ») ne matchait
+ * pas et le menu retombait entièrement sur le cadre vanilla.
+ *
+ * @param page page demandée (0 par défaut) — le menu est réouvert à chaque
+ *             changement de page, la pagination vit donc dans l'argument.
+ */
+export function openStatesMenu(player: Player, manager: TerritoryManager, page = 0): void {
   const states = manager.all();
+  const pageCount = Math.max(1, Math.ceil(states.length / STATES_PER_PAGE));
+  const current = Math.min(Math.max(0, Math.trunc(page)), pageCount - 1);
+  const slice = states.slice(current * STATES_PER_PAGE, current * STATES_PER_PAGE + STATES_PER_PAGE);
+  const here = clanAtPlayer(manager, player);
+  const canFound =
+    manager.findByMemberId(player.id) === undefined && manager.findByOwner(player.name) === undefined;
 
-  void openWindow(player, "États", (form) => {
-    const here = clanAtPlayer(manager, player);
-
-    form.header(`§e§lÉtats de NaLandia`);
-    form.label(
-      states.length === 0
-        ? `§8Aucun État fondé pour l'instant — sois le premier :`
-        : `§7${states.length} État(s) sur la carte — clique pour la fiche :`,
+  openTileMenu(player, "Nations", (menu) => {
+    menu.body(
+      [
+        states.length === 0
+          ? "§8Aucun État fondé pour l'instant."
+          : `§7${states.length} État(s) sur la carte — page §f${current + 1}§7/§f${pageCount}`,
+        here !== undefined
+          ? `§7Tu es ici : ${getColor(here.data.color).code}§l${here.data.name}§r`
+          : "§7Tu es ici : §ozone libre",
+        here !== undefined
+          ? `§8${extentLine(here.data.chunkKeys.length)}`
+          : "§8Utilise §f/sn:create§8 pour fonder ton clan ici.",
+      ].join("\n"),
     );
-    form.divider();
 
-    if (states.length > 0) {
-      for (const state of states) {
-        const color = getColor(state.data.color);
-        form.header(`${color.code}§l${state.data.name}§r`);
-        form.label(
-          [
-            `§7Dirigé par §f${state.data.owner}`,
-            `§7Territoire §f${extentLine(state.data.chunkKeys.length)}`,
-          ].join("\n"),
-        );
-        form.button(`§6Ouvrir la fiche de ${state.data.name}`, () => showStateInfo(player, state, manager));
-        form.divider();
+    // ---- Une tuile par nation de la page (UNE LIGNE par tuile) ----
+    for (let slot = 0; slot < STATES_PER_PAGE; slot++) {
+      const state = slice[slot];
+      const key = `clan_${slot}`;
+      if (state === undefined) {
+        menu.action(key, "§8—", () => {});
+        continue;
       }
-      form.divider();
-    }
-
-    // Bouton contextuel : infos du clan où l'on se trouve (même libre).
-    if (here !== undefined) {
-      const color = getColor(here.data.color);
-      form.button(`§aTu es ici : §l${color.code}${here.data.name}`, () =>
-        showStateInfo(player, here, manager),
+      const color = getColor(state.data.color);
+      // Nom + chef + taille : borné pour ne JAMAIS déborder de la tuile.
+      const label = fitLabel(
+        `${color.code}${state.data.name}§r §8· §7${state.data.owner} §8· ${state.data.chunkKeys.length}ch`,
+        26,
       );
-    } else {
-      form.button(`§7Tu es ici : §ozone libre`, () => {
-        say(player, "§7[Clans] Ce chunk n'appartient à personne. §f/sn:create §7pour le revendiquer.");
-      });
+      menu.action(key, label, () => showStateInfo(player, state, manager));
     }
 
-    if (manager.findByMemberId(player.id) === undefined && manager.findByOwner(player.name) === undefined) {
-      form.divider();
-      form.button(`§a§lFonder mon clan (/sn:create)`, () => openCreateMenu(player, manager));
+    // ---- Pagination ----
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openStatesMenu(player, manager, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openStatesMenu(player, manager, current + 1);
+    });
+
+    // ---- Action contextuelle : fonder, ou fiche du clan où l'on se trouve ----
+    if (canFound) {
+      menu.action("create", `§aFonder un clan`, () => openCreateMenu(player, manager));
+    } else if (here !== undefined) {
+      menu.action("create", fitLabel(`§6${here.data.name} (ici)`, 26), () => showStateInfo(player, here, manager));
+    } else {
+      menu.action("create", "§8—", () => {});
     }
-  }).catch((error: unknown) =>
-    console.warn(`[Clans] Erreur menu États : ${error instanceof Error ? error.message : String(error)}`),
-  );
+
+    menu.action("back", `§7Fermer`, () => {});
+  });
 }
 
 /**
@@ -379,11 +407,26 @@ function openClanBioMenu(
 // Membres
 // ---------------------------------------------------------------------------
 
-/** Menu Membres : liste, invitations, promotions, exclusions. */
+/**
+ * Nombre de membres affichés par page.
+ *
+ * ⚠️ La colonne de tuiles des panneaux génériques accueille
+ * `PANEL_TILE_CAPACITY` entrées (voir `src/ui/tiles.ts`) : ici 3 membres +
+ * « inviter » + pagination + retour = 7 tuiles, donc jamais de débordement.
+ */
+export const MEMBERS_PER_PAGE = 3;
+
+/**
+ * Menu Membres — MENU À TUILES « Membres » (panneau bleu nuit), paginé.
+ *
+ * Le chef est écrit dans le panneau de droite ; chaque membre est une tuile
+ * (clic = fiche du membre) ; « Inviter » est une tuile, la pagination aussi.
+ */
 export function openMembersMenu(
   player: Player,
   manager: TerritoryManager,
   territory: StoredDocument<TerritoryData>,
+  page = 0,
 ): void {
   const fresh = manager.findOne(territory.id);
   if (fresh === undefined) {
@@ -395,41 +438,43 @@ export function openMembersMenu(
   const isOwner = data.ownerId === player.id || data.owner === player.name;
   const myRank = data.members.find((m) => m.playerId === player.id)?.rank;
   const canManage = isOwner || myRank === "officer";
+  const { items, page: current, pageCount } = pageSlice(data.members, page, MEMBERS_PER_PAGE);
 
-  void openWindowRaw(player, windowTitle("Membres du clan"), (form) => {
-    form.back(() => openMyClanMenu(player, manager, territory));
-    form.header(`§b§l${data.name}§r §7— membres`);
-    form.label(
+  openTileMenu(player, "Membres", (menu) => {
+    menu.body(
       [
+        `§b§l${data.name}§r §7— membres`,
         `§eChef : §f${data.owner}`,
-        ...data.members.map(
-          (m) =>
-            `§8· §f${m.name} §7(${m.rank === "officer" ? "§bofficier" : "membre"}§7)`,
-        ),
-        ...(data.members.length === 0 ? [`§8- §o(aucun membre pour l'instant)`] : []),
+        `§7Membres : §f${data.members.length}§7 — page §f${current + 1}§7/§f${pageCount}`,
+        data.members.length === 0 ? "§8(aucun membre pour l'instant)" : "§8Un clic = fiche du membre.",
+        canManage ? "§8Tu peux inviter, promouvoir ou exclure." : "§8Seuls le chef et les officiers gèrent.",
       ].join("\n"),
     );
-    form.divider();
+
+    for (let slot = 0; slot < MEMBERS_PER_PAGE; slot++) {
+      const member = items[slot];
+      if (member === undefined) continue;
+      menu.action(
+        `member_${slot}`,
+        `§f${member.name} §8— ${member.rank === "officer" ? "§bofficier" : "§7membre"}`,
+        () => openMemberActionsMenu(player, manager, territory, member.playerId, member.name),
+      );
+    }
 
     if (canManage) {
-      form.button(`§a§lInviter un joueur`, () => openInviteMenu(player, manager, territory));
-      for (const member of data.members) {
-        const isOfficer = member.rank === "officer";
-        form.button(
-          `§f${member.name} §7— §o${isOfficer ? "officier" : "membre"}`,
-          () => {
-            // Mini-menu d'action sur ce membre (promouvoir / exclure).
-            openMemberActionsMenu(player, manager, territory, member.playerId, member.name);
-          },
-        );
-      }
+      menu.action("invite", `§aInviter un joueur`, () => openInviteMenu(player, manager, territory));
     }
-  }).catch((error: unknown) =>
-    console.warn(`[Clans] Erreur menu Membres : ${error instanceof Error ? error.message : String(error)}`),
-  );
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openMembersMenu(player, manager, territory, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openMembersMenu(player, manager, territory, current + 1);
+    });
+    menu.action("back", `§7Retour au clan`, () => openMyClanMenu(player, manager, territory));
+  });
 }
 
-/** Actions sur un membre précis (chef/officier uniquement). */
+/** Actions sur un membre précis — MENU À TUILES « Membre » (panneau bleu). */
 function openMemberActionsMenu(
   player: Player,
   manager: TerritoryManager,
@@ -445,17 +490,25 @@ function openMemberActionsMenu(
     return;
   }
 
-  // Titre FIXE « Membre » (idem : le pseudo est dans la bannière de la fiche).
-  void openWindowRaw(player, windowTitle("Membre"), (form) => {
-    form.back(() => openMembersMenu(player, manager, territory));
-    form.header(`§f§l${memberName}`);
-    form.label(`§7Rang actuel : ${member.rank === "officer" ? "§bofficier" : "membre"}`);
-    form.divider();
+  const isOfficer = member.rank === "officer";
 
-    form.button(
-      member.rank === "officer" ? `§e§lRétrograder en membre` : `§b§lPromouvoir officier`,
+  openTileMenu(player, "Membre", (menu) => {
+    menu.body(
+      [
+        `§f§l${memberName}§r`,
+        `§7Clan : §f${fresh.data.name}`,
+        `§7Rang actuel : ${isOfficer ? "§bofficier" : "§7membre"}`,
+        "",
+        "§8Le rang officier autorise à revendiquer des chunks",
+        "§8et à gérer les membres du clan.",
+      ].join("\n"),
+    );
+
+    menu.action(
+      "rank",
+      isOfficer ? `§eRétrograder en membre` : `§bPromouvoir officier`,
       () => {
-        const nextRank = member.rank === "officer" ? "member" : "officer";
+        const nextRank = isOfficer ? "member" : "officer";
         const result = manager.setMemberRank(territory.id, memberId, nextRank);
         say(
           player,
@@ -466,7 +519,7 @@ function openMemberActionsMenu(
         openMembersMenu(player, manager, territory);
       },
     );
-    form.button(`§c§lExclure du clan`, () => {
+    menu.action("kick", `§cExclure du clan`, () => {
       const result = manager.removeMember(territory.id, memberId);
       say(
         player,
@@ -476,9 +529,8 @@ function openMemberActionsMenu(
       );
       openMembersMenu(player, manager, territory);
     });
-  }).catch((error: unknown) =>
-    console.warn(`[Clans] Erreur menu membre : ${error instanceof Error ? error.message : String(error)}`),
-  );
+    menu.action("back", `§7Retour aux membres`, () => openMembersMenu(player, manager, territory));
+  });
 }
 
 /** Invitation : dropdown des joueurs en ligne hors du clan + bouton Inviter. */
@@ -533,20 +585,45 @@ function openInviteMenu(
 // Drapeau + dissolution (chef uniquement)
 // ---------------------------------------------------------------------------
 
+/** Nombre de drapeaux proposés par page. */
+export const FLAGS_PER_PAGE = 5;
+
+/** Une entrée du catalogue de drapeaux (couleur du serveur ou blason importé). */
+interface FlagEntry {
+  /** Valeur stockée dans la DB (`rouge`, `flag:3`…). */
+  value: string;
+  label: string;
+  code: string;
+}
+
 /**
- * Menu Drapeau : couleurs prêtes à l'emploi + blasons personnalisés.
+ * Menu Drapeau — MENU À TUILES « Drapeau » (panneau émeraude), paginé.
  *
- * Les blasons personnalisés sont des PNG posés dans
- * RP/textures/ui/flags/1.png … 8.png (l'utilisateur les importe lui-même :
- * il lui suffit de déposer ses fichiers). Tant que les fichiers ne sont
- * pas là, les entrées correspondantes affichent leur numéro — le jeu
- * rend un damier transparent si la texture manque (sans crash).
+ * Couleurs prêtes à l'emploi (10) + blasons personnalisés (8) = 18 choix, donc
+ * quatre pages de cinq. Les blasons sont des PNG posés dans
+ * RP/textures/ui/flags/1.png … 8.png (l'utilisateur les importe lui-même : il
+ * lui suffit de déposer ses fichiers). Tant que les fichiers ne sont pas là,
+ * l'entrée affiche son numéro — le jeu rend un damier transparent si la
+ * texture manque (sans crash).
  */
 export function openFlagMenu(
   player: Player,
   manager: TerritoryManager,
   territory: StoredDocument<TerritoryData>,
+  page = 0,
 ): void {
+  const flags: FlagEntry[] = [
+    ...TERRITORY_COLORS.map(
+      (candidate): FlagEntry => ({ value: candidate.id, label: candidate.id, code: candidate.code }),
+    ),
+    ...Array.from({ length: 8 }, (_unused, index): FlagEntry => {
+      const n = index + 1;
+      return { value: `flag:${n}`, label: `Blason ${n}`, code: "§b" };
+    }),
+  ];
+  const { items, page: current, pageCount } = pageSlice(flags, page, FLAGS_PER_PAGE);
+  const active = territory.data.color;
+
   const apply = (flagValue: string, label: string): void => {
     const fresh = manager.findOne(territory.id);
     if (fresh === undefined) {
@@ -560,47 +637,60 @@ export function openFlagMenu(
     openMyClanMenu(player, manager, territory);
   };
 
-  void openWindowRaw(player, windowTitle("Drapeau"), (form) => {
-    form.back(() => openMyClanMenu(player, manager, territory));
-    const current = territory.data.color;
-    form.header(`§6§lDrapeau de ${territory.data.name}`);
-    form.label(`§7Actuel : §f${current.startsWith("flag:") ? current.slice(5) : current}`);
-    form.divider();
+  openTileMenu(player, "Drapeau", (menu) => {
+    menu.body(
+      [
+        `§6§lDrapeau de ${territory.data.name}§r`,
+        `§7Actuel : §f${active.startsWith("flag:") ? `blason ${active.slice(5)}` : active}`,
+        "",
+        `§7Page §f${current + 1}§7/§f${pageCount}`,
+        "§8Blasons : dépose tes PNG dans §fRP/textures/ui/flags/§8",
+        "§8(1.png … 8.png) puis choisis le numéro.",
+      ].join("\n"),
+    );
 
-    for (const candidate of TERRITORY_COLORS) {
-      form.button(`${candidate.code}${candidate.id}`, () => apply(candidate.id, candidate.code + candidate.id));
+    for (let slot = 0; slot < FLAGS_PER_PAGE; slot++) {
+      const flag = items[slot];
+      if (flag === undefined) continue;
+      const currentMark = flag.value === active ? "§a← §f" : "§f";
+      menu.action(
+        `flag_${slot}`,
+        `${currentMark}${flag.code}${flag.label}`,
+        () => apply(flag.value, `${flag.code}${flag.label}`),
+      );
     }
 
-    form.divider();
-    form.label(`§7— blasons personnalisés —\n§8Dépose tes PNG dans §fRP/textures/ui/flags/§8 (1.png, 2.png…) puis choisis :`);
-    for (let n = 1; n <= 8; n++) {
-      const flagValue = `flag:${n}`;
-      form.button(`§bBlason ${n}`, () => apply(flagValue, `Blason ${n}`));
-    }
-
-  }).catch((error: unknown) =>
-    console.warn(`[Clans] Erreur menu drapeau : ${error instanceof Error ? error.message : String(error)}`),
-  );
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openFlagMenu(player, manager, territory, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openFlagMenu(player, manager, territory, current + 1);
+    });
+    menu.action("back", `§7Retour au clan`, () => openMyClanMenu(player, manager, territory));
+  });
 }
 
-/** Confirmation de dissolution (définitif). Utilisée par /sn:disband. */
+/**
+ * Confirmation de dissolution (définitif) — MENU À TUILES « Dissoudre ».
+ * Utilisée par /sn:disband, par « Mon clan » et par la suppression massive des
+ * États : c'est la même forme (confirmer / annuler / retour).
+ */
 export function openDissolveMenu(
   player: Player,
   manager: TerritoryManager,
   territory: StoredDocument<TerritoryData>,
 ): void {
-  void openWindowRaw(player, windowTitle("Dissoudre le clan"), (form) => {
-    form.header(`§4§lDissoudre ${territory.data.name} ?`);
-    form.label(
+  openTileMenu(player, "Dissoudre", (menu) => {
+    menu.body(
       [
+        `§4§lDissoudre ${territory.data.name} ?§r`,
         `§7Les §f${territory.data.chunkKeys.length}§7 chunk(s) redeviendront libres.`,
-        `§7Les membres seront retirés du clan.`,
-        ``,
-        `§cAction irréversible.`,
+        "§7Les membres seront retirés du clan.",
+        "",
+        "§cAction irréversible.",
       ].join("\n"),
     );
-    form.divider();
-    form.button(`§4§lOui, dissoudre définitivement`, () => {
+    menu.action("confirm", `§4Oui, dissoudre définitivement`, () => {
       const ok = manager.remove(territory.id, player.name, player.id);
       say(
         player,
@@ -609,10 +699,9 @@ export function openDissolveMenu(
           : "§c[Clans] Dissolution impossible.",
       );
     });
-    form.button(`§a§lAnnuler`, () => openMyClanMenu(player, manager, territory));
-  }).catch((error: unknown) =>
-    console.warn(`[Clans] Erreur menu dissolution : ${error instanceof Error ? error.message : String(error)}`),
-  );
+    menu.action("cancel", `§aAnnuler`, () => openMyClanMenu(player, manager, territory));
+    menu.action("back", `§7Retour au clan`, () => openMyClanMenu(player, manager, territory));
+  });
 }
 
 // Ré-export pour compat.

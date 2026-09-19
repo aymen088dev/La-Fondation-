@@ -173,8 +173,22 @@ export class OMForm {
   show(): Promise<DataDrivenScreenClosedReason> {
     return new Promise((resolve) => {
       this.resolveShow = resolve;
-      system.runTimeout(() => { void this.present(); }, 1);
+      this.retryPresent(1, 0);
     });
+  }
+
+  /**
+   * Ouvre le formulaire, en RÉESSAYANT si le client refuse encore la demande.
+   *
+   * C'est indispensable depuis les menus à tuiles : le client termine de fermer
+   * le formulaire à tuiles au moment où le suivant arrive, et il répondait
+   * « UserBusy » (ou levait une erreur) — le menu ne s'ouvrait alors JAMAIS,
+   * ce qui donnait l'impression d'un menu mort (liste des nations, sous-menus).
+   */
+  private retryPresent(delay: number, attempt: number): void {
+    system.runTimeout(() => {
+      void this.present(attempt);
+    }, delay);
   }
 
   private finish(reason: DataDrivenScreenClosedReason): void {
@@ -183,7 +197,7 @@ export class OMForm {
     resolve?.(reason);
   }
 
-  private async present(): Promise<void> {
+  private async present(attempt = 0): Promise<void> {
     try {
       const form = new NativeCustomForm(this.player, this.titleText);
       this.activeForm = form;
@@ -224,10 +238,19 @@ export class OMForm {
       form.closeButton();
       const reason = await form.show();
       this.activeForm = undefined;
+      if (reason === "UserBusy" && attempt < 4) {
+        this.retryPresent(10, attempt + 1);
+        return;
+      }
       this.finish(reason === "UserBusy" ? "UserBusy" : reason === "ServerClosed" ? "ServerClosed" : "UserClosed");
     } catch (error: unknown) {
       this.activeForm = undefined;
       const message = error instanceof Error ? error.message : String(error);
+      if (attempt < 4) {
+        logMod.warn(`Menu « ${this.titleText} » : ${message} (nouvel essai)`);
+        this.retryPresent(10, attempt + 1);
+        return;
+      }
       logMod.warn(`Menu « ${this.titleText} » : ${message}`);
       this.player.sendMessage(`§c[NaLandia] Le menu « ${this.titleText} » n'a pas pu s'afficher : §f${message}`);
       this.finish("ServerClosed");
@@ -293,12 +316,15 @@ interface TileAction {
  */
 export function openTileMenu(player: Player, section: TileSection, build: (menu: TileMenuBuilder) => void): void {
   const actions = new Map<string, TileAction>();
+  const ordered: TileAction[] = [];
   const data = new Map<string, string>();
   let bodyText = "";
 
   const builder: TileMenuBuilder = {
     action(key, label, onClick) {
-      actions.set(key, { label, onClick });
+      const entry = { label, onClick };
+      actions.set(key, entry);
+      ordered.push(entry);
       return builder;
     },
     data(key, text) {
@@ -319,19 +345,20 @@ export function openTileMenu(player: Player, section: TileSection, build: (menu:
     return;
   }
 
-  scheduleTileForm(player, section, actions, data, bodyText, 0);
+  scheduleTileForm(player, section, actions, ordered, data, bodyText, 0);
 }
 
 function scheduleTileForm(
   player: Player,
   section: TileSection,
   actions: Map<string, TileAction>,
+  ordered: TileAction[],
   data: Map<string, string>,
   bodyText: string,
   attempt: number,
 ): void {
   system.runTimeout(() => {
-    void presentTileForm(player, section, actions, data, bodyText, attempt);
+    void presentTileForm(player, section, actions, ordered, data, bodyText, attempt);
   }, attempt === 0 ? 1 : 10);
 }
 
@@ -339,16 +366,25 @@ async function presentTileForm(
   player: Player,
   section: TileSection,
   actions: Map<string, TileAction>,
+  ordered: TileAction[],
   data: Map<string, string>,
   bodyText: string,
   attempt: number,
 ): Promise<void> {
   const layout = TILE_MENUS[section];
+  // Deux modes : emplacements DESSINÉS (contrat de clés, la mise en page impose
+  // l'ordre) ou LISTE GÉNÉRIQUE (contrat vide : on envoie les actions dans
+  // l'ordre et l'index de sélection EST l'index d'envoi).
+  const sequential = layout.actions.length === 0;
   const form = new NativeActionForm();
   form.title(tileTitleFor(section));
   if (bodyText.trim().length > 0) form.body(bodyText);
-  for (const key of layout.actions) {
-    form.button(actions.get(key)?.label ?? "§8—");
+  if (sequential) {
+    for (const entry of ordered) form.button(entry.label);
+  } else {
+    for (const key of layout.actions) {
+      form.button(actions.get(key)?.label ?? "§8—");
+    }
   }
   for (const key of layout.data) {
     form.button(data.get(key) ?? " ");
@@ -361,14 +397,14 @@ async function presentTileForm(
     // du précédent : dans ce cas on réessaie au lieu de laisser le joueur
     // devant un menu qui ne s'ouvre jamais.
     if (response.selection === undefined && response.cancelationReason === FormCancelationReason.UserBusy && attempt < 3) {
-      scheduleTileForm(player, section, actions, data, bodyText, attempt + 1);
+      scheduleTileForm(player, section, actions, ordered, data, bodyText, attempt + 1);
       return;
     }
     selection = response.selection;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     if (attempt < 3) {
-      scheduleTileForm(player, section, actions, data, bodyText, attempt + 1);
+      scheduleTileForm(player, section, actions, ordered, data, bodyText, attempt + 1);
       return;
     }
     logMod.warn(`Menu « ${section} » : ${message}`);
@@ -377,10 +413,11 @@ async function presentTileForm(
   }
 
   if (selection === undefined) return;
-  const key = layout.actions[selection];
-  if (key === undefined) return;
-  const action = actions.get(key);
+  const action = sequential
+    ? ordered[selection]
+    : actions.get(layout.actions[selection] as string);
   if (action === undefined) return;
+  const key = sequential ? String(selection) : (layout.actions[selection] as string);
   try {
     action.onClick();
   } catch (error: unknown) {

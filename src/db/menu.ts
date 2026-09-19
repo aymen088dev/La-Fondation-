@@ -8,9 +8,17 @@
  */
 
 import type { Player } from "@minecraft/server";
-import { windowTitle, openWindow, openWindowRaw, obString, obBool } from "../ui/theme";
+import { windowTitle, openWindow, openWindowRaw, obString, obBool, openTileMenu } from "../ui/theme";
+import { pageSlice } from "../ui/tiles";
 import { collectionLabel, SECTION_ORDER, CLASSES_COLLECTION } from "./collections";
 import type { JsonDatabase, StoredDocument } from "./index";
+
+/**
+ * Nombre de sections affichées par page : 3 sections + « forcer la sauvegarde »
+ * + « réinitialiser une classe » + pagination + retour = 8 tuiles, la capacité
+ * exacte de la colonne (`PANEL_TILE_CAPACITY` dans `src/ui/tiles.ts`).
+ */
+export const DB_SECTIONS_PER_PAGE = 3;
 
 /**
  * Reset de classe (v18) : supprime le choix de classe d'un joueur pour
@@ -47,40 +55,54 @@ function summarize(doc: StoredDocument<Record<string, unknown>>): string {
   return `§f${doc.id}`;
 }
 
-/** Menu principal : stats globales + sections. */
-export async function openDbMenu(db: JsonDatabase, player: Player): Promise<void> {
-  await openWindow(player, "Base de données", (form) => {
-    const stats = db.stats();
-    const sections = listSections(db);
+/**
+ * Menu principal — MENU À TUILES « Base de donnees » (panneau console),
+ * paginé : une tuile par section (collection), plus la sauvegarde forcée et le
+ * reset de classe. Les vues de documents restent des formulaires natifs (ce
+ * sont des écrans de LECTURE/ÉDITION, avec des champs).
+ */
+export async function openDbMenu(db: JsonDatabase, player: Player, page = 0): Promise<void> {
+  const stats = db.stats();
+  const sections = listSections(db);
+  const { items, page: current, pageCount } = pageSlice(sections, page, DB_SECTIONS_PER_PAGE);
 
-    form.header(`§a§lBase de données`);
-    form.label(
-      `§7${stats.documents} documents · ${stats.bytes} octets\n§7État : ${stats.dirty ? "§eà sauvegarder" : "§aà jour"}`,
+  openTileMenu(player, "Base de donnees", (menu) => {
+    menu.body(
+      [
+        "§a§lBase de données§r",
+        `§7${stats.documents} documents · ${stats.bytes} octets`,
+        `§7État : ${stats.dirty ? "§eà sauvegarder" : "§aà jour"}`,
+        "",
+        `§7Sections — page §f${current + 1}§7/§f${pageCount}`,
+        "§8Une tuile par collection : documents, champs, vidage.",
+      ].join("\n"),
     );
-    form.divider();
 
-    for (const section of sections) {
-      form.button(
-        `${collectionLabel(section)} §7— ${stats.collections[section]} doc(s)`,
-        () => {
-          void openSectionMenu(db, player, section);
-        },
-      );
+    for (let slot = 0; slot < DB_SECTIONS_PER_PAGE; slot++) {
+      const section = items[slot];
+      if (section === undefined) continue;
+      menu.action(`section_${slot}`, `${collectionLabel(section)} §8— ${stats.collections[section]} doc`, () => {
+        void openSectionMenu(db, player, section);
+      });
     }
 
-    form.divider();
-    form.button(`§a§lForcer la sauvegarde`, () => {
+    menu.action("save", `§aForcer la sauvegarde`, () => {
       db.save(true);
       // v17.1 : plus aucun retour DB dans le chat (console uniquement).
     });
-
-    // ---- v18 : actions rapides d'administration ----
-    form.button(`§d§lRéinitialiser une classe`, () => {
+    menu.action("reset", `§dRéinitialiser une classe`, () => {
       void openResetClassMenu(db, player);
     });
-  }).catch((error: unknown) =>
-    console.warn(`[DB] Erreur menu : ${error instanceof Error ? error.message : String(error)}`),
-  );
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) void openDbMenu(db, player, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) void openDbMenu(db, player, current + 1);
+    });
+    menu.action("back", `§7Fermer`, () => {
+      /* appuyer sur une tuile ferme déjà le formulaire */
+    });
+  });
 }
 
 /**

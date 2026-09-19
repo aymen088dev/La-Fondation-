@@ -1,6 +1,7 @@
 import { world } from "@minecraft/server";
 import type { Player } from "@minecraft/server";
-import { windowTitle, openWindow, openWindowRaw, obString, obNumber } from "../ui/theme";
+import { windowTitle, openWindowRaw, obString, obNumber, openTileMenu } from "../ui/theme";
+import { pageSlice } from "../ui/tiles";
 import type { SanctionsManager } from "./manager";
 import { formatDuration } from "./manager";
 import { kickPlayer } from "./enforcement";
@@ -18,77 +19,125 @@ function resolveTargetId(targetName: string): string | null {
   return online?.id ?? null;
 }
 
-/** Menu principal de modération. */
+/** Nombre de sanctions affichées par page dans les listes à tuiles. */
+export const SANCTIONS_PER_PAGE = 5;
+
+/** Menu principal de modération — LISTE GÉNÉRIQUE (panneau console). */
 export function openSanctionsMenu(player: Player, sanctions: SanctionsManager, permissions: PermissionManager): void {
   const stats = sanctions.stats();
 
-  void openWindow(player, "Modération", (form) => {
-    form.header(`§4§lModération`);
-    form.label(
-      `§7Bans actifs : §f${stats.bans}\n§7Mutes actifs : §f${stats.mutes}\n§7Warns au total : §f${stats.warns}`,
+  openTileMenu(player, "Moderation", (menu) => {
+    menu.body(
+      [
+        "§4§lModération§r",
+        `§7Bans actifs : §f${stats.bans}`,
+        `§7Mutes actifs : §f${stats.mutes}`,
+        `§7Warns au total : §f${stats.warns}`,
+        "",
+        "§8Les listes se parcourent page par page ;",
+        "§8clique une entrée pour lever la sanction.",
+      ].join("\n"),
     );
-    form.divider();
-    form.button(`§4§lBans actifs`, () => openBansList(player, sanctions, permissions));
-    form.button(`§6§lMutes actifs`, () => openMutesList(player, sanctions, permissions));
-    form.button(`§e§lSanctionner un joueur`, () => openSanctionForm(player, sanctions));
-    form.button(`§b§lHistorique d'un joueur`, () => openHistoryLookup(player, sanctions));
-  }).catch((error: unknown) =>
-    console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`),
-  );
+
+    menu.action("bans", `§4Bans actifs §7(${stats.bans})`, () => openBansList(player, sanctions, permissions, 0));
+    menu.action("mutes", `§6Mutes actifs §7(${stats.mutes})`, () => openMutesList(player, sanctions, permissions, 0));
+    menu.action("sanction", `§eSanctionner un joueur`, () => openSanctionForm(player, sanctions));
+    menu.action("history", `§bHistorique d'un joueur`, () => openHistoryLookup(player, sanctions));
+    menu.action("refresh", `§7Rafraîchir`, () => openSanctionsMenu(player, sanctions, permissions));
+    menu.action("back", `§7Fermer`, () => {});
+  });
 }
 
-/** Liste des bans actifs : clic = déban. */
-function openBansList(player: Player, sanctions: SanctionsManager, permissions: PermissionManager): void {
+/** Liste des bans actifs : clic = déban. Cinq par page. */
+function openBansList(
+  player: Player,
+  sanctions: SanctionsManager,
+  permissions: PermissionManager,
+  page: number,
+): void {
   const bans = sanctions.allBans();
+  const { items, page: current, pageCount } = pageSlice(bans, page, SANCTIONS_PER_PAGE);
 
-  void openWindow(player, "Bans actifs", (form) => {
-    if (bans.length === 0) {
-      form.label("§7Aucun ban actif.");
-      return;
-    }
-    form.label("§7Clique sur un ban pour le lever :");
-    for (const ban of bans) {
+  openTileMenu(player, "Bans", (menu) => {
+    menu.body(
+      [
+        "§4§lBans actifs§r",
+        bans.length === 0
+          ? "§7Aucun ban actif."
+          : `§7${bans.length} ban(s) — page §f${current + 1}§7/§f${pageCount}`,
+        "§8Clique une entrée pour lever le ban.",
+      ].join("\n"),
+    );
+
+    for (let slot = 0; slot < SANCTIONS_PER_PAGE; slot++) {
+      const ban = items[slot];
+      if (ban === undefined) continue;
       const expiry =
         ban.data.expiresAt === 0
           ? "§4permanent"
           : `§7(${formatDuration(Math.ceil((ban.data.expiresAt - Date.now()) / 60_000))})`;
-      form.button(`§f${ban.data.name} §7— ${expiry} · §7par ${ban.data.by}`, () => {
+      menu.action(`ban_${slot}`, `§f${ban.data.name} §8— ${expiry}`, () => {
         const result = sanctions.unban(ban.data.name);
         player.sendMessage(result.ok ? `§a[Modération] ${ban.data.name} débanni.` : `§c[Modération] ${result.error}`);
-        openBansList(player, sanctions, permissions);
+        openBansList(player, sanctions, permissions, current);
       });
     }
-  }).catch((error: unknown) =>
-    console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`),
-  );
+
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openBansList(player, sanctions, permissions, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openBansList(player, sanctions, permissions, current + 1);
+    });
+    menu.action("back", `§7Retour`, () => openSanctionsMenu(player, sanctions, permissions));
+  });
 }
 
-/** Liste des mutes actifs : clic = démute. */
-function openMutesList(player: Player, sanctions: SanctionsManager, permissions: PermissionManager): void {
+/** Liste des mutes actifs : clic = démute. Cinq par page. */
+function openMutesList(
+  player: Player,
+  sanctions: SanctionsManager,
+  permissions: PermissionManager,
+  page: number,
+): void {
   const mutes = sanctions.allMutes();
+  const { items, page: current, pageCount } = pageSlice(mutes, page, SANCTIONS_PER_PAGE);
 
-  void openWindow(player, "Mutes actifs", (form) => {
-    if (mutes.length === 0) {
-      form.label("§7Aucun mute actif.");
-      return;
-    }
-    form.label("§7Clique sur un mute pour le lever :");
-    for (const mute of mutes) {
+  openTileMenu(player, "Mutes", (menu) => {
+    menu.body(
+      [
+        "§6§lMutes actifs§r",
+        mutes.length === 0
+          ? "§7Aucun mute actif."
+          : `§7${mutes.length} mute(s) — page §f${current + 1}§7/§f${pageCount}`,
+        "§8Clique une entrée pour rendre la parole.",
+      ].join("\n"),
+    );
+
+    for (let slot = 0; slot < SANCTIONS_PER_PAGE; slot++) {
+      const mute = items[slot];
+      if (mute === undefined) continue;
       const expiry =
         mute.data.expiresAt === 0
           ? "§cpermanent"
           : `§7(${formatDuration(Math.ceil((mute.data.expiresAt - Date.now()) / 60_000))})`;
-      form.button(`§f${mute.data.name} §7— ${expiry} · §7par ${mute.data.by}`, () => {
+      menu.action(`mute_${slot}`, `§f${mute.data.name} §8— ${expiry}`, () => {
         const result = sanctions.unmute(mute.data.name);
         player.sendMessage(
           result.ok ? `§a[Modération] ${mute.data.name} peut parler.` : `§c[Modération] ${result.error}`,
         );
-        openMutesList(player, sanctions, permissions);
+        openMutesList(player, sanctions, permissions, current);
       });
     }
-  }).catch((error: unknown) =>
-    console.warn(`[Modération] ${error instanceof Error ? error.message : String(error)}`),
-  );
+
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openMutesList(player, sanctions, permissions, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openMutesList(player, sanctions, permissions, current + 1);
+    });
+    menu.action("back", `§7Retour`, () => openSanctionsMenu(player, sanctions, permissions));
+  });
 }
 
 /** Formulaire de sanction rapide (pseudo + type + durée + raison) — DDUI. */

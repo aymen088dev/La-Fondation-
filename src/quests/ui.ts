@@ -1,8 +1,12 @@
 import type { Player } from "@minecraft/server";
 import { QuestManager, QUEST_CATALOG } from "./manager";
-import { openWindow } from "../ui/theme";
+import { openTileMenu } from "../ui/theme";
+import { pageSlice } from "../ui/tiles";
 import type { ClassManager } from "../classes/manager";
 import type { JobManager } from "../jobs/manager";
+
+/** Nombre de pistes affichées par page. */
+export const QUESTS_PER_PAGE = 5;
 
 function rewardLabel(questId: string, quests: QuestManager): string {
   const reward = quests.questOf(questId)?.reward;
@@ -11,54 +15,97 @@ function rewardLabel(questId: string, quests: QuestManager): string {
   return "Récompense à découvrir";
 }
 
-/** Journal de quêtes : une page sobre, lisible et orientée progression. */
+/** Une ligne de piste pour la liste, avec son état. */
+interface QuestEntry {
+  id: string;
+  title: string;
+  description: string;
+  target: number;
+  /** `active` : suivie (clic = détails / récupérer) ; `open` : à démarrer. */
+  state: "active" | "open";
+}
+
+/**
+ * Journal de quêtes — MENU À TUILES (panneau émeraude).
+ *
+ * Les pistes suivies viennent d'abord (celles qu'on peut récupérer sont
+ * marquées §aRÉCUPÉRER), puis les pistes encore disponibles (clic = suivre).
+ * Le tout est paginé, la progression est écrite dans le panneau de droite.
+ */
 export function openQuestMenu(
   player: Player,
   quests: QuestManager,
   classes?: ClassManager,
   jobs?: JobManager,
+  page = 0,
 ): void {
-  void openWindow(player, "Quêtes", (form) => {
-    const state = quests.stateOf(player.name);
-    const active = quests.active(player.name);
-    const completedCount = state.claimed.length;
-    form.header("§6§lJournal de route");
-    form.body(
+  const state = quests.stateOf(player.name);
+  const active = quests.active(player.name);
+
+  const entries: QuestEntry[] = [
+    ...active.map((quest): QuestEntry => ({
+      id: quest.id,
+      title: quest.title,
+      description: quest.description,
+      target: quest.target,
+      state: "active",
+    })),
+    ...QUEST_CATALOG.filter(
+      (candidate) => !state.active.includes(candidate.id) && !state.claimed.includes(candidate.id),
+    ).map((quest): QuestEntry => ({
+      id: quest.id,
+      title: quest.title,
+      description: quest.description,
+      target: quest.target,
+      state: "open",
+    })),
+  ];
+
+  const { items, page: current, pageCount } = pageSlice(entries, page, QUESTS_PER_PAGE);
+  const myClass = classes?.classOf(player.name);
+
+  openTileMenu(player, "Quetes", (menu) => {
+    menu.body(
       [
-        "§7Chaque quête accompagne un système réel de NaLandia.",
-        `§7Progression : §f${completedCount}/${QUEST_CATALOG.length}§7 récompense(s) récupérée(s).`,
-        classes?.classOf(player.name) !== undefined
-          ? `§7Voie actuelle : §f${classes.classOf(player.name)?.classId}`
-          : "§7Voie actuelle : §8à choisir",
+        "§6§lJournal de route§r",
+        `§7Récompenses récupérées : §f${state.claimed.length}§7/§f${QUEST_CATALOG.length}`,
+        myClass !== undefined ? `§7Voie actuelle : §f${myClass.classId}` : "§7Voie actuelle : §8à choisir",
         jobs !== undefined ? `§7Métiers actifs : §f${jobs.jobsOf(player.name).length}` : "",
-        `§7Les pistes se déclenchent quand tu vis réellement l'action : classe, mine, clan ou métier.`,
-      ].filter((line) => line !== "").join("\n"),
+        "",
+        `§8Pistes suivies : §f${active.length}§8 — page §f${current + 1}§8/§f${pageCount}`,
+        "§8Les pistes se déclenchent en vivant réellement l'action :",
+        "§8classe, mine, clan ou métier.",
+      ]
+        .filter((line) => line !== "")
+        .join("\n"),
     );
-    form.divider();
 
-    if (active.length === 0) {
-      form.label("§8Aucune quête suivie. Les prochaines aventures apparaîtront ici.");
-    }
+    for (let slot = 0; slot < QUESTS_PER_PAGE; slot++) {
+      const entry = items[slot];
+      if (entry === undefined) continue;
 
-    for (const quest of active) {
-      const progress = quests.progressOf(player.name, quest.id);
-      const ready = quests.isCompleted(player.name, quest.id);
-      form.header(`${ready ? "§a" : "§e"}§l${quest.title}§r`);
-      form.label(
-        [
-          `§7${quest.description}`,
-          `§7Progression §f${progress}/${quest.target}`,
-          `§7Récompense §6${rewardLabel(quest.id, quests)}`,
-        ].join("\n"),
-      );
-      form.button(
-        ready ? "§aRécupérer la récompense" : "§eVoir les détails",
+      if (entry.state === "open") {
+        menu.action(`quest_${slot}`, `§8Suivre : §7${entry.title}`, () => {
+          const result = quests.start(player.name, entry.id);
+          if (!result.ok) player.sendMessage(`§c[Quêtes] ${result.error}`);
+          openQuestMenu(player, quests, classes, jobs, current);
+        });
+        continue;
+      }
+
+      const progress = quests.progressOf(player.name, entry.id);
+      const ready = quests.isCompleted(player.name, entry.id);
+      menu.action(
+        `quest_${slot}`,
+        ready
+          ? `§aRÉCUPÉRER : §f${entry.title}`
+          : `§e${entry.title} §7(${progress}/${entry.target})`,
         () => {
           if (!ready) {
-            player.sendMessage(`§7[Quêtes] ${quest.description}`);
+            player.sendMessage(`§7[Quêtes] ${entry.description} §8(${progress}/${entry.target})`);
             return;
           }
-          const result = quests.claim(player.name, quest.id);
+          const result = quests.claim(player.name, entry.id);
           if (!result.ok) {
             player.sendMessage(`§c[Quêtes] ${result.error}`);
             return;
@@ -70,23 +117,20 @@ export function openQuestMenu(
             const firstJob = jobs.jobsOf(player.name)[0];
             if (firstJob !== undefined) jobs.addXp(player.name, firstJob.jobId, result.reward.jobXp);
           }
-          player.sendMessage(`§6[Quêtes] Récompense récupérée : §f${rewardLabel(quest.id, quests)}§6.`);
-          openQuestMenu(player, quests, classes, jobs);
+          player.sendMessage(`§6[Quêtes] Récompense récupérée : §f${rewardLabel(entry.id, quests)}§6.`);
+          openQuestMenu(player, quests, classes, jobs, current);
         },
       );
     }
 
-    form.divider();
-    form.header("§7Pistes disponibles");
-    for (const quest of QUEST_CATALOG.filter((candidate) => !state.active.includes(candidate.id) && !state.claimed.includes(candidate.id))) {
-      form.header(`§8${quest.title}`);
-      form.label(`§8${quest.description}`);
-      form.button("§6Suivre cette piste", () => {
-        const result = quests.start(player.name, quest.id);
-        if (!result.ok) player.sendMessage(`§c[Quêtes] ${result.error}`);
-        openQuestMenu(player, quests, classes, jobs);
-      });
-      form.divider();
-    }
-  }).catch((error: unknown) => console.warn(`[Quêtes] ${error instanceof Error ? error.message : String(error)}`));
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openQuestMenu(player, quests, classes, jobs, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openQuestMenu(player, quests, classes, jobs, current + 1);
+    });
+    menu.action("back", `§7Fermer`, () => {
+      /* appuyer sur une tuile ferme déjà le formulaire */
+    });
+  });
 }

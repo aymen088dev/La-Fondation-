@@ -1,6 +1,6 @@
 import type { Player } from "@minecraft/server";
 import { world } from "@minecraft/server";
-import { openTileMenu, openWindow } from "./theme";
+import { openTileMenu } from "./theme";
 import { openStatesMenu, openCreateMenu, openMyClanMenu } from "../territories/ui";
 import type { TerritoryManager } from "../territories/manager";
 import type { PermissionManager } from "../permissions/manager";
@@ -150,34 +150,54 @@ export function openMyInfoMenu(player: Player, deps: HubDeps): void {
   const classLevelLabel =
     selection !== undefined ? `§d${selection.classId} §7niv. ${Math.floor(selection.xp / 100) + 1}` : "§8non choisie";
 
-  void openWindow(player, "Mes infos", (form) => {
-    // ---- Panneau de droite : la fiche ----
-    form.body(
-      [        `§f§l${player.name}§r`,
-        ``,
-        `§eRôle      ${roleLabel}`,
-        `§eClasse    ${classLevelLabel}`,
-        `§eClan      ${myClan !== undefined ? `§a${myClan.data.name}` : "§8aucun"}`,
-        `§eMétiers   ${myJobs.length > 0 ? `§f${myJobs.map((j) => j.jobId).join(", ")}` : "§8aucun"}`,
-        `§eDons      §8bientôt disponible`,
-        record !== undefined
-          ? `§7Sessions : §f${record.data.sessions}   §7Première visite : §f${formatDate(record.data.firstSeen)}`
-          : `§7Sessions : §f?`,
-      ].join("\n"),
+  openTileMenu(player, "Mes infos", (menu) => {
+    // ---- Fiche du joueur (panneau de droite) ----
+    menu.body(
+      [
+        `§f§l${player.name}§r`,
+        `§eRôle §r${roleLabel}`,
+        `§eClasse §r${classLevelLabel}`,
+        `§eClan §r${myClan !== undefined ? `§a${myClan.data.name}` : "§8aucun"}`,
+        `§eMétiers §r${myJobs.length > 0 ? `§f${myJobs.map((j) => j.jobId).join(", ")}` : "§8aucun"}`,
+        `§eDons §8bientôt`,
+        `§7Sessions §f${record !== undefined ? record.data.sessions : "?"}`,
+        record !== undefined ? `§7Vu le §f${formatDate(record.data.firstSeen)}` : "",
+      ]
+        .filter((line) => line.length > 0)
+        .join("\n"),
     );
 
-    // ---- Sidebar : cartes d'action ----
-    form.header(`§e§lActions`);
-    form.button(`§dMa classe`, () => {
-      if (classes !== undefined) openClassesMenu(player, classes, false, () => openMyInfoMenu(player, deps));
+    // ---- Actions (colonne de gauche) ----
+    menu.action("classe", classes !== undefined ? `§dMa classe` : `§8Classe`, () => {
+      if (classes === undefined) {
+        player.sendMessage("§8[NaLandia] Le module Classes n'est pas actif.");
+        return;
+      }
+      openClassesMenu(player, classes, false, () => openMyInfoMenu(player, deps));
     });
-    if (jobs !== undefined) {
-      form.button(`§6Métiers`, () => openJobsMenu(player, jobs));
-    }
-    if (myClan !== undefined) {
-      form.button(`§aMon clan`, () => openMyClanMenu(player, territories, myClan));
-    } else {
-      form.button(`§aFonder un clan`, () => openCreateMenu(player, territories));
-    }
-  }).catch((error: unknown) => console.warn(`[Mes infos] ${error instanceof Error ? error.message : String(error)}`));
+    menu.action("jobs", deps.jobs !== undefined ? `§6Métiers` : `§8Métiers`, () => {
+      if (deps.jobs === undefined) {
+        player.sendMessage("§8[NaLandia] Le module Métiers n'est pas actif.");
+        return;
+      }
+      openJobsMenu(player, deps.jobs);
+    });
+    menu.action("clan", myClan !== undefined ? `§aMon clan` : `§aFonder un clan`, () => {
+      if (myClan !== undefined) openMyClanMenu(player, territories, myClan);
+      else openCreateMenu(player, territories);
+    });
+    menu.action("states", `§6États`, () => openStatesMenu(player, territories));
+    menu.action("quests", deps.quests !== undefined ? `§6Quêtes` : `§8Quêtes`, () => {
+      if (deps.quests === undefined) {
+        player.sendMessage("§8[NaLandia] Le module Quêtes n'est pas actif.");
+        return;
+      }
+      openQuestMenu(player, deps.quests, classes, deps.jobs);
+    });
+    menu.action("gifts", `§8Dons`, () =>
+      player.sendMessage("§8[NaLandia] Le système de dons arrivera plus tard."),
+    );
+
+    menu.action("back", `§7Fermer`, () => {});
+  });
 }

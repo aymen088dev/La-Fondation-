@@ -4322,10 +4322,74 @@ var TILE_MENUS = {
   Administration: {
     actions: ["roles", "players", "modules", "db", "classes", "states", "back"],
     data: []
+  },
+  /**
+   * Nations : liste paginée des États/clans. Trois nations par page (plus de
+   * place pour la fiche), puis page précédente, page suivante, et fondation.
+   */
+  Nations: {
+    actions: ["clan_0", "clan_1", "clan_2", "prev", "next", "create", "back"],
+    data: []
+  },
+  /** Mes infos : fiche du joueur à droite, actions de navigation à gauche. */
+  "Mes infos": {
+    actions: ["classe", "jobs", "clan", "states", "quests", "gifts", "back"],
+    data: []
+  },
+  /** Le Monde : les deux destinations + les repères, puis la fermeture. */
+  "Le Monde": {
+    actions: ["overworld", "mines", "ores", "where", "help", "close", "back"],
+    data: []
   }
 };
 function tileTitleFor(section) {
   return sheetTitleFor(section);
+}
+function wrapLabel(text, width, lines) {
+  const words = text.split(/\s+/);
+  const out = [];
+  let current = "";
+  let cut = false;
+  for (const word of words) {
+    const candidate = current.length === 0 ? word : `${current} ${word}`;
+    if (candidate.replace(/§./g, "").length <= width) {
+      current = candidate;
+      continue;
+    }
+    if (current.length > 0) out.push(current);
+    current = word;
+    if (out.length === lines) {
+      cut = true;
+      break;
+    }
+  }
+  if (current.length > 0 && out.length < lines) out.push(current);
+  else if (current.length > 0) cut = true;
+  const kept = out.slice(0, lines);
+  if (cut && kept.length > 0) {
+    const last = kept.length - 1;
+    const trimmed = fitLabel(kept[last], width - 1);
+    kept[last] = trimmed.endsWith("…") ? trimmed : `${trimmed}…`;
+  }
+  return kept.join("\n");
+}
+function fitLabel(text, max) {
+  const visible = text.replace(/§./g, "");
+  if (visible.length <= max) return text;
+  let kept = 0;
+  let out = "";
+  for (let index = 0; index < text.length; index++) {
+    const pair = text.slice(index, index + 2);
+    if (/^§./.test(pair)) {
+      out += pair;
+      index++;
+      continue;
+    }
+    if (kept >= max - 1) break;
+    out += text[index];
+    kept++;
+  }
+  return `${out}…`;
 }
 
 // src/ui/theme.ts
@@ -4491,17 +4555,28 @@ var OMForm = class {
   show() {
     return new Promise((resolve) => {
       this.resolveShow = resolve;
-      system7.runTimeout(() => {
-        void this.present();
-      }, 1);
+      this.retryPresent(1, 0);
     });
+  }
+  /**
+   * Ouvre le formulaire, en RÉESSAYANT si le client refuse encore la demande.
+   *
+   * C'est indispensable depuis les menus à tuiles : le client termine de fermer
+   * le formulaire à tuiles au moment où le suivant arrive, et il répondait
+   * « UserBusy » (ou levait une erreur) — le menu ne s'ouvrait alors JAMAIS,
+   * ce qui donnait l'impression d'un menu mort (liste des nations, sous-menus).
+   */
+  retryPresent(delay, attempt) {
+    system7.runTimeout(() => {
+      void this.present(attempt);
+    }, delay);
   }
   finish(reason) {
     const resolve = this.resolveShow;
     this.resolveShow = void 0;
     resolve?.(reason);
   }
-  async present() {
+  async present(attempt = 0) {
     try {
       const form = new NativeCustomForm(this.player, this.titleText);
       this.activeForm = form;
@@ -4535,10 +4610,19 @@ var OMForm = class {
       form.closeButton();
       const reason = await form.show();
       this.activeForm = void 0;
+      if (reason === "UserBusy" && attempt < 4) {
+        this.retryPresent(10, attempt + 1);
+        return;
+      }
       this.finish(reason === "UserBusy" ? "UserBusy" : reason === "ServerClosed" ? "ServerClosed" : "UserClosed");
     } catch (error) {
       this.activeForm = void 0;
       const message = error instanceof Error ? error.message : String(error);
+      if (attempt < 4) {
+        logMod.warn(`Menu « ${this.titleText} » : ${message} (nouvel essai)`);
+        this.retryPresent(10, attempt + 1);
+        return;
+      }
       logMod.warn(`Menu « ${this.titleText} » : ${message}`);
       this.player.sendMessage(`§c[NaLandia] Le menu « ${this.titleText} » n'a pas pu s'afficher : §f${message}`);
       this.finish("ServerClosed");
@@ -4897,48 +4981,54 @@ function openCreateMenu(player, manager) {
     (error) => console.warn(`[Clans] Erreur menu création : ${error instanceof Error ? error.message : String(error)}`)
   );
 }
-function openStatesMenu(player, manager) {
+var STATES_PER_PAGE = 3;
+function openStatesMenu(player, manager, page = 0) {
   const states = manager.all();
-  void openWindow(player, "États", (form) => {
-    const here = clanAtPlayer(manager, player);
-    form.header(`§e§lÉtats de NaLandia`);
-    form.label(
-      states.length === 0 ? `§8Aucun État fondé pour l'instant — sois le premier :` : `§7${states.length} État(s) sur la carte — clique pour la fiche :`
+  const pageCount = Math.max(1, Math.ceil(states.length / STATES_PER_PAGE));
+  const current = Math.min(Math.max(0, Math.trunc(page)), pageCount - 1);
+  const slice = states.slice(current * STATES_PER_PAGE, current * STATES_PER_PAGE + STATES_PER_PAGE);
+  const here = clanAtPlayer(manager, player);
+  const canFound = manager.findByMemberId(player.id) === void 0 && manager.findByOwner(player.name) === void 0;
+  openTileMenu(player, "Nations", (menu) => {
+    menu.body(
+      [
+        states.length === 0 ? "§8Aucun État fondé pour l'instant." : `§7${states.length} État(s) sur la carte — page §f${current + 1}§7/§f${pageCount}`,
+        here !== void 0 ? `§7Tu es ici : ${getColor(here.data.color).code}§l${here.data.name}§r` : "§7Tu es ici : §ozone libre",
+        here !== void 0 ? `§8${extentLine(here.data.chunkKeys.length)}` : "§8Utilise §f/sn:create§8 pour fonder ton clan ici."
+      ].join("\n")
     );
-    form.divider();
-    if (states.length > 0) {
-      for (const state of states) {
-        const color = getColor(state.data.color);
-        form.header(`${color.code}§l${state.data.name}§r`);
-        form.label(
-          [
-            `§7Dirigé par §f${state.data.owner}`,
-            `§7Territoire §f${extentLine(state.data.chunkKeys.length)}`
-          ].join("\n")
-        );
-        form.button(`§6Ouvrir la fiche de ${state.data.name}`, () => showStateInfo(player, state, manager));
-        form.divider();
+    for (let slot = 0; slot < STATES_PER_PAGE; slot++) {
+      const state = slice[slot];
+      const key = `clan_${slot}`;
+      if (state === void 0) {
+        menu.action(key, "§8—", () => {
+        });
+        continue;
       }
-      form.divider();
-    }
-    if (here !== void 0) {
-      const color = getColor(here.data.color);
-      form.button(
-        `§aTu es ici : §l${color.code}${here.data.name}`,
-        () => showStateInfo(player, here, manager)
+      const color = getColor(state.data.color);
+      const label = fitLabel(
+        `${color.code}${state.data.name}§r §8· §7${state.data.owner} §8· ${state.data.chunkKeys.length}ch`,
+        26
       );
+      menu.action(key, label, () => showStateInfo(player, state, manager));
+    }
+    menu.action("prev", current > 0 ? `§7Page précédente` : `§8—`, () => {
+      if (current > 0) openStatesMenu(player, manager, current - 1);
+    });
+    menu.action("next", current < pageCount - 1 ? `§7Page suivante` : `§8—`, () => {
+      if (current < pageCount - 1) openStatesMenu(player, manager, current + 1);
+    });
+    if (canFound) {
+      menu.action("create", `§aFonder un clan`, () => openCreateMenu(player, manager));
+    } else if (here !== void 0) {
+      menu.action("create", fitLabel(`§6${here.data.name} (ici)`, 26), () => showStateInfo(player, here, manager));
     } else {
-      form.button(`§7Tu es ici : §ozone libre`, () => {
-        say(player, "§7[Clans] Ce chunk n'appartient à personne. §f/sn:create §7pour le revendiquer.");
+      menu.action("create", "§8—", () => {
       });
     }
-    if (manager.findByMemberId(player.id) === void 0 && manager.findByOwner(player.name) === void 0) {
-      form.divider();
-      form.button(`§a§lFonder mon clan (/sn:create)`, () => openCreateMenu(player, manager));
-    }
-  }).catch(
-    (error) => console.warn(`[Clans] Erreur menu États : ${error instanceof Error ? error.message : String(error)}`)
-  );
+    menu.action("back", `§7Fermer`, () => {
+    });
+  });
 }
 function showStateInfo(player, territory, manager) {
   const data = territory.data;
@@ -5726,51 +5816,55 @@ function generateChunk(dimension, plan, cx, cz) {
 // src/mines/ui.ts
 function openWorldMenu(player, mines2, back) {
   const inMines = mines2.isInMines(player);
-  void openWindowRaw(player, windowTitle("Le Monde"), (form) => {
-    if (back !== void 0) form.back(back);
-    form.header(`§b§lLes portes du monde§r`);
-    form.label(
-      inMines ? `§7Tu es actuellement dans §b§lLa Mine§r` : `§7Tu es actuellement dans le §a§lMonde normal§r`
-    );
-    form.divider();
-    form.header(`§l§aMONDE NORMAL§r`);
-    form.label(
+  const oreList = ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join("§8, ");
+  const notifier = (message) => {
+    player.sendMessage(message);
+  };
+  openTileMenu(player, "Le Monde", (menu) => {
+    menu.body(
       [
-        `§7La surface : biomes, constructions, tes clans…`,
-        inMines ? `§eAller : §fte téléporte à ta DERNIÈRE position§e ici.` : `§aTu y es déjà.`
+        `§b§lLes portes du monde§r`,
+        inMines ? "§7Tu es actuellement dans §b§lLa Mine§r" : "§7Tu es actuellement dans le §a§lMonde normal§r",
+        "§7Choisis une destination dans la colonne de gauche.",
+        `§8Strates : ${oreList}`
       ].join("\n")
     );
-    form.button(`§a§lAller au monde normal`, () => {
+    menu.action("overworld", inMines ? `§aMonde normal` : `§8Monde normal (ici)`, () => {
       if (!inMines) {
-        player.sendMessage("§7[Mines] Tu es déjà dans le monde normal.");
+        notifier("§7[Mines] Tu es déjà dans le monde normal.");
         return;
       }
-      player.sendMessage(mines2.goNormal(player));
+      notifier(mines2.goNormal(player));
     });
-    form.divider();
-    form.header(`§l§bLA MINE§r`);
-    form.label(
-      [
-        `§7Un monde §fentièrement massé dans la pierre§7, en profondeur :`,
-        `§8- §f70 couches§8 à miner entre deux lits de bedrock`,
-        `§8- à toi de creuser tes galeries, façon vrai minage`,
-        `§8- minerais §fplus riches qu'en surface§8, sans excès`
-      ].join("\n")
-    );
-    form.button(`§b§lDescendre dans la Mine`, () => {
+    menu.action("mines", inMines ? `§8La Mine (ici)` : `§bDescendre dans la Mine`, () => {
       if (inMines) {
-        player.sendMessage("§7[Mines] Tu es déjà dans la mine.");
+        notifier("§7[Mines] Tu es déjà dans la mine.");
         return;
       }
-      player.sendMessage(mines2.goMines(player));
+      notifier(mines2.goMines(player));
     });
-    form.divider();
-    form.label(
-      `§8Strates : ${ORES_PUBLIC.map((ore) => `${ore.color}${ore.label}`).join("§8 - ")}`
+    menu.action(
+      "ores",
+      `§6Sous mes pieds ?`,
+      () => notifier(`§7[Mines] À la profondeur où tu te trouves, cherche : ${oreList}§7.`)
     );
-  }).catch(
-    (error) => console.warn(`[Mines] Erreur menu monde : ${error instanceof Error ? error.message : String(error)}`)
-  );
+    menu.action("where", `§eOù suis-je ?`, () => {
+      const { x, y, z } = player.location;
+      notifier(
+        `§7[Mines] Position §f${Math.floor(x)}§7, §f${Math.floor(y)}§7, §f${Math.floor(z)}§7 — §f${player.dimension.id}§7.`
+      );
+    });
+    menu.action(
+      "help",
+      `§7Aide minage`,
+      () => notifier("§7[Mines] §f/sn:mine§7 descend ou remonte instantanément. La mine est un bloc de pierre plein : à toi de creuser.")
+    );
+    menu.action("close", `§7Fermer`, () => {
+    });
+    menu.action("back", `§7Retour au menu`, () => {
+      if (back !== void 0) back();
+    });
+  });
 }
 
 // src/territories/commands.ts
@@ -7593,8 +7687,8 @@ function openClassesMenu(player, classes2, isAdmin = false, back) {
       menu.data(
         `desc_${index}`,
         [
-          info.description,
-          isCurrent ? `§6Voie actuelle — niveau ${classLevel(selection?.xp ?? 0)}` : selection === void 0 ? `§aDisponible` : `§8Choix définitif`
+          wrapLabel(info.description, 22, 2),
+          isCurrent ? `§6Ta voie — niv. ${classLevel(selection?.xp ?? 0)}` : selection === void 0 ? `§aDisponible` : `§8Choix définitif`
         ].join("\n")
       );
     });
@@ -8172,32 +8266,53 @@ function openMyInfoMenu(player, deps) {
   const myJobs = jobs2?.jobsOf(player.name) ?? [];
   const record = db2 !== void 0 ? allKnownPlayers(db2).find((r) => r.data.name === player.name) : void 0;
   const classLevelLabel = selection !== void 0 ? `§d${selection.classId} §7niv. ${Math.floor(selection.xp / 100) + 1}` : "§8non choisie";
-  void openWindow(player, "Mes infos", (form) => {
-    form.body(
+  openTileMenu(player, "Mes infos", (menu) => {
+    menu.body(
       [
         `§f§l${player.name}§r`,
-        ``,
-        `§eRôle      ${roleLabel}`,
-        `§eClasse    ${classLevelLabel}`,
-        `§eClan      ${myClan !== void 0 ? `§a${myClan.data.name}` : "§8aucun"}`,
-        `§eMétiers   ${myJobs.length > 0 ? `§f${myJobs.map((j) => j.jobId).join(", ")}` : "§8aucun"}`,
-        `§eDons      §8bientôt disponible`,
-        record !== void 0 ? `§7Sessions : §f${record.data.sessions}   §7Première visite : §f${formatDate(record.data.firstSeen)}` : `§7Sessions : §f?`
-      ].join("\n")
+        `§eRôle §r${roleLabel}`,
+        `§eClasse §r${classLevelLabel}`,
+        `§eClan §r${myClan !== void 0 ? `§a${myClan.data.name}` : "§8aucun"}`,
+        `§eMétiers §r${myJobs.length > 0 ? `§f${myJobs.map((j) => j.jobId).join(", ")}` : "§8aucun"}`,
+        `§eDons §8bientôt`,
+        `§7Sessions §f${record !== void 0 ? record.data.sessions : "?"}`,
+        record !== void 0 ? `§7Vu le §f${formatDate(record.data.firstSeen)}` : ""
+      ].filter((line) => line.length > 0).join("\n")
     );
-    form.header(`§e§lActions`);
-    form.button(`§dMa classe`, () => {
-      if (classes2 !== void 0) openClassesMenu(player, classes2, false, () => openMyInfoMenu(player, deps));
+    menu.action("classe", classes2 !== void 0 ? `§dMa classe` : `§8Classe`, () => {
+      if (classes2 === void 0) {
+        player.sendMessage("§8[NaLandia] Le module Classes n'est pas actif.");
+        return;
+      }
+      openClassesMenu(player, classes2, false, () => openMyInfoMenu(player, deps));
     });
-    if (jobs2 !== void 0) {
-      form.button(`§6Métiers`, () => openJobsMenu(player, jobs2));
-    }
-    if (myClan !== void 0) {
-      form.button(`§aMon clan`, () => openMyClanMenu(player, territories2, myClan));
-    } else {
-      form.button(`§aFonder un clan`, () => openCreateMenu(player, territories2));
-    }
-  }).catch((error) => console.warn(`[Mes infos] ${error instanceof Error ? error.message : String(error)}`));
+    menu.action("jobs", deps.jobs !== void 0 ? `§6Métiers` : `§8Métiers`, () => {
+      if (deps.jobs === void 0) {
+        player.sendMessage("§8[NaLandia] Le module Métiers n'est pas actif.");
+        return;
+      }
+      openJobsMenu(player, deps.jobs);
+    });
+    menu.action("clan", myClan !== void 0 ? `§aMon clan` : `§aFonder un clan`, () => {
+      if (myClan !== void 0) openMyClanMenu(player, territories2, myClan);
+      else openCreateMenu(player, territories2);
+    });
+    menu.action("states", `§6États`, () => openStatesMenu(player, territories2));
+    menu.action("quests", deps.quests !== void 0 ? `§6Quêtes` : `§8Quêtes`, () => {
+      if (deps.quests === void 0) {
+        player.sendMessage("§8[NaLandia] Le module Quêtes n'est pas actif.");
+        return;
+      }
+      openQuestMenu(player, deps.quests, classes2, deps.jobs);
+    });
+    menu.action(
+      "gifts",
+      `§8Dons`,
+      () => player.sendMessage("§8[NaLandia] Le système de dons arrivera plus tard.")
+    );
+    menu.action("back", `§7Fermer`, () => {
+    });
+  });
 }
 
 // src/permissions/commands.ts

@@ -1,7 +1,26 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v20.1 — FIX « clic sans effet / le menu revient » + croix de fermeture + slider à gauche + glyphes nettoyés**.
+> Dernière mise à jour : **v2.7.0 — CAUSE RACINE du menu Nations trouvée (titre accentué) + fin du cadre gris Mojang + cartes de classe au propre**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
+
+---
+
+## 🆕 v2.7.0 — Nations réparé, plus aucun cadre gris, tuiles partout où c'était demandé (sept. 2026)
+
+**La demande** : « le menu nation ne s'ouvre pas / ultra buggé, pas le design demandé », « on ne peut pas scroller », « les options ne sont pas à gauche comme je veux », « dans Classe mets le titre plus haut (tout en haut des cartes), le nom des classes en haut des cartes, le texte sans dépasser la limite », « enlève ce cadre blanc chelou », « tous les autres menus avec leur propre design ».
+
+- [x] **CAUSE RACINE du menu Nations (« États ») trouvée — et elle est générale** : le JSON UI ne connaît un menu que par son **titre**, comparé **littéralement** (`(#title_text = 'NaLandia » Nations')`). Or la section s'appelait « États », **avec un accent** : le titre réel ne matchait ni le panneau Nations ni l'exclusion du panneau de secours → le menu **retombait entièrement sur le rendu vanilla** (cadre gris Mojang + liste de boutons centrée). D'où, en jeu, à la fois « pas de design », « options pas à gauche » et « cadre blanc chelou ». La section s'appelle désormais **`Nations`** (ASCII, et c'est le mot déjà employé par le serveur) et **un test interdit tout accent dans un titre à tuiles** : ce bug ne peut plus revenir silencieusement.
+- [x] **Plus AUCUN cadre gris Mojang nulle part** : `custom_form` (les formulaires à champs : créations, sanctions, réglages…) est réécrit dans `RP/ui/server_form.json` et hérite d'un fond `om_dialog_bg` (notre fenêtre or & argent) au lieu du `dialog_background_hollow_3` gris clair de Mojang, avec titre **or**. Le formulaire de secours (`om_default_form`, utilisé si un titre n'est pas reconnu — y compris par un autre add-on) reçoit le **même habillage** : un routage raté reste dans notre thème au lieu d'afficher un panneau blanc. Garde-fou de test : le fond vanilla `common.dialog_background_opaque` ne doit plus apparaître dans le fichier.
+- [x] **Menus convertis en tuiles supplémentaires** (chacun avec son panneau) : **Nations** (liste paginée des États, 3 par page, pagination précédent/suivant, fondation contextuelle), **Mes infos** (fiche du joueur à droite, actions à gauche), **Le Monde** (destinations + repères à gauche : monde normal, mine, strates, position, aide). Le contrat d'index vit dans `src/ui/tiles.ts`, partagé avec le JSON UI.
+- [x] **« Le Monde » était déclaré mais jamais ouvert** : le panneau existait dans le JSON et le contrat était juste, mais `openWorldMenu` ouvrait encore un formulaire natif. Détecté par un **nouveau test** qui vérifie que **chaque section à tuiles est réellement ouverte par un script** (`openTileMenu(..., "Section")`) — ce genre d'écart entre le RP et le script ne peut plus passer.
+- [x] **Options réellement « à gauche »** : la colonne de tuiles garde son ancrage à gauche et les libellés sont désormais **alignés à gauche** (variable `$align` du contrôle `om_action_bar`, surchargeable menu par menu) au lieu d'être centrés dans la colonne.
+- [x] **Plus aucun chevauchement** : les listes défilantes des panneaux Nations / Mes infos / Le Monde passaient sous la barre du bas (6 lignes de 25 px + la barre à 192 px sur une fenêtre de 216 px). Lignes ramenées à **24 px** : les 6 tuiles + la barre tiennent désormais dans le cadre.
+- [x] **Menu Classes remis au propre** (demande explicite) : le **nom de la voie est en haut de la carte** (au lieu d'être au milieu), chaque carte fait **92 × 108** avec sa description **dans** la carte, sous le nom ; les textes sont **bornés à la source** (`wrapLabel` : 2 lignes de 22 caractères, `fitLabel` : coupe propre avec « … ») donc plus rien ne dépasse de la boîte — la description passe de 92 × 66 / police 0,8 à **92 × 50 / police 0,72**, la plaque de texte et la barre de retour ont été repositionnées en conséquence.
+- [x] **Toutes les tuiles sont bornées** : les libellés des Nations (nom + chef + chunks) sont coupés à la source à 26 caractères visibles — un nom de clan long ne déborde plus de sa tuile.
+- [x] **Ouverture fiabilisée** (le « le menu ne s'ouvre jamais ») : `OMForm` réessaie d'ouvrir un formulaire à champs quand le client répond **UserBusy** (le client termine de fermer le menu à tuiles juste avant) — 5 tentatives espacées au lieu d'un abandon silencieux.
+- [x] **Tests** : **76/76** — 3 gardes ajoutées (titres ASCII, chaque section réellement ouverte par un script, habillage des formulaires à champs) et les contrôles existants (index de collection, textures, drapeaux, ni curseur ni contrôle tactile maison) continuent de passer.
+- [x] Packs **2.7.0** (BP, RP, serveur) — bump obligatoire pour invalider le cache Bedrock. Typecheck + tests OK.
+- [ ] **Reste à faire** (prochaine étape) : passer les derniers sous-menus à tuiles — Membres, fiche de membre, Drapeau, Bio, Inviter, Dissoudre, Modération, Rôles, Joueurs, Modules, DB, Classes (fiches), Métiers, Quêtes. Ils ont déjà l'habillage or & argent (plus de cadre gris), mais gardent la liste de boutons native.
 
 ---
 
