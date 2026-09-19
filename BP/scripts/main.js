@@ -1049,6 +1049,22 @@ function interpolate(template, args) {
   });
 }
 
+// node_modules/@bedrock-core/i18n/src/display.ts
+function resolveDisplay(resolve, value) {
+  if (typeof value === "string") {
+    return resolve?.(value) ?? value;
+  }
+  if (value.translate === void 0) {
+    return value.text ?? "";
+  }
+  const template = resolve?.(value.translate) ?? value.translate;
+  if (value.with === void 0) {
+    return template;
+  }
+  const params = Array.isArray(value.with) ? value.with : (value.with.rawtext ?? []).map((part) => part.text ?? (part.translate !== void 0 ? resolve?.(part.translate) ?? part.translate : ""));
+  return interpolate(template, params);
+}
+
 // node_modules/@bedrock-core/i18n/src/createI18n.ts
 var defaultInstance;
 function currentI18n() {
@@ -1087,6 +1103,13 @@ function useContext(ctx) {
   const [, d] = getCurrentFiber();
   invariant(d, "useContext");
   return d.useContext(ctx);
+}
+
+// node_modules/@bedrock-core/ui-runtime/src/hooks/useExit.ts
+function useExit() {
+  const [, d] = getCurrentFiber();
+  invariant(d, "useExit");
+  return d.useExit();
 }
 
 // node_modules/@bedrock-core/ui-runtime/src/data/Translation.ts
@@ -5027,6 +5050,20 @@ var Fragment = ({ children }) => ({
 });
 
 // node_modules/@bedrock-core/ui-runtime/src/components/Image.ts
+var Image = ({ texture, ...rest }) => ({
+  type: "image",
+  props: {
+    // Control block unchanged — the common font slot at [606] included — so every
+    // fixed offset before [1024] stays put.
+    ...withControl(rest),
+    // The texture is the payload's TAIL (v0008): an image cell is always terminal
+    // (no children, one component field), so the path is emitted verbatim after the
+    // control block — unpadded, unprefixed, uncapped. The RP decodes it as the whole
+    // post-[1024] remainder (see components/image.json), which is what lifts the old
+    // 80-byte cap on texture paths.
+    value: { tail: texture ?? UNSTYLED_TEXTURE }
+  }
+});
 var imageWriter = (payload, form, ctx) => {
   emitHeader(payload, form, ctx);
 };
@@ -8618,6 +8655,302 @@ var logTerr = Logger.getLogger("NaLandia", "territories");
 var logMod = Logger.getLogger("NaLandia", "moderation");
 var logPerm = Logger.getLogger("NaLandia", "permissions");
 
+// node_modules/@bedrock-core/ore-styled/src/tokens.ts
+var BASE = "textures/ui/ore-styled";
+var oreTheme = {
+  tokens: {
+    spacing: { xs: 2, sm: 4, md: 8, lg: 12, xl: 16 },
+    fontColor: { default: "§f", muted: "§7", danger: "§c", success: "§a", disabled: "§8" }
+  },
+  components: {
+    button: {
+      padding: { x: 8, y: 4 },
+      variants: {
+        primary: { textures: { default: `${BASE}/button/primary/background`, hover: `${BASE}/button/primary/background_hover`, pressed: `${BASE}/button/primary/background_pressed`, disabled: `${BASE}/button/disabled/background` }, textStyle: { font: "mojangles", scale: 1, color: "§f", disabledColor: "§8" } },
+        secondary: { textures: { default: `${BASE}/button/secondary/background`, hover: `${BASE}/button/secondary/background_hover`, pressed: `${BASE}/button/secondary/background_pressed`, disabled: `${BASE}/button/disabled/background` }, textStyle: { font: "mojangles", scale: 1, color: "§0", disabledColor: "§8" } },
+        contrast: { textures: { default: `${BASE}/button/contrast/background`, hover: `${BASE}/button/contrast/background_hover`, pressed: `${BASE}/button/contrast/background_pressed`, disabled: `${BASE}/button/disabled/background` }, textStyle: { font: "mojangles", scale: 1, color: "§f", disabledColor: "§7" } },
+        danger: { textures: { default: `${BASE}/button/danger/background`, hover: `${BASE}/button/danger/background_hover`, pressed: `${BASE}/button/danger/background_pressed`, disabled: `${BASE}/button/disabled/background` }, textStyle: { font: "mojangles", scale: 1, color: "§f", disabledColor: "§8" } },
+        realm: { textures: { default: `${BASE}/button/realm/background`, hover: `${BASE}/button/realm/background_hover`, pressed: `${BASE}/button/realm/background_pressed`, disabled: `${BASE}/button/disabled/background` }, textStyle: { font: "mojangles", scale: 1, color: "§f", disabledColor: "§8" } },
+        hero: { textures: { default: `${BASE}/button/primary/background`, hover: `${BASE}/button/primary/background_hover`, pressed: `${BASE}/button/primary/background_pressed`, disabled: `${BASE}/button/disabled/background` }, textStyle: { font: "minecraftTen", scale: 1, color: "§f", disabledColor: "§8" } },
+        transparent: { textures: { default: `${BASE}/button/transparent/background`, hover: `${BASE}/button/transparent/background_hover`, pressed: `${BASE}/button/transparent/background_pressed`, disabled: `${BASE}/button/transparent/background` }, textStyle: { font: "mojangles", scale: 1, color: "§f", disabledColor: "§8" } }
+      }
+    },
+    card: {
+      padding: 8,
+      gap: 4,
+      variants: {
+        "default": { textures: { background: `${BASE}/card/default/background` } },
+        "light": { textures: { background: `${BASE}/card/light/background` } },
+        "dark": { textures: { background: `${BASE}/card/dark/background` } },
+        "raised": { textures: { background: `${BASE}/card/raised/background` } },
+        "raised-light": { textures: { background: `${BASE}/card/raised-light/background` } },
+        "raised-dark": { textures: { background: `${BASE}/card/raised-dark/background` } }
+      }
+    },
+    checkbox: {
+      size: 12,
+      gap: 4,
+      textures: {
+        unchecked: `${BASE}/checkbox/unchecked`,
+        uncheckedHover: `${BASE}/checkbox/unchecked_hover`,
+        uncheckedDisabled: `${BASE}/checkbox/unchecked_disabled`,
+        checked: `${BASE}/checkbox/checked`,
+        checkedHover: `${BASE}/checkbox/checked_hover`,
+        checkedDisabled: `${BASE}/checkbox/checked_disabled`
+      }
+    },
+    divider: {
+      textures: {
+        horizontal: {
+          default: `${BASE}/divider/horizontal/default`,
+          light: `${BASE}/divider/horizontal/light`,
+          dark: `${BASE}/divider/horizontal/dark`
+        },
+        vertical: {
+          default: `${BASE}/divider/vertical/default`,
+          light: `${BASE}/divider/vertical/light`,
+          dark: `${BASE}/divider/vertical/dark`
+        }
+      }
+    },
+    header: {
+      padding: 4,
+      gap: 4,
+      iconSize: 15,
+      textStyle: { font: "minecraftTen", scale: 1.2, color: "§0", separator: "§8" },
+      textures: {
+        background: `${BASE}/header/background`,
+        back: `${BASE}/button/back/background`,
+        backHover: `${BASE}/button/back/background_hover`,
+        backPressed: `${BASE}/button/back/background_pressed`,
+        close: `${BASE}/button/close/background`,
+        closeHover: `${BASE}/button/close/background_hover`,
+        closePressed: `${BASE}/button/close/background_pressed`
+      }
+    },
+    menuRow: {
+      padding: 4,
+      gap: 4,
+      iconSize: 16,
+      textures: {
+        background: `${BASE}/dropdown/option/background`,
+        backgroundHover: `${BASE}/dropdown/option/background_hover`,
+        backgroundPressed: `${BASE}/dropdown/option/background_hover`,
+        backgroundSelected: `${BASE}/dropdown/option/background_selected`
+      },
+      // Full scale for the subtitle too — a sub-1 scale lands on a fractional
+      // font_scale_factor and reads mushy in game; the §7 grey already separates it.
+      textStyle: { font: "mojangles", scale: 1, color: "§f", disabledColor: "§8", muted: "§7", mutedDisabled: "§8" }
+    },
+    radio: {
+      size: 12,
+      gap: 4,
+      textures: {
+        unselected: `${BASE}/radio/unselected`,
+        unselectedHover: `${BASE}/radio/unselected_hover`,
+        unselectedDisabled: `${BASE}/radio/unselected_disabled`,
+        selected: `${BASE}/radio/selected`,
+        selectedHover: `${BASE}/radio/selected_hover`,
+        selectedDisabled: `${BASE}/radio/selected_disabled`
+      }
+    },
+    tabs: {
+      height: 20,
+      padding: { x: 8, y: 2 },
+      textures: {
+        active: `${BASE}/tabs/tab_active`,
+        inactive: `${BASE}/tabs/tab_inactive`,
+        inactiveHover: `${BASE}/tabs/tab_inactive_hover`,
+        bar: `${BASE}/tabs/bar`
+      }
+    },
+    toggle: {
+      width: 27,
+      height: 14,
+      textures: {
+        off: `${BASE}/toggle/off`,
+        offHover: `${BASE}/toggle/off_hover`,
+        offDisabled: `${BASE}/toggle/off_disabled`,
+        on: `${BASE}/toggle/on`,
+        onHover: `${BASE}/toggle/on_hover`,
+        onDisabled: `${BASE}/toggle/on_disabled`
+      }
+    },
+    toggleButton: {
+      height: 36,
+      paddingX: 8,
+      textures: {
+        normal: `${BASE}/toggle-button/background`,
+        hover: `${BASE}/toggle-button/background_hover`,
+        pressed: `${BASE}/toggle-button/background_pressed`,
+        disabled: `${BASE}/toggle-button/background_disabled`,
+        disabledPressed: `${BASE}/toggle-button/background_disabled_pressed`
+      },
+      textStyle: {
+        selected: { font: "mojangles", scale: 1, color: "§f", disabledColor: "§8" },
+        unselected: { font: "mojangles", scale: 1, color: "§0", disabledColor: "§8" }
+      }
+    },
+    itemSlot: {
+      size: 18,
+      textures: {
+        slot: "textures/ui/slot_enabled",
+        slotHover: "textures/ui/slot_enabled_hover",
+        slotDisabled: "textures/ui/slot_disabled",
+        equipment: {
+          helmet: "textures/ui/empty_armor_slot_helmet",
+          chestplate: "textures/ui/empty_armor_slot_chestplate",
+          leggings: "textures/ui/empty_armor_slot_leggings",
+          boots: "textures/ui/empty_armor_slot_boots",
+          shield: "textures/ui/empty_armor_slot_shield"
+        }
+      }
+    },
+    field: {
+      padding: { top: 10, bottom: 8, x: 8 },
+      gap: 4,
+      textStyle: { font: "mojangles", scale: 1, value: "§f", placeholder: "§7", disabled: "§8" },
+      textures: {
+        background: `${BASE}/field/background`,
+        backgroundHover: `${BASE}/field/background_hover`,
+        backgroundDisabled: `${BASE}/field/background_disabled`
+      }
+    },
+    dropdown: {
+      padding: { top: 8, bottom: 10, x: 10 },
+      arrow: { width: 7, height: 4 },
+      textStyle: { font: "mojangles", scale: 1, value: "§0", disabled: "§8" },
+      textures: {
+        background: `${BASE}/dropdown/background`,
+        backgroundHover: `${BASE}/dropdown/background_hover`,
+        backgroundDisabled: `${BASE}/dropdown/background_disabled`,
+        arrow: `${BASE}/dropdown/arrow`,
+        arrowDisabled: `${BASE}/dropdown/arrow_disabled`,
+        popup: `${BASE}/dropdown/popup`,
+        option: `${BASE}/dropdown/option/background`,
+        optionHover: `${BASE}/dropdown/option/background_hover`,
+        optionSelected: `${BASE}/dropdown/option/background_selected`
+      }
+    },
+    form: {
+      labelGap: 2,
+      labelStyle: { font: "mojangles", scale: 1, bold: true, color: "§f", disabledColor: "§8" }
+    },
+    slider: {
+      height: 20,
+      trackHeight: 6,
+      thumb: { width: 16, height: 16 },
+      textStyle: { font: "mojangles", scale: 1, value: "§f", disabled: "§8" },
+      textures: {
+        track: `${BASE}/slider/track`,
+        trackDisabled: `${BASE}/slider/track_disabled`,
+        progress: `${BASE}/slider/progress`,
+        progressDisabled: `${BASE}/slider/progress_disabled`,
+        thumb: `${BASE}/slider/thumb`,
+        thumbHover: `${BASE}/slider/thumb_hover`,
+        thumbDisabled: `${BASE}/slider/thumb_disabled`
+      }
+    }
+  }
+};
+var theme = oreTheme;
+
+// node_modules/@bedrock-core/ore-styled/src/Card.tsx
+function Card({ children, variant = "raised", ...layout }) {
+  const v = theme.components.card.variants[variant];
+  return /* @__PURE__ */ React.createElement(
+    Panel,
+    {
+      background: v.textures.background,
+      padding: theme.components.card.padding,
+      gap: theme.components.card.gap,
+      flexDirection: "column",
+      ...layout
+    },
+    children
+  );
+}
+
+// node_modules/@bedrock-core/ore-styled/src/Header.tsx
+function Header({ title, breadcrumbs, onBack, onClose, ...layout }) {
+  const resolver = useTranslationResolver();
+  const h = theme.components.header;
+  const { color, separator } = h.textStyle;
+  const resolve = (segment) => resolveDisplay(resolver, segment);
+  const head = resolve(title);
+  const trail = (breadcrumbs ?? []).map(resolve).join(`${separator} > ${color}`);
+  return /* @__PURE__ */ React.createElement(
+    Panel,
+    {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: h.gap,
+      padding: h.padding,
+      marginTop: 1,
+      marginLeft: 1,
+      marginRight: 1,
+      background: h.textures.background,
+      ...layout
+    },
+    onBack ? /* @__PURE__ */ React.createElement(Button, { width: h.iconSize, height: h.iconSize, background: h.textures.back, backgroundHover: h.textures.backHover, backgroundPressed: h.textures.backPressed, onPress: onBack }) : /* @__PURE__ */ React.createElement(Panel, { width: h.iconSize, height: h.iconSize }),
+    /* @__PURE__ */ React.createElement(Panel, { flexGrow: 1, flexShrink: 1, justifyContent: "center", alignItems: "center" }, /* @__PURE__ */ React.createElement(Text, { font: h.textStyle.font, scale: h.textStyle.scale, maxLines: 1 }, trail ? `${color}${head}${separator} > ${color}${trail}` : `${color}${head}`)),
+    onClose ? /* @__PURE__ */ React.createElement(Button, { width: h.iconSize, height: h.iconSize, background: h.textures.close, backgroundHover: h.textures.closeHover, backgroundPressed: h.textures.closePressed, onPress: onClose }) : /* @__PURE__ */ React.createElement(Panel, { width: h.iconSize, height: h.iconSize })
+  );
+}
+
+// node_modules/@bedrock-core/ore-styled/src/MenuRow.tsx
+function MenuRow({
+  icon,
+  iconSize,
+  title,
+  subtitle,
+  chevron = true,
+  selected = false,
+  depth = 0,
+  enabled = true,
+  onPress,
+  ...layout
+}) {
+  const row = theme.components.menuRow;
+  const { font, scale } = row.textStyle;
+  const titleColor = enabled ? row.textStyle.color : row.textStyle.disabledColor;
+  const subtitleColor = enabled ? row.textStyle.muted : row.textStyle.mutedDisabled;
+  const resolver = useTranslationResolver();
+  const line = (source, color, shadow) => {
+    const literal = typeof source === "string" && (source === "" || resolver?.(source) === void 0);
+    return /* @__PURE__ */ React.createElement(Text, { font, scale, shadow, maxLines: 1, overflow: "ellipsis" }, literal ? `${color}${source}` : source);
+  };
+  const lines = [line(title, titleColor, true)];
+  if (subtitle) {
+    lines.push(line(subtitle, subtitleColor, false));
+  }
+  const children = [];
+  if (icon !== void 0) {
+    children.push(/* @__PURE__ */ React.createElement(Image, { texture: icon, width: iconSize ?? row.iconSize, height: iconSize ?? row.iconSize }));
+  }
+  children.push(/* @__PURE__ */ React.createElement(Panel, { flexDirection: "column", flexGrow: 1, flexShrink: 1, justifyContent: "center", gap: 0 }, lines));
+  if (chevron) {
+    children.push(/* @__PURE__ */ React.createElement(Text, null, `${subtitleColor}>`));
+  }
+  return /* @__PURE__ */ React.createElement(
+    Button,
+    {
+      background: selected ? row.textures.backgroundSelected : row.textures.background,
+      backgroundHover: selected ? void 0 : row.textures.backgroundHover,
+      backgroundPressed: selected ? void 0 : row.textures.backgroundPressed,
+      backgroundLocked: selected ? void 0 : row.textures.background,
+      padding: row.padding,
+      alignSelf: "stretch",
+      marginLeft: depth * theme.tokens.spacing.lg,
+      justifyContent: "flex-start",
+      enabled,
+      onPress,
+      ...layout
+    },
+    /* @__PURE__ */ React.createElement(Panel, { flexDirection: "row", alignItems: "center", gap: row.gap, width: "100%" }, children)
+  );
+}
+
 // node_modules/@bedrock-core/ui-runtime/src/jsx/jsx-runtime.ts
 function renderJSX(tag, props) {
   return {
@@ -8630,73 +8963,58 @@ var jsxs = renderJSX;
 var Fragment2 = Fragment;
 
 // src/ui/kit.tsx
-var TEX = {
-  window: "textures/ui/om_window",
-  band: "textures/ui/om_header_band",
-  card: "textures/ui/om_card",
-  cardHover: "textures/ui/om_card_hover",
-  cardPress: "textures/ui/om_card_press",
-  btn: "textures/ui/om_btn",
-  btnHover: "textures/ui/om_btn_hover",
-  btnPress: "textures/ui/om_btn_press",
-  plate: "textures/ui/om_plate"
-};
-function Window(props) {
-  return /* @__PURE__ */ jsx(
-    Panel,
+var { spacing } = theme.tokens;
+function BodyLines(props) {
+  const lines = props.text.split("\n");
+  return /* @__PURE__ */ jsx(Fragment2, { children: lines.map((line) => /* @__PURE__ */ jsx(Text, { wordBreak: "break-word", children: line })) });
+}
+function AppShell(props) {
+  const exit = useExit();
+  return /* @__PURE__ */ jsxs(Card, { flexDirection: "column", padding: 0, gap: 0, children: [
+    /* @__PURE__ */ jsx(Header, { title: props.title, onBack: props.onBack, onClose: exit }),
+    /* @__PURE__ */ jsx(
+      Panel,
+      {
+        flexGrow: 1,
+        flexShrink: 1,
+        flexDirection: "column",
+        gap: spacing.sm,
+        padding: spacing.sm,
+        children: props.children
+      }
+    )
+  ] });
+}
+function NavColumn(props) {
+  return /* @__PURE__ */ jsx(Scroll, { width: props.width ?? "35%", children: /* @__PURE__ */ jsx(Panel, { flexDirection: "column", gap: spacing.xs, children: props.items.map((item) => /* @__PURE__ */ jsx(
+    MenuRow,
     {
-      width: props.width,
-      height: props.height,
-      background: TEX.window,
-      padding: 6,
+      title: item.title,
+      subtitle: item.subtitle,
+      onPress: item.onPress,
+      enabled: item.enabled ?? true
+    }
+  )) }) });
+}
+function ContentCard(props) {
+  return /* @__PURE__ */ jsx(
+    Card,
+    {
+      variant: "raised",
       flexDirection: "column",
+      gap: spacing.sm,
+      padding: spacing.sm,
+      flexGrow: props.flexGrow,
+      width: props.width,
       children: props.children
     }
   );
 }
-function TitleBar(props) {
-  return /* @__PURE__ */ jsxs(Panel, { height: 20, flexDirection: "column", gap: 0, children: [
-    /* @__PURE__ */ jsx(Panel, { height: 18, background: TEX.band, children: /* @__PURE__ */ jsx(Panel, { flexDirection: "row", justifyContent: "center", alignItems: "center", width: "100%", height: "100%", children: /* @__PURE__ */ jsx(Text, { children: `§6§l${props.title}§r` }) }) }),
-    props.subtitle !== void 0 ? /* @__PURE__ */ jsx(Text, { children: `§8${props.subtitle}` }) : null
-  ] });
-}
-function TileButton(props) {
-  return /* @__PURE__ */ jsx(
-    Button,
-    {
-      width: props.width ?? 180,
-      height: props.height ?? 24,
-      background: TEX.card,
-      backgroundHover: TEX.cardHover,
-      backgroundPressed: TEX.cardPress,
-      onPress: props.onPress,
-      enabled: props.enabled ?? true,
-      children: /* @__PURE__ */ jsx(Text, { children: props.label })
-    }
-  );
-}
-function Plate(props) {
-  return /* @__PURE__ */ jsx(Panel, { background: TEX.plate, padding: 8, flexDirection: "column", gap: 4, flex: props.flex, ...props, children: props.children });
-}
 function SidebarLayout(props) {
-  return /* @__PURE__ */ jsxs(Window, { width: props.width ?? 330, height: props.height ?? 236, children: [
-    /* @__PURE__ */ jsx(TitleBar, { title: props.title }),
-    /* @__PURE__ */ jsxs(Panel, { flexDirection: "row", gap: 6, height: "100%", paddingTop: 4, children: [
-      /* @__PURE__ */ jsx(Scroll, { width: 150, children: /* @__PURE__ */ jsx(Panel, { flexDirection: "column", gap: 4, children: props.nav }) }),
-      /* @__PURE__ */ jsx(Plate, { flex: 1, children: props.content })
-    ] })
-  ] });
-}
-function ScrollList(props) {
-  return /* @__PURE__ */ jsx(Scroll, { width: props.width ?? "100%", height: props.height, children: /* @__PURE__ */ jsx(Panel, { flexDirection: "column", gap: 3, children: props.items.map((item) => /* @__PURE__ */ jsx(
-    TileButton,
-    {
-      label: item.label,
-      onPress: item.onPress,
-      enabled: item.enabled ?? true,
-      width: "100%"
-    }
-  )) }) });
+  return /* @__PURE__ */ jsx(AppShell, { title: props.title, onBack: props.onBack, children: /* @__PURE__ */ jsxs(Panel, { flexDirection: "row", gap: spacing.sm, flexGrow: 1, children: [
+    /* @__PURE__ */ jsx(NavColumn, { items: props.nav }),
+    /* @__PURE__ */ jsx(ContentCard, { flexGrow: 1, children: props.content })
+  ] }) });
 }
 
 // src/ui/labels.ts
@@ -9016,21 +9334,20 @@ function openWindow(player, section, build) {
 function openWindowRaw(player, title, build) {
   return buildAndShow(player, title, build);
 }
+function toNavItem(action) {
+  return {
+    title: fitLabel(action.label.replace(/§./g, "").trim(), 28),
+    onPress: action.onClick
+  };
+}
 function TileScreen({ title, bodyText, ordered, capacity }) {
   const visible2 = ordered.slice(0, capacity);
   return /* @__PURE__ */ jsx(
     SidebarLayout,
     {
       title,
-      nav: visible2.map((action) => /* @__PURE__ */ jsx(
-        TileButton,
-        {
-          label: fitLabel(action.label, 24),
-          width: "100%",
-          onPress: action.onClick
-        }
-      )),
-      content: /* @__PURE__ */ jsx(BodyText, { text: bodyText })
+      nav: visible2.map(toNavItem),
+      content: /* @__PURE__ */ jsx(BodyLines, { text: bodyText })
     }
   );
 }
@@ -9039,23 +9356,10 @@ function ListScreen(props) {
     SidebarLayout,
     {
       title: props.title,
-      nav: /* @__PURE__ */ jsx(
-        ScrollList,
-        {
-          width: "100%",
-          items: props.ordered.map((action) => ({
-            label: fitLabel(action.label, 24),
-            onPress: action.onClick
-          }))
-        }
-      ),
-      content: /* @__PURE__ */ jsx(BodyText, { text: props.bodyText })
+      nav: props.ordered.map(toNavItem),
+      content: /* @__PURE__ */ jsx(BodyLines, { text: props.bodyText })
     }
   );
-}
-function BodyText(props) {
-  const lines = props.text.length > 0 ? props.text.split("\n") : [];
-  return /* @__PURE__ */ jsx(Fragment2, { children: lines.map((line) => /* @__PURE__ */ jsx(Text, { children: line })) });
 }
 function openTileMenu(player, section, build) {
   const ordered = [];
@@ -12784,8 +13088,6 @@ function openHubMenu(player, deps) {
         return;
       }
       openAdminMenu(player, deps);
-    });
-    menu.action("back", `§7Fermer`, () => {
     });
   });
 }

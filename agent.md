@@ -11,8 +11,11 @@
 ## 1. L'architecture UI en 30 secondes
 
 ```
-src/ui/kit.tsx     ← KIT VISUEL : Window, TitleBar, TileButton, SidebarLayout,
-                     Sheet, ScrollList… (textures om_* de l'identité)
+src/ui/kit.tsx     ← KIT VISUEL : compose le DESIGN SYSTEM officiel du
+                     framework (@bedrock-core/ore-styled : Header, MenuRow,
+                     Card, Divider + tokens). AUCUNE texture maison.
+                     Briques : AppShell, SidebarLayout, NavColumn,
+                     ContentCard, Sheet, SectionTitle, BodyLines.
 src/ui/theme.tsx   ← MOTEUR : openTileMenu (builder menu.action/body → JSX
                      → render()) + OMForm (formulaires natifs) + Observables
 src/ui/labels.ts   ← helpers purs : pageSlice, fitLabel, wrapLabel
@@ -48,8 +51,11 @@ RP/ui/server_form.json ← ROUTING du render pack (vendu, NE PAS ÉDITER).
    historiques (duplicates, doubles rendus, replis visibles). Un écran, c'est
    du JSX dans `src/`.
 3. **Toute brique visuelle réutilisée 2 fois va dans `kit.tsx`** — les écrans
-   assemblent, ils ne dessinent pas. Les textures om_* se posent via le kit
-   uniquement.
+   assemblent, ils ne dessinent pas. L'identité visuelle = le design system
+   `@bedrock-core/ore-styled` (Header, MenuRow, Card… + tokens d'espacement) :
+   ne réinvente JAMAIS un bouton/carte avec des textures à la main.
+   **Max 2 `<Scroll>` par écran** (pool figé du framework) — le contenu hors
+   Scroll tombe dans le scroll racine implicite.
 4. **Les formulaires à champs restent natifs** — ne réinvente pas l'input
    texte en JSX : `OMForm.textField` (CustomForm natif) est le bon outil.
 5. **Bump la version RP+BP à chaque changement de JSON/textures**
@@ -79,10 +85,12 @@ S'inspirer de `TileScreen`/`ListScreen` dans `theme.tsx`.
 
 Garder `openWindowRaw(player, "Titre", (form) => { form.textField(…); … })`.
 
-### Textures du thème
+### Identité visuelle
 
-`python3 scripts/make_ui_textures.py` régénère les PNG `RP/textures/ui/om_*`
-(cuir/or). Les noter dans `kit.tsx` (constante `TEX`).
+Le design vient du design system `@bedrock-core/ore-styled` (Header, MenuRow,
+Card, Divider, tokens) — textures `textures/ui/ore-styled/` vendues dans le RP.
+Pour les écrans, passe par le kit (`kit.tsx`) : ne pose jamais de texture à la
+main dans un écran.
 
 ## 4. Dépannage
 

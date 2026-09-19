@@ -1,210 +1,117 @@
 /**
  * Kit UI NaLandia — socle visuel commun au-dessus de @bedrock-core/ui.
  *
- * Le framework (JSX + flexbox + scroll natif) fournit la MÉCANIQUE ; ce kit
- * fournit l'IDENTITÉ : fenêtre cuir/or aux textures om_*, boutons à 3 états,
- * en-tête à bandeau, listes scrollables et fiches. Aucun écran ne pose de
- * texture à la main : il assemble ces briques.
+ * L'identité visuelle vient du DESIGN SYSTEM officiel du framework
+ * (@bedrock-core/ore-styled : Header, MenuRow, Card, Divider + tokens) —
+ * celui-là même que le framework utilise pour ses propres écrans (guides).
+ * Ce kit ne pose AUCUNE texture maison : il COMPOSE les briques officielles
+ * en layouts NaLandia (sidebar + contenu, fiche, sections).
+ *
+ * Pattern de structure (copié des écrans officiels du framework) :
+ *   <Card padding={0}>            ← racine plein viewport
+ *     <Header />                  ← barre : retour + titre + ×
+ *     <Panel flexGrow>            ← zone de contenu
+ *       <Scroll>…</Scroll>        ← régions défilantes (max 2 par écran !)
+ *     </Panel>
+ *   </Card>
  *
  * Règle d'or : tout ce qui est ici est réutilisable, tout ce qui est dans un
  * écran est spécifique. Une brique manquante se crée ICI, jamais dans l'écran.
  */
-import { Panel, Text, Button, Image, Scroll } from "@bedrock-core/ui";
-import type { ControlProps } from "@bedrock-core/ui";
+import { Card, Divider, Header, MenuRow, theme } from "@bedrock-core/ore-styled";
+import { Panel, Scroll, Text, useExit } from "@bedrock-core/ui";
 import type { JSX } from "@bedrock-core/ui";
-import type { FlexSize } from "@bedrock-core/ui/flexbox";
 
-// ---------------------------------------------------------------------------
-// Textures du thème (générées par scripts/make_ui_textures.py)
-// ---------------------------------------------------------------------------
+const { spacing } = theme.tokens;
 
-const TEX = {
-  window: "textures/ui/om_window",
-  band: "textures/ui/om_header_band",
-  card: "textures/ui/om_card",
-  cardHover: "textures/ui/om_card_hover",
-  cardPress: "textures/ui/om_card_press",
-  btn: "textures/ui/om_btn",
-  btnHover: "textures/ui/om_btn_hover",
-  btnPress: "textures/ui/om_btn_press",
-  plate: "textures/ui/om_plate",
-} as const;
-
-// Palette de couleurs (code de mise en forme Minecraft + RGB pour les fonds).
-export const COLORS = {
-  gold: "§6",
-  cream: "§f",
-  muted: "§7",
-  dark: "§8",
-  green: "§a",
-  red: "§c",
-  aqua: "§b",
-  purple: "§d",
-  yellow: "§e",
-} as const;
+export { Card, Divider, Header, MenuRow, theme };
 
 // ---------------------------------------------------------------------------
 // Briques de base
 // ---------------------------------------------------------------------------
 
-/** Fenêtre ornée : fond cuir/or, taille fixe, contenu centré. */
-export function Window(props: { width: number; height: number; children?: JSX.Node }) {
+/** Titre de section : police Ore UI (`minecraftTen`) + filet sombre. */
+export function SectionTitle(props: { label: string; marginTop?: boolean }) {
   return (
-    <Panel
-      width={props.width}
-      height={props.height}
-      background={TEX.window}
-      padding={6}
-      flexDirection="column"
-    >
-      {props.children}
-    </Panel>
+    <>
+      <Text
+        font="minecraftTen"
+        shadow={true}
+        maxLines={1}
+        overflow="ellipsis"
+        marginTop={props.marginTop === true ? spacing.sm : undefined}
+      >
+        {props.label}
+      </Text>
+      <Divider variant="dark" />
+    </>
   );
 }
 
-/** Bandeau de titre : bande dorée + texte centré (l'identité NaLandia). */
-export function TitleBar(props: { title: string; subtitle?: string }) {
+/** Bloc de texte multi-ligne : chaque \n devient une ligne (codes § supportés). */
+export function BodyLines(props: { text: string }) {
+  const lines = props.text.split("\n");
   return (
-    <Panel height={20} flexDirection="column" gap={0}>
-      <Panel height={18} background={TEX.band}>
-        <Panel flexDirection="row" justifyContent="center" alignItems="center" width="100%" height="100%">
-          <Text>{`§6§l${props.title}§r`}</Text>
-        </Panel>
-      </Panel>
-      {props.subtitle !== undefined ? <Text>{`§8${props.subtitle}`}</Text> : null}
-    </Panel>
+    <>
+      {lines.map((line) => (
+        <Text wordBreak="break-word">{line}</Text>
+      ))}
+    </>
   );
-}
-
-/** Bouton thémé NaLandia (3 états, textures om_card). */
-export function TileButton(props: {
-  label: string;
-  onPress: () => void;
-  width?: FlexSize;
-  height?: number;
-  enabled?: boolean;
-}) {
-  return (
-    <Button
-      width={props.width ?? 180}
-      height={props.height ?? 24}
-      background={TEX.card}
-      backgroundHover={TEX.cardHover}
-      backgroundPressed={TEX.cardPress}
-      onPress={props.onPress}
-      enabled={props.enabled ?? true}
-    >
-      <Text>{props.label}</Text>
-    </Button>
-  );
-}
-
-/** Petit bouton d'action (barre du bas, retours). */
-export function SmallButton(props: {
-  label: string;
-  onPress: () => void;
-  flex?: number;
-  width?: number;
-  enabled?: boolean;
-}) {
-  return (
-    <Button
-      flex={props.flex}
-      width={props.width}
-      height={22}
-      background={TEX.btn}
-      backgroundHover={TEX.btnHover}
-      backgroundPressed={TEX.btnPress}
-      onPress={props.onPress}
-      enabled={props.enabled ?? true}
-    >
-      <Text>{props.label}</Text>
-    </Button>
-  );
-}
-
-/** Plaque de texte (le panneau de droite des menus sidebar). */
-export function Plate(props: { children?: JSX.Node; flex?: number } & ControlProps) {
-  return (
-    <Panel background={TEX.plate} padding={8} flexDirection="column" gap={4} flex={props.flex} {...props}>
-      {props.children}
-    </Panel>
-  );
-}
-
-/** Ligne de fiche : libellé doré à gauche, valeur crème à droite. */
-export function InfoRow(props: { label: string; value: string }) {
-  return (
-    <Panel flexDirection="row" gap={6} height={14}>
-      <Text>{`§e${props.label} §7:`}</Text>
-      <Text>{`§f${props.value}`}</Text>
-    </Panel>
-  );
-}
-
-/** Séparateur discret. */
-export function Divider() {
-  return <Panel height={2}>{null}</Panel>;
 }
 
 // ---------------------------------------------------------------------------
-// Compositions : sidebar + contenu, liste scrollable, fiche
+// Compositions : écran, navigation, contenu
 // ---------------------------------------------------------------------------
 
 /**
- * Layout « console » : colonne de navigation à gauche (scrollable), panneau
- * de contenu à droite. C'est la structure du hub, de l'admin et des menus à
- * liste. `nav` = boutons de gauche, `content` = panneau de droite.
+ * Écran complet plein viewport, pattern officiel du framework : Card racine +
+ * Header (retour optionnel + × qui ferme) + zone de contenu qui remplit.
  */
-export function SidebarLayout(props: {
+export function AppShell(props: {
   title: string;
-  nav: JSX.Node;
-  content: JSX.Node;
-  width?: number;
-  height?: number;
+  onBack?: () => void;
+  children?: JSX.Node;
 }) {
+  const exit = useExit();
   return (
-    <Window width={props.width ?? 330} height={props.height ?? 236}>
-      <TitleBar title={props.title} />
-      <Panel flexDirection="row" gap={6} height="100%" paddingTop={4}>
-        <Scroll width={150}>
-          <Panel flexDirection="column" gap={4}>
-            {props.nav}
-          </Panel>
-        </Scroll>
-        <Plate flex={1}>{props.content}</Plate>
+    <Card flexDirection="column" padding={0} gap={0}>
+      <Header title={props.title} onBack={props.onBack} onClose={exit} />
+      <Panel
+        flexGrow={1}
+        flexShrink={1}
+        flexDirection="column"
+        gap={spacing.sm}
+        padding={spacing.sm}
+      >
+        {props.children}
       </Panel>
-    </Window>
+    </Card>
   );
 }
 
-/** Barre d'actions du bas (retour / fermer). */
-export function FooterBar(props: { onBack?: () => void; backLabel?: string; onClose?: () => void }) {
-  return (
-    <Panel flexDirection="row" gap={6} height={24} paddingTop={4}>
-      {props.onBack !== undefined ? (
-        <SmallButton flex={1} label={`§7${props.backLabel ?? "Retour"}`} onPress={props.onBack} />
-      ) : null}
-      {props.onClose !== undefined ? <SmallButton flex={1} label="§7Fermer" onPress={props.onClose} /> : null}
-    </Panel>
-  );
-}
-
-/** Liste scrollable de boutons (menus génériques : joueurs, sanctions…). */
-export function ScrollList(props: {
-  items: Array<{ label: string; onPress: () => void; enabled?: boolean }>;
-  width?: FlexSize;
-  height?: FlexSize;
+/**
+ * Colonne de navigation : MenuRows (titre + sous-titre + chevron, 3 états)
+ * dans une région défilante. `width` en % du parent (défaut 35 %).
+ */
+export function NavColumn(props: {
+  items: Array<{
+    title: string;
+    subtitle?: string;
+    onPress: () => void;
+    enabled?: boolean;
+  }>;
+  width?: number | `${number}%`;
 }) {
   return (
-    <Scroll width={props.width ?? "100%"} height={props.height}>
-      <Panel flexDirection="column" gap={3}>
+    <Scroll width={props.width ?? "35%"}>
+      <Panel flexDirection="column" gap={spacing.xs}>
         {props.items.map((item) => (
-          <TileButton
-            label={item.label}
+          <MenuRow
+            title={item.title}
+            subtitle={item.subtitle}
             onPress={item.onPress}
             enabled={item.enabled ?? true}
-            width="100%"
           />
         ))}
       </Panel>
@@ -212,31 +119,62 @@ export function ScrollList(props: {
   );
 }
 
+/** Carte de contenu (panneau droit d'un layout sidebar, ou corps de fiche). */
+export function ContentCard(props: {
+  children?: JSX.Node;
+  flexGrow?: number;
+  width?: number | `${number}%`;
+}) {
+  return (
+    <Card
+      variant="raised"
+      flexDirection="column"
+      gap={spacing.sm}
+      padding={spacing.sm}
+      flexGrow={props.flexGrow}
+      width={props.width}
+    >
+      {props.children}
+    </Card>
+  );
+}
+
 /**
- * Fiche de lecture : fenêtre simple (titre + contenu scrollable + pied).
+ * Layout « console » : navigation à gauche (scrollable), carte de contenu à
+ * droite. Un seul <Scroll> → dans la limite des 2 régions par écran.
+ */
+export function SidebarLayout(props: {
+  title: string;
+  nav: Array<{ title: string; subtitle?: string; onPress: () => void; enabled?: boolean }>;
+  content: JSX.Node;
+  onBack?: () => void;
+}) {
+  return (
+    <AppShell title={props.title} onBack={props.onBack}>
+      <Panel flexDirection="row" gap={spacing.sm} flexGrow={1}>
+        <NavColumn items={props.nav} />
+        <ContentCard flexGrow={1}>{props.content}</ContentCard>
+      </Panel>
+    </AppShell>
+  );
+}
+
+/**
+ * Fiche de lecture : écran simple (header + contenu scrollable).
  * Utilisée par les écrans de détail (classe, quête, document DB…).
  */
 export function Sheet(props: {
   title: string;
-  children?: JSX.Element;
-  footer?: JSX.Element;
-  width?: number;
-  height?: number;
+  onBack?: () => void;
+  children?: JSX.Node;
 }) {
   return (
-    <Window width={props.width ?? 300} height={props.height ?? 220}>
-      <TitleBar title={props.title} />
-      <Scroll height="100%" paddingTop={4}>
-        <Panel flexDirection="column" gap={4}>
+    <AppShell title={props.title} onBack={props.onBack}>
+      <Scroll>
+        <Panel flexDirection="column" gap={spacing.xs}>
           {props.children}
         </Panel>
       </Scroll>
-      <Panel height={24}>{props.footer}</Panel>
-    </Window>
+    </AppShell>
   );
-}
-
-/** Image thémée (drapeaux, mondes…) avec taille fixe. */
-export function ThemedImage(props: { texture: string; width: number; height: number }) {
-  return <Image texture={props.texture} width={props.width} height={props.height} />;
 }

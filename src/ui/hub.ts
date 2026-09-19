@@ -121,11 +121,6 @@ export function openHubMenu(player: Player, deps: HubDeps): void {
       }
       openAdminMenu(player, deps);
     });
-
-    // ---- Barre du bas ----
-    menu.action("back", `§7Fermer`, () => {
-      /* appuyer sur une tuile ferme déjà le formulaire */
-    });
   });
 }
 

@@ -26,9 +26,9 @@ import type {
   ModalFormData,
   MessageFormResponse,
 } from "@minecraft/server-ui";
-import { render, Text } from "@bedrock-core/ui";
+import { render } from "@bedrock-core/ui";
 import { logMod } from "../lib/log";
-import { SidebarLayout, TileButton, ScrollList } from "./kit";
+import { SidebarLayout, BodyLines } from "./kit";
 import { PANEL_TILE_CAPACITY, fitLabel } from "./labels";
 
 export const RP_PACK_ID = "33ca6e1c-4f30-46ae-8b56-1510382e3f61";
@@ -416,20 +416,22 @@ interface TileScreenProps {
   capacity: number;
 }
 
-/** Écran générique : colonne de tuiles à gauche, plaque de texte à droite. */
+/** Ligne de nav : libellé brut (le MenuRow colore lui-même). */
+function toNavItem(action: TileAction) {
+  return {
+    title: fitLabel(action.label.replace(/§./g, "").trim(), 28),
+    onPress: action.onClick,
+  };
+}
+
+/** Écran générique : colonne de tuiles à gauche, carte de texte à droite. */
 function TileScreen({ title, bodyText, ordered, capacity }: TileScreenProps) {
   const visible = ordered.slice(0, capacity);
   return (
     <SidebarLayout
       title={title}
-      nav={visible.map((action) => (
-        <TileButton
-          label={fitLabel(action.label, 24)}
-          width="100%"
-          onPress={action.onClick}
-        />
-      ))}
-      content={<BodyText text={bodyText} />}
+      nav={visible.map(toNavItem)}
+      content={<BodyLines text={bodyText} />}
     />
   );
 }
@@ -439,29 +441,9 @@ function ListScreen(props: { title: string; bodyText: string; ordered: TileActio
   return (
     <SidebarLayout
       title={props.title}
-      nav={
-        <ScrollList
-          width="100%"
-          items={props.ordered.map((action) => ({
-            label: fitLabel(action.label, 24),
-            onPress: action.onClick,
-          }))}
-        />
-      }
-      content={<BodyText text={props.bodyText} />}
+      nav={props.ordered.map(toNavItem)}
+      content={<BodyLines text={props.bodyText} />}
     />
-  );
-}
-
-/** La plaque de droite : texte multi-ligne (les \n deviennent des <Text>). */
-function BodyText(props: { text: string }) {
-  const lines = props.text.length > 0 ? props.text.split("\n") : [];
-  return (
-    <>
-      {lines.map((line) => (
-        <Text>{line}</Text>
-      ))}
-    </>
   );
 }
 

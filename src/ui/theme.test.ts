@@ -37,12 +37,17 @@ describe("Moteur UI (@bedrock-core/ui)", () => {
     }
   });
 
-  it("garde le kit avec les textures du thème", () => {
+  it("compose le design system officiel (ore-styled), pas de texture maison", () => {
     const kit = readFileSync(join(ROOT, "src/ui/kit.tsx"), "utf8");
-    for (const texture of ["om_window", "om_header_band", "om_card", "om_plate", "om_btn"]) {
-      expect(kit).toContain(texture);
-      expect(existsSync(join(ROOT, "RP/textures/ui", `${texture}.png`))).toBe(true);
+    // Les briques officielles du framework.
+    for (const brick of ["Header", "MenuRow", "Card", "Divider", "theme"]) {
+      expect(kit).toContain(brick);
     }
+    // Plus AUCUNE texture om_* dans le kit : l'identité vient du design system.
+    expect(kit).not.toContain("om_");
+    // Le pattern de structure officiel : Card racine + Header + Scroll borné.
+    expect(kit).toContain("useExit");
+    expect(kit).toContain("flexGrow={1}");
   });
 
   it("vend le render pack CoreUI complet dans le RP", () => {

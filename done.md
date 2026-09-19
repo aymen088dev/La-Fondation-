@@ -1,6 +1,6 @@
 # ✅ DONE.md — État d'avancement de NaLandia (ex-OpenMontage)
 
-> Dernière mise à jour : **v3.0.1 — Correctif critique : `server_form.json` du render pack CoreUI déplacé à `ui/` (seul chemin lu par le jeu) et ajouté en tête de `_ui_defs.json` — sans lui, le jeu affichait la charge utile brute `bcuiv…` au lieu de décoder les écrans. Dépendance BP réparée (RP `3.0.1`, dépendance CoreUI fantôme supprimée : le pack est vendu dans le nôtre).** — Migration complète vers le framework JSX `@bedrock-core/ui` : menus rendus en flexbox avec scroll natif, plus aucun JSON UI maison**.
+> Dernière mise à jour : **v3.0.2 — Kit UI refait sur le design system officiel `@bedrock-core/ore-styled` (Header breadcrumb + MenuRow + Card + tokens) en écrans plein viewport : fini les boutons terne aux textures maison dans des fenêtres trop petites. Doublon de textures `ore-styled/ore-styled` supprimé.** — Migration complète vers le framework JSX `@bedrock-core/ui` : menus rendus en flexbox avec scroll natif, plus aucun JSON UI maison**.
 > ⚠️ Projet **en développement** — ne pas utiliser sur un monde important.
 
 ---
